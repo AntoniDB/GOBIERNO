@@ -1,10 +1,14 @@
 import { PrismaClient } from "@/generated/prisma/client";
+   import { PrismaPg } from "@prisma/adapter-pg";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+   const globalForPrisma = globalThis as unknown as {
+     prisma: PrismaClient | undefined;
+   };
 
-// Prisma 7 requiere adapter o accelerateUrl en tipos, pero a runtime
-// el datasource configurado en prisma.config.ts es suficiente.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const prisma = globalForPrisma.prisma || new (PrismaClient as any)();
+   const adapter = new PrismaPg({
+     connectionString: process.env.DATABASE_URL,
+   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+   export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+   if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

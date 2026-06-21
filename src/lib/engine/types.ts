@@ -9,6 +9,14 @@ export interface GameState {
   treasury: number;
   population: number;
   seed: string;
+  gdp: number;
+  povertyRate: number;
+  unemploymentRate: number;
+  sickRate: number;
+  crimeRate: number;
+  foodSecurity: number;
+  educationLevel: number;
+  inflation: number;
   ministries: MinistryState[];
   officials: OfficialState[];
   parties: PartyState[];

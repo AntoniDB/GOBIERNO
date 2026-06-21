@@ -6,11 +6,10 @@ export default function Home() {
           Simulador de Gobierno
         </h1>
         <p className="text-muted-foreground">
-          Sesión 1 — Cimientos del proyecto
+          <a href="/dashboard" className="text-primary hover:underline">
+            Entrar al Panel de Control
+          </a>
         </p>
-        <div className="text-sm text-muted-foreground/60">
-          Prisma · NextAuth · Motor de cálculo
-        </div>
       </div>
     </main>
   );
