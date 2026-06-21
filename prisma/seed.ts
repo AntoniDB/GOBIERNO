@@ -1,8 +1,10 @@
 // @ts-nocheck — Seed script: mapeo entre datos de prueba y Prisma 7.
 import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient({});
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 // ─── Datos semilla ────────────────────────────────────────────────────────────
 
