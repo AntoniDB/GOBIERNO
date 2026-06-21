@@ -112,15 +112,16 @@ function generateVerdict(
  *
  * @param cases - Lista de casos judiciales activos
  * @param officials - Lista de funcionarios (para marcar CONVICTED)
- * @returns Casos actualizados y notificaciones generadas
+ * @returns Casos actualizados, notificaciones generadas e impactos en régimen
  */
 export function advanceJudicialCases(
   cases: JudicialCaseState[],
   officials: OfficialState[]
 ): {
   updatedCases: JudicialCaseState[];
-  updatedOfficials: { id: string; status: string }[];
+  updatedOfficials: { id: string; status: string; corruption?: number }[];
   notifications: TurnNotification[];
+  regimeImpacts: { type: string; value: number }[];
 } {
   const updatedOfficials = new Map<string, OfficialState>();
   for (const o of officials) {
@@ -129,6 +130,7 @@ export function advanceJudicialCases(
 
   const notifications: TurnNotification[] = [];
   const updatedCases: JudicialCaseState[] = [];
+  const regimeImpacts: { type: string; value: number }[] = [];
 
   for (const c of cases) {
     if (c.currentPhase === "CLOSED") {
@@ -184,6 +186,18 @@ export function advanceJudicialCases(
               title: "Ministro destituido",
               description: `${official.name} ha sido condenado y destituido de su cargo como ministro. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
             });
+          } else if (official.role === "GENERAL") {
+            official.status = "CONVICTED";
+            // Condena de un general corrupto → +10 subordinación militar al poder civil
+            regimeImpacts.push({
+              type: "militarySubordination",
+              value: BALANCE.REGIME_SUBORDINAR_GENERALES.militarySubordination,
+            });
+            notifications.push({
+              type: "case",
+              title: "General condenado",
+              description: `${official.name} (General) ha sido condenado. La subordinación militar al poder civil se fortalece. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
+            });
           } else {
             official.status = "CONVICTED";
           }
@@ -230,7 +244,7 @@ export function advanceJudicialCases(
   for (const [id, o] of updatedOfficials) {
     updatedOfficialsList.push({ id, status: o.status, corruption: o.corruption });
   }
-  return { updatedCases, updatedOfficials: updatedOfficialsList, notifications };
+  return { updatedCases, updatedOfficials: updatedOfficialsList, notifications, regimeImpacts };
 }
 
 /**

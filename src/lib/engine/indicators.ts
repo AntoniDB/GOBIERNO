@@ -1,10 +1,10 @@
 // ─── Funciones puras de indicadores sociales ──────────────────────────────────
 // Cálculo de pobreza, desempleo, salud, seguridad alimentaria, crimen,
-// educación, Gini e inflación simple.
+// educación, Gini, inflación simple y movilidad social.
 
 import type { GameState, ActiveLawState } from "./types";
 import { BALANCE } from "../balance";
-import { calculateInflation, calculateIncome, calculateExpenses } from "./economy";
+import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
 
 /**
  * Busca la eficiencia de un ministerio por su clave en el estado.
@@ -148,4 +148,104 @@ export function calculateInflationSimple(state: GameState): number {
   const income = calculateIncome(state);
   const expenses = calculateExpenses(state);
   return calculateInflation(state, expenses, income);
+}
+
+/**
+ * Calcula la movilidad social: redistribuye porcentajes poblacionales
+ * entre las 4 clases sociales según educación y crecimiento económico.
+ *
+ * - Educación alta (>50): mueve población de clases bajas a medias.
+ * - Crecimiento del PIB: acelera la movilidad ascendente.
+ * - Los porcentajes se renomarlizan para sumar 100%.
+ *
+ * @param state - Estado completo del juego
+ * @returns Mapa de claseKey → nuevo populationPercent
+ */
+export function calculateSocialMobility(
+  state: GameState
+): Record<string, number> {
+  const educationLevel = calculateEducation(state);
+  const currentGDP = calculateGDP(state);
+
+  // Estimar crecimiento mensual del PIB comparando con snapshot anterior
+  // (aproximación: usar educationLevel como proxy de productividad)
+  const gdpFactor =
+    (currentGDP / Math.max(1, currentGDP * 0.99) - 1) *
+    BALANCE.SOCIAL_MOBILITY_GDP_FACTOR * 100;
+
+  // Factor de educación: positivo si educación > 50 (base neutra)
+  const educationFactor =
+    (educationLevel - 50) * BALANCE.SOCIAL_MOBILITY_EDUCATION_FACTOR;
+
+  // Movilidad neta (positiva = ascenso social)
+  const mobilityRate = (educationFactor + gdpFactor) / 100;
+
+  // Calcular nuevos porcentajes aplicando movilidad
+  const newPercents: Record<string, number> = {};
+  const classOrder = ["EXTREME_POVERTY", "POVERTY", "MIDDLE", "ELITE"];
+
+  for (const sc of state.socialClasses) {
+    newPercents[sc.key] = sc.populationPercent;
+  }
+
+  if (mobilityRate > 0) {
+    // Ascenso: mover de EXTREME_POVERTY → POVERTY, POVERTY → MIDDLE, MIDDLE → ELITE
+    const transfer = Math.min(mobilityRate * 5, newPercents["EXTREME_POVERTY"] ?? 0);
+    if (newPercents["EXTREME_POVERTY"] !== undefined && newPercents["POVERTY"] !== undefined) {
+      newPercents["EXTREME_POVERTY"] -= transfer;
+      newPercents["POVERTY"] += transfer;
+    }
+
+    const transfer2 = Math.min(mobilityRate * 3, newPercents["POVERTY"] ?? 0);
+    if (newPercents["POVERTY"] !== undefined && newPercents["MIDDLE"] !== undefined) {
+      newPercents["POVERTY"] -= transfer2;
+      newPercents["MIDDLE"] += transfer2;
+    }
+
+    const transfer3 = Math.min(mobilityRate * 1.5, newPercents["MIDDLE"] ?? 0);
+    if (newPercents["MIDDLE"] !== undefined && newPercents["ELITE"] !== undefined) {
+      newPercents["MIDDLE"] -= transfer3;
+      newPercents["ELITE"] += transfer3;
+    }
+  } else if (mobilityRate < 0) {
+    // Descenso: mover en dirección opuesta
+    const rate = Math.abs(mobilityRate);
+    const transfer3 = Math.min(rate * 1.5, newPercents["ELITE"] ?? 0);
+    if (newPercents["ELITE"] !== undefined && newPercents["MIDDLE"] !== undefined) {
+      newPercents["ELITE"] -= transfer3;
+      newPercents["MIDDLE"] += transfer3;
+    }
+
+    const transfer2 = Math.min(rate * 3, newPercents["MIDDLE"] ?? 0);
+    if (newPercents["MIDDLE"] !== undefined && newPercents["POVERTY"] !== undefined) {
+      newPercents["MIDDLE"] -= transfer2;
+      newPercents["POVERTY"] += transfer2;
+    }
+
+    const transfer = Math.min(rate * 5, newPercents["POVERTY"] ?? 0);
+    if (newPercents["POVERTY"] !== undefined && newPercents["EXTREME_POVERTY"] !== undefined) {
+      newPercents["POVERTY"] -= transfer;
+      newPercents["EXTREME_POVERTY"] += transfer;
+    }
+  }
+
+  // Clamp mínimo 3% y máximo 70% para cada clase
+  for (const key of classOrder) {
+    if (newPercents[key] !== undefined) {
+      newPercents[key] = Math.max(3, Math.min(70, newPercents[key]));
+    }
+  }
+
+  // Renormalizar para que sumen 100%
+  const total = Object.values(newPercents).reduce((s, v) => s + v, 0);
+  if (total > 0 && total !== 100) {
+    const factor = 100 / total;
+    for (const key of classOrder) {
+      if (newPercents[key] !== undefined) {
+        newPercents[key] = Math.round(newPercents[key] * factor * 10) / 10;
+      }
+    }
+  }
+
+  return newPercents;
 }

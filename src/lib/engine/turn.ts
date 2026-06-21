@@ -32,14 +32,16 @@ import {
   calculateEducation,
   calculateGini,
   calculateInflationSimple,
+  calculateSocialMobility,
 } from "./indicators";
 // ── Funciones escritas en este módulo ────────────────────────────────────
-import { calculateApprovalByClass, calculateGeneralApproval } from "./approval";
+import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "./approval";
 import { advanceJudicialCases, openAutoCases } from "./justice";
 import { evaluateMotions } from "./congress";
 import {
   calculateRegimeMetrics,
   classifyRegime,
+  regenerateRegimeMetrics,
 } from "./regime";
 import { triggerRandomEvents } from "./events";
 import { generateMediaCoverage } from "./media";
@@ -350,12 +352,22 @@ export function processTurn(
 
   for (const sc of newState.socialClasses) {
     sc.approval = calculateApprovalByClass(sc, newState, eventsThisMonth);
+    // Recalcular demandas dinámicas según el estado actual
+    sc.demands = calculateClassDemands(sc, newState);
+  }
+
+  // Recalcular movilidad social y actualizar porcentajes poblacionales
+  const newPopulationPercents = calculateSocialMobility(newState);
+  for (const sc of newState.socialClasses) {
+    if (newPopulationPercents[sc.key] !== undefined) {
+      sc.populationPercent = newPopulationPercents[sc.key];
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 10: Avanzar casos judiciales + abrir casos automáticos
   // ═══════════════════════════════════════════════════════════════════════
-  const { updatedCases, updatedOfficials, notifications: caseNotifications } =
+  const { updatedCases, updatedOfficials, notifications: caseNotifications, regimeImpacts } =
     advanceJudicialCases(newState.judicialCases, newState.officials);
   newState.judicialCases = updatedCases;
   for (const upd of updatedOfficials) {
@@ -417,7 +429,7 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 11: Recalcular métricas de régimen + clasificar
   // ═══════════════════════════════════════════════════════════════════════
-  // Aplicar modificadores por acciones del turno
+  // Detectar acciones del jugador que afectan el régimen
   const regimeActions = {
     censorMedia: Object.values(input.mediaActions ?? {}).some(
       (a) => a === "censor"
@@ -425,14 +437,36 @@ export function processTurn(
     nombrarJuecesAfines: Object.keys(input.appointments ?? {}).some(
       (r) => r === "JUDGE"
     ),
-    disolverCongreso: false, // se determina por otras vías
-    estadoEmergencia: false, // se determina por otras vías
-    comprarVotos: false, // se determina por otras vías
+    // Disolver congreso: detectado si el jugador removió senadores sin reemplazo
+    disolverCongreso: input.mediaActions
+      ? Object.values(input.mediaActions).some((a) => a === "dissolve_congress")
+      : false,
+    // Estado de emergencia: detectado si la ley "estado-emergencia" está activa
+    estadoEmergencia: newState.activeLaws.some(
+      (l) => l.lawKey === "estado-emergencia"
+    ),
+    // Compra de votos: detectada si hay partyIds con beneficios
+    comprarVotos:
+      input.voteBuyingPartyIds !== undefined &&
+      input.voteBuyingPartyIds.length > 0,
   };
 
+  // Guardar métricas antes de aplicar modificadores (para regeneración)
+  const metricsBefore = { ...newState.regimeMetrics };
+
+  // Aplicar modificadores de acciones + leyes + organismos + veredictos
   newState.regimeMetrics = calculateRegimeMetrics(
     newState.regimeMetrics,
-    regimeActions
+    regimeActions,
+    newState.activeLaws,
+    newState.organisms,
+    regimeImpacts
+  );
+
+  // Regeneración gradual hacia el baseline (solo métricas no modificadas)
+  newState.regimeMetrics = regenerateRegimeMetrics(
+    newState.regimeMetrics,
+    metricsBefore
   );
 
   // ═══════════════════════════════════════════════════════════════════════

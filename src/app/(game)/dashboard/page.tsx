@@ -5,6 +5,7 @@ import { useGameStore } from "@/lib/store/game-store";
 import { getGameState } from "@/app/actions/game";
 import { getDemoGameId } from "@/app/actions/demo";
 import { IndicatorCards } from "@/components/game/indicator-cards";
+import { ApprovalBreakdown } from "@/components/game/approval-breakdown";
 import { EventFeed } from "@/components/game/event-feed";
 import { AdvanceButton } from "@/components/game/advance-button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +48,7 @@ export default function DashboardPage() {
         <AdvanceButton />
       </div>
       <IndicatorCards />
+      <ApprovalBreakdown />
       <EventFeed />
     </div>
   );

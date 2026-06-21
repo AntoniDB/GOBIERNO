@@ -8,6 +8,7 @@ import type {
   TurnNotification,
 } from "./types";
 import { BALANCE } from "../balance";
+import { calculateGeneralApproval } from "./approval";
 
 /**
  * Genera una descripción en español para cada tipo de evento.
@@ -139,12 +140,8 @@ export function triggerRandomEvents(
   );
   const povertyApproval = povertyClass?.approval ?? 50;
 
-  // Aprobación general (aproximación simple)
-  const generalApproval =
-    state.socialClasses.length > 0
-      ? state.socialClasses.reduce((s, c) => s + c.approval, 0) /
-        state.socialClasses.length
-      : 50;
+  // Aprobación general (promedio ponderado por población de las 4 clases)
+  const generalApproval = calculateGeneralApproval(state, []);
 
   // Subordinación militar: de las métricas de régimen
   const militarySub = state.regimeMetrics.militarySubordination;
@@ -157,6 +154,13 @@ export function triggerRandomEvents(
 
   // Inflación: estimación simple
   const inflation = BALANCE.BASE_INFLATION;
+
+  // ── Verificar si alguna clase social cumple condiciones de protesta ─────
+  const classProtestCondition = state.socialClasses.some(
+    (sc) =>
+      sc.approval < BALANCE.PROTEST_CLASS_APPROVAL_THRESHOLD &&
+      sc.populationPercent > BALANCE.PROTEST_CLASS_POPULATION_THRESHOLD
+  );
 
   // ── Evaluar cada tipo de evento contra sus condiciones ─────────────────
   const eventChecks: {
@@ -187,12 +191,28 @@ export function triggerRandomEvents(
       type: "PROTEST",
       condition:
         povertyRate > BALANCE.EVENT_PROTEST_POVERTY_THRESHOLD ||
-        povertyApproval < BALANCE.EVENT_PROTEST_APPROVAL_THRESHOLD,
+        povertyApproval < BALANCE.EVENT_PROTEST_APPROVAL_THRESHOLD ||
+        classProtestCondition,
       baseProb: BALANCE.EVENT_PROTEST_PROB,
       severityFn: () => {
         const povertyFactor = Math.max(0, povertyRate - 30) / 70;
         const approvalFactor = Math.max(0, 50 - povertyApproval) / 50;
-        return Math.min(100, (povertyFactor + approvalFactor) * 50);
+        // Factor adicional por clase en crisis
+        const classCrisisFactor = classProtestCondition
+          ? state.socialClasses.reduce((max, sc) => {
+              if (
+                sc.approval < BALANCE.PROTEST_CLASS_APPROVAL_THRESHOLD &&
+                sc.populationPercent > BALANCE.PROTEST_CLASS_POPULATION_THRESHOLD
+              ) {
+                const factor =
+                  (BALANCE.PROTEST_CLASS_APPROVAL_THRESHOLD - sc.approval) / 20 +
+                  (sc.populationPercent - BALANCE.PROTEST_CLASS_POPULATION_THRESHOLD) / 75;
+                return Math.max(max, factor);
+              }
+              return max;
+            }, 0)
+          : 0;
+        return Math.min(100, (povertyFactor + approvalFactor + classCrisisFactor) * 50);
       },
     },
     {

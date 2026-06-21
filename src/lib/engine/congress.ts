@@ -29,6 +29,7 @@ export interface VoteResult {
     vote: "for" | "against" | "abstain";
     score: number;
   }[];
+  voteBuyingDetected: boolean;
 }
 
 /** Moción opositora generada por el congreso (censura o juicio político) */
@@ -207,6 +208,7 @@ function simulateVoteCore(
     approved,
     perParty,
     perSenator,
+    voteBuyingDetected: rewardedPartyIds.size > 0,
   };
 }
 

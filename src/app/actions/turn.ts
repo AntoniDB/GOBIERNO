@@ -260,6 +260,11 @@ export async function advanceMonth(
   }[] = [];
 
   if (input.proposedLaws && input.proposedLaws.length > 0) {
+    // Construir set de partidos beneficiados por compra de votos
+    const rewardedPartyIds = input.voteBuyingPartyIds
+      ? new Set(input.voteBuyingPartyIds)
+      : new Set<string>();
+
     for (const lawKey of input.proposedLaws) {
       const catalogEntry = lawCatalogMap.get(lawKey);
       if (!catalogEntry) continue;
@@ -278,6 +283,7 @@ export async function advanceMonth(
         })),
         catalogEntry.idealIdeology as unknown as Record<string, number>,
         latestSnapshot?.approval ?? 50,
+        rewardedPartyIds,
       );
 
       lawResults.push({

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, SocialClassState, EventState } from "@/lib/engine/types";
-import { calculateApprovalByClass, calculateGeneralApproval } from "@/lib/engine/approval";
+import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "@/lib/engine/approval";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
@@ -121,5 +121,37 @@ describe("calculateGeneralApproval", () => {
     const general = calculateGeneralApproval(state, []);
     expect(general).toBeGreaterThanOrEqual(0);
     expect(general).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("calculateClassDemands", () => {
+  it("extrema pobreza siempre demanda alimentación y empleo", () => {
+    const state = crearEstadoBase();
+    const sc = crearClaseSocial({ key: "EXTREME_POVERTY", healthAccess: 15, educationLevel: 20 });
+    const demands = calculateClassDemands(sc, state);
+    expect(demands).toContain("alimentación");
+    expect(demands).toContain("empleo");
+  });
+
+  it("pobreza con crimen alto demanda seguridad", () => {
+    const state = crearEstadoBase();
+    const sc = crearClaseSocial({ key: "POVERTY" });
+    const demands = calculateClassDemands(sc, state);
+    expect(demands.some((d) => d === "seguridad" || d === "empleo")).toBe(true);
+  });
+
+  it("élite demanda libertad económica y baja tributación", () => {
+    const state = crearEstadoBase();
+    const sc = crearClaseSocial({ key: "ELITE" });
+    const demands = calculateClassDemands(sc, state);
+    expect(demands).toContain("libertad económica");
+    expect(demands).toContain("baja tributación");
+  });
+
+  it("máximo 4 demandas por clase", () => {
+    const state = crearEstadoBase();
+    const sc = crearClaseSocial({ key: "MIDDLE", healthAccess: 20, educationLevel: 20 });
+    const demands = calculateClassDemands(sc, state);
+    expect(demands.length).toBeLessThanOrEqual(4);
   });
 });

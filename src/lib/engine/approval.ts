@@ -99,6 +99,67 @@ export function calculateApprovalByClass(
 }
 
 /**
+ * Calcula las demandas dinámicas de una clase social según el estado actual.
+ *
+ * Cada clase tiene demandas que evolucionan con las condiciones del país.
+ * Máximo 4 demandas por clase, priorizando las más urgentes.
+ *
+ * @param socialClass - La clase social a evaluar
+ * @param state - Estado completo del juego
+ * @returns Lista de demandas como strings en español
+ */
+export function calculateClassDemands(
+  socialClass: SocialClassState,
+  state: GameState
+): string[] {
+  const demands: string[] = [];
+  const crimeRate = calculatePoverty(state); // usamos indicadores relevantes
+  const inflation = calculateInflationSimple(state);
+  const avgCorruption =
+    state.officials.length > 0
+      ? state.officials.reduce((s, o) => s + o.corruption, 0) /
+        state.officials.length
+      : 0;
+
+  switch (socialClass.key) {
+    case "EXTREME_POVERTY":
+      demands.push("alimentación", "empleo");
+      if (socialClass.healthAccess < 30) demands.push("salud");
+      if (socialClass.educationLevel < 25) demands.push("educación");
+      if (crimeRate > 40) demands.push("seguridad");
+      break;
+
+    case "POVERTY":
+      demands.push("empleo");
+      if (crimeRate > 30) demands.push("seguridad");
+      if (inflation > 10) demands.push("estabilidad económica");
+      if (socialClass.healthAccess < 50) demands.push("salud");
+      if (socialClass.educationLevel < 40) demands.push("educación");
+      break;
+
+    case "MIDDLE":
+      demands.push("estabilidad");
+      if (inflation > 8) demands.push("control de inflación");
+      if (avgCorruption > 40) demands.push("transparencia");
+      demands.push("educación");
+      if (crimeRate > 20) demands.push("seguridad");
+      break;
+
+    case "ELITE":
+      demands.push("libertad económica", "baja tributación");
+      if (avgCorruption > 30) demands.push("seguridad jurídica");
+      demands.push("estabilidad política");
+      break;
+
+    default:
+      demands.push("estabilidad");
+      break;
+  }
+
+  return demands.slice(0, 4);
+}
+
+/**
  * Calcula la aprobación general del gobierno como promedio ponderado
  * de la aprobación de cada clase social por su porcentaje poblacional.
  *

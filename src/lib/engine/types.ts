@@ -180,6 +180,8 @@ export interface TurnInput {
   mediaActions?: Record<string, "censor" | "close" | "boost" | "none">;
   /** ¿El jugador ordenó investigar a alguien? officialId[] */
   investigations?: string[];
+  /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */
+  voteBuyingPartyIds?: string[];
 }
 
 /** Resultado de procesar un turno */

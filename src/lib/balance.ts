@@ -210,6 +210,52 @@ export const BALANCE = {
   /** Peso de la aprobación del gobierno en el voto */
   SENATE_APPROVAL_WEIGHT: 0.15,
 
+  // ─── Movilidad social ─────────────────────────────────────────────────────
+
+  /** Factor de educación en la movilidad social (por cada punto sobre 50) */
+  SOCIAL_MOBILITY_EDUCATION_FACTOR: 0.02,
+
+  /** Factor de crecimiento económico en la movilidad social (por cada 1% de crecimiento del PIB) */
+  SOCIAL_MOBILITY_GDP_FACTOR: 0.01,
+
+  // ─── Régimen: regeneración gradual ────────────────────────────────────────
+
+  /** Tasa mensual de regeneración hacia el baseline (puntos por mes) */
+  REGIME_REGENERATION_RATE: 0.5,
+
+  /** Valores baseline hacia los que tienden las métricas sin intervención */
+  REGIME_BASELINE: {
+    powerConcentration: 30,
+    pressFreedom: 70,
+    judicialIndependence: 60,
+    politicalPluralism: 70,
+    civilLiberties: 70,
+    transparency: 50,
+    militarySubordination: 60,
+  } as const,
+
+  /** Keys del effectsJson de leyes que impactan métricas de régimen */
+  REGIME_LAW_EFFECT_KEYS: [
+    "transparency",
+    "pressFreedom",
+    "judicialIndependence",
+    "politicalPluralism",
+    "civilLiberties",
+    "powerConcentration",
+    "militarySubordination",
+  ] as const,
+
+  // ─── Protestas por clase social ───────────────────────────────────────────
+
+  /** Umbral de aprobación por debajo del cual una clase puede protestar */
+  PROTEST_CLASS_APPROVAL_THRESHOLD: 20,
+
+  /** Umbral de porcentaje poblacional mínimo para que una protesta de clase sea masiva */
+  PROTEST_CLASS_POPULATION_THRESHOLD: 25,
+
+  /** Probabilidad base mensual de protesta cuando se cumplen condiciones por clase */
+  PROTEST_CLASS_PROB: 0.10,
+
   // ─── Población ───────────────────────────────────────────────────────────
 
   /** Crecimiento poblacional mensual base */

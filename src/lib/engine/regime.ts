@@ -2,14 +2,40 @@
 // Calcula las métricas del régimen político y clasifica el tipo de régimen.
 // Funciones puras y deterministas.
 
-import type { RegimeMetricsState } from "./types";
+import type { RegimeMetricsState, ActiveLawState, OrganismState } from "./types";
 import { BALANCE } from "../balance";
 
+// ─── Clamp helper ─────────────────────────────────────────────────────────────
+
+const REGIME_KEYS: (keyof RegimeMetricsState)[] = [
+  "powerConcentration",
+  "pressFreedom",
+  "judicialIndependence",
+  "politicalPluralism",
+  "civilLiberties",
+  "transparency",
+  "militarySubordination",
+];
+
+function clampMetrics(metrics: RegimeMetricsState): RegimeMetricsState {
+  const result = { ...metrics };
+  for (const key of REGIME_KEYS) {
+    result[key] = Math.max(0, Math.min(100, Math.round(result[key] * 10) / 10));
+  }
+  return result;
+}
+
+// ─── Cálculo de métricas por acciones del jugador ─────────────────────────────
+
 /**
- * Aplica los modificadores de acciones del jugador a las métricas de régimen.
+ * Aplica los modificadores de acciones del jugador, leyes activas,
+ * organismos y veredictos judiciales a las métricas de régimen.
  *
  * @param metrics - Métricas actuales del régimen
  * @param actions - Acciones realizadas este turno que afectan el régimen
+ * @param activeLaws - Leyes activas con effectsJson que impactan métricas
+ * @param organisms - Organismos existentes (autonomía determina efecto)
+ * @param regimeImpacts - Impactos provenientes de otros módulos (ej. justicia)
  * @returns Nuevas métricas con modificadores aplicados, clamp a [0, 100]
  */
 export function calculateRegimeMetrics(
@@ -20,7 +46,10 @@ export function calculateRegimeMetrics(
     disolverCongreso?: boolean;
     estadoEmergencia?: boolean;
     comprarVotos?: boolean;
-  }
+  },
+  activeLaws: ActiveLawState[] = [],
+  organisms: OrganismState[] = [],
+  regimeImpacts: { type: string; value: number }[] = []
 ): RegimeMetricsState {
   const result = { ...metrics };
 
@@ -53,27 +82,83 @@ export function calculateRegimeMetrics(
     result.transparency += BALANCE.REGIME_COMPRAR_VOTOS.transparency;
   }
 
-  // ── Efectos de leyes activas (si se aplicaron leyes de régimen) ────────
-  // Estos efectos se aplican en el paso de leyes del turno; aquí los
-  // incluimos como referencia para que el motor pueda recalcular.
-
-  // ── Clamp de todas las métricas a [0, 100] ─────────────────────────────
-  const keys: (keyof RegimeMetricsState)[] = [
-    "powerConcentration",
-    "pressFreedom",
-    "judicialIndependence",
-    "politicalPluralism",
-    "civilLiberties",
-    "transparency",
-    "militarySubordination",
-  ];
-
-  for (const key of keys) {
-    result[key] = Math.max(0, Math.min(100, Math.round(result[key] * 10) / 10));
+  // ── Efectos de leyes activas sobre métricas de régimen ─────────────────
+  // Cada ley puede tener keys del effectsJson que correspondan a métricas.
+  // Ej: ley "ley-transparencia" → effectsJson.transparency: 20
+  for (const law of activeLaws) {
+    const effects = law.effectsJson as Record<string, unknown>;
+    for (const metricKey of BALANCE.REGIME_LAW_EFFECT_KEYS) {
+      const rawValue = effects[metricKey];
+      if (typeof rawValue === "number") {
+        // powerConcentration se suma (más concentración = peor)
+        // Las demás métricas "buenas" (pressFreedom, etc.) también se suman directamente
+        result[metricKey as keyof RegimeMetricsState] += rawValue;
+      }
+    }
   }
 
-  return result;
+  // ── Efectos de organismos autónomos ────────────────────────────────────
+  for (const org of organisms) {
+    if (org.type === "COMPTROLLER" && org.autonomyLevel > 70) {
+      // Contraloría con autonomía alta: +15 transparencia, +5 independencia judicial
+      result.transparency += BALANCE.REGIME_CONTRALORIA_AUTONOMA.transparency;
+      result.judicialIndependence += BALANCE.REGIME_CONTRALORIA_AUTONOMA.judicial;
+    }
+    if (org.type === "OMBUDSMAN" && org.autonomyLevel > 70) {
+      // Defensoría del Pueblo autónoma: +15 libertades civiles
+      result.civilLiberties += BALANCE.REGIME_DEFENSORIA_AUTONOMA.civilLiberties;
+    }
+  }
+
+  // ── Impactos de régimen desde otros módulos (ej. justicia) ─────────────
+  for (const impact of regimeImpacts) {
+    const key = impact.type as keyof RegimeMetricsState;
+    if (key in result && typeof result[key] === "number") {
+      result[key] += impact.value;
+    }
+  }
+
+  return clampMetrics(result);
 }
+
+// ─── Regeneración gradual hacia el baseline ──────────────────────────────────
+
+/**
+ * Aplica regeneración gradual: cada métrica tiende a su valor baseline
+ * en REGIME_REGENERATION_RATE puntos por mes si está por debajo,
+ * o decrece si está por encima.
+ *
+ * La regeneración solo se aplica si la métrica no fue modificada por
+ * ninguna acción este turno. Se compara el estado antes y después de
+ * calculateRegimeMetrics para detectar cambios.
+ *
+ * @param metrics - Métricas actuales (ya con modificadores aplicados)
+ * @param previousMetrics - Métricas antes de aplicar modificadores este turno
+ * @returns Métricas con regeneración aplicada
+ */
+export function regenerateRegimeMetrics(
+  metrics: RegimeMetricsState,
+  previousMetrics: RegimeMetricsState
+): RegimeMetricsState {
+  const result = { ...metrics };
+  const baseline = BALANCE.REGIME_BASELINE;
+
+  for (const key of REGIME_KEYS) {
+    // Solo regenerar si no hubo cambio por acción este turno
+    if (result[key] === previousMetrics[key]) {
+      const base = baseline[key];
+      if (result[key] < base) {
+        result[key] += BALANCE.REGIME_REGENERATION_RATE;
+      } else if (result[key] > base) {
+        result[key] -= BALANCE.REGIME_REGENERATION_RATE;
+      }
+    }
+  }
+
+  return clampMetrics(result);
+}
+
+// ─── Clasificación del régimen ────────────────────────────────────────────────
 
 /**
  * Clasifica el tipo de régimen político basado en las métricas y contexto.
@@ -91,18 +176,8 @@ export function classifyRegime(
   approval?: number
 ): string {
   // ── Calcular promedio simple de las 7 métricas ─────────────────────────
-  const keys: (keyof RegimeMetricsState)[] = [
-    "powerConcentration",
-    "pressFreedom",
-    "judicialIndependence",
-    "politicalPluralism",
-    "civilLiberties",
-    "transparency",
-    "militarySubordination",
-  ];
-
-  const sum = keys.reduce((acc, k) => acc + metrics[k], 0);
-  const avg = sum / keys.length;
+  const sum = REGIME_KEYS.reduce((acc, k) => acc + metrics[k], 0);
+  const avg = sum / REGIME_KEYS.length;
 
   // ── Verificar métricas críticas para democracia plena ──────────────────
   const criticalMetrics = BALANCE.REGIME_CRITICAL_METRICS;
@@ -145,6 +220,5 @@ export function classifyRegime(
     return "Dictadura";
   }
 
-  // ── Default ────────────────────────────────────────────────────────────
   return "Régimen híbrido";
 }
