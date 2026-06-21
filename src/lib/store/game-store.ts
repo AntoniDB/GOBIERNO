@@ -17,6 +17,8 @@ export interface GameStore {
   advanceMonth: () => Promise<void>;
   updateBudget: (ministryKey: string, percent: number) => void;
   updateSubDecision: (ministryKey: string, key: string, value: number | boolean) => void;
+  proposeLaw: (lawKey: string) => void;
+  removeProposedLaw: (lawKey: string) => void;
   clearNotifications: () => void;
   resetPendingInput: () => void;
 }
@@ -89,6 +91,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
             [key]: value,
           },
         },
+      },
+    }));
+  },
+
+  proposeLaw: (lawKey: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        proposedLaws: [...(prev.pendingInput.proposedLaws ?? []), lawKey],
+      },
+    }));
+  },
+
+  removeProposedLaw: (lawKey: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        proposedLaws: prev.pendingInput.proposedLaws?.filter((l) => l !== lawKey) ?? [],
       },
     }));
   },

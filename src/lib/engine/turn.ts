@@ -36,6 +36,7 @@ import {
 // ── Funciones escritas en este módulo ────────────────────────────────────
 import { calculateApprovalByClass, calculateGeneralApproval } from "./approval";
 import { advanceJudicialCases, openAutoCases } from "./justice";
+import { evaluateMotions } from "./congress";
 import {
   calculateRegimeMetrics,
   classifyRegime,
@@ -356,6 +357,44 @@ export function processTurn(
   );
   newState.judicialCases.push(...newCases);
   allNotifications.push(...autoCaseNotifications);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 10.5: Evaluar mociones del congreso (censura, juicio político)
+  // ═══════════════════════════════════════════════════════════════════════
+  const currentApproval = calculateGeneralApproval(newState, []);
+  const motions = evaluateMotions(
+    {
+      officials: newState.officials.map((o) => ({
+        id: o.id, name: o.name, role: o.role,
+        corruption: o.corruption, status: o.status,
+      })),
+      senators: newState.senators,
+      parties: newState.parties,
+      generalApproval: currentApproval,
+    },
+    rng,
+  );
+
+  for (const motion of motions) {
+    if (motion.type === "censure_ministro" && motion.targetOfficialId) {
+      const target = newState.officials.find((o) => o.id === motion.targetOfficialId);
+      if (target) {
+        target.status = "DISMISSED";
+        allNotifications.push({
+          type: "crisis",
+          title: "Censura del Congreso",
+          description: `El Congreso ha censurado al ministro ${motion.targetName}. Ha sido destituido de su cargo.`,
+        });
+      }
+    } else if (motion.type === "juicio_politico") {
+      allNotifications.push({
+        type: "crisis",
+        title: "Juicio politico iniciado",
+        description: "El Congreso ha iniciado un juicio politico contra el mandatario. La situacion es critica y podria terminar en la destitucion.",
+        severity: 90,
+      });
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 11: Recalcular métricas de régimen + clasificar

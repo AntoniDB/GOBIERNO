@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
+import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   GameState,
   TurnInput,
@@ -251,33 +252,47 @@ export async function advanceMonth(
   const newYear = monthAdvanced > 12 ? game.currentYear + 1 : game.currentYear;
   const newMonth = monthAdvanced > 12 ? 1 : monthAdvanced;
 
-  // Simular votación de leyes si hay propuestas
+  // Simular votación de leyes con el motor bicameral
   const lawResults: {
     lawKey: string; approved: boolean; votesFor: number; votesAgainst: number; votesAbstain: number;
+    lowerFor: number; lowerAgainst: number; lowerAbstain: number;
+    upperFor: number; upperAgainst: number; upperAbstain: number;
   }[] = [];
 
   if (input.proposedLaws && input.proposedLaws.length > 0) {
-    const senators = game.senators;
     for (const lawKey of input.proposedLaws) {
       const catalogEntry = lawCatalogMap.get(lawKey);
       if (!catalogEntry) continue;
 
-      let votesFor = 0;
-      let votesAgainst = 0;
-      let votesAbstain = 0;
+      const voteResult = simulateSenateVote(
+        game.senators.map((s: Record<string, unknown>) => ({
+          id: s.id as string, partyId: s.partyId as string, name: s.name as string,
+          personalIdeology: asIdeology(s.personalIdeology),
+          chamber: s.chamber as "LOWER" | "UPPER", loyalty: s.loyalty as number,
+        })),
+        game.parties.map((p: Record<string, unknown>) => ({
+          id: p.id as string, name: p.name as string,
+          ideology: asIdeology(p.ideology),
+          leaderOfficialId: p.leaderOfficialId as string | null,
+          popularity: p.popularity as number, seatsLower: p.seatsLower as number, seatsUpper: p.seatsUpper as number,
+        })),
+        catalogEntry.idealIdeology as unknown as Record<string, number>,
+        latestSnapshot?.approval ?? 50,
+      );
 
-      for (const senator of senators) {
-        const alignment = ideologyAlignment(
-          asIdeology(senator.personalIdeology),
-          catalogEntry.idealIdeology as unknown as Record<string, number>,
-        );
-        if (alignment > 0.15) votesFor++;
-        else if (alignment < -0.15) votesAgainst++;
-        else votesAbstain++;
-      }
-
-      const approved = votesFor > votesAgainst;
-      lawResults.push({ lawKey, approved, votesFor, votesAgainst, votesAbstain });
+      lawResults.push({
+        lawKey,
+        approved: voteResult.approved,
+        votesFor: voteResult.totalVotesFor,
+        votesAgainst: voteResult.totalVotesAgainst,
+        votesAbstain: voteResult.totalVotesAbstain,
+        lowerFor: voteResult.lowerVotesFor,
+        lowerAgainst: voteResult.lowerVotesAgainst,
+        lowerAbstain: voteResult.lowerVotesAbstain,
+        upperFor: voteResult.upperVotesFor,
+        upperAgainst: voteResult.upperVotesAgainst,
+        upperAbstain: voteResult.upperVotesAbstain,
+      });
     }
   }
 
@@ -496,13 +511,13 @@ export async function advanceMonth(
     }
   });
 
-  // Notificaciones de leyes
+  // Notificaciones de leyes con detalle bicameral
   const lawNotifications: TurnNotification[] = lawResults.map((r) => ({
     type: "law",
     title: r.approved ? "Ley aprobada" : "Ley rechazada",
     description: r.approved
-      ? `La ley "${r.lawKey}" fue aprobada con ${r.votesFor} votos a favor, ${r.votesAgainst} en contra y ${r.votesAbstain} abstenciones.`
-      : `La ley "${r.lawKey}" fue rechazada con ${r.votesFor} votos a favor, ${r.votesAgainst} en contra y ${r.votesAbstain} abstenciones.`,
+      ? `La ley "${r.lawKey}" fue aprobada. Cámara Baja: ${r.lowerFor} a favor, ${r.lowerAgainst} en contra. Cámara Alta: ${r.upperFor} a favor, ${r.upperAgainst} en contra.`
+      : `La ley "${r.lawKey}" fue rechazada. Cámara Baja: ${r.lowerFor} a favor, ${r.lowerAgainst} en contra. Cámara Alta: ${r.upperFor} a favor, ${r.upperAgainst} en contra.`,
   }));
 
   return {

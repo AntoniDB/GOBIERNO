@@ -24,7 +24,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Ministerios", icon: Building2, href: "/ministerios" },
-  { label: "Congreso", icon: Landmark, disabled: true },
+  { label: "Congreso", icon: Landmark, href: "/congreso" },
   { label: "Justicia", icon: Scale, disabled: true },
   { label: "Población", icon: Users, disabled: true },
   { label: "Medios", icon: Radio, disabled: true },
