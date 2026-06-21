@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GameState, TurnInput, TurnOutput, TurnNotification } from "@/lib/engine/types";
+import type { GameState, TurnInput, TurnOutput, TurnNotification, GameOverResult, MonthSnapshotData } from "@/lib/engine/types";
 import { advanceMonth as advanceMonthAction } from "@/app/actions/turn";
 
 export interface GameStore {
@@ -10,10 +10,13 @@ export interface GameStore {
   isLoading: boolean;
   lastTurnResult: TurnOutput | null;
   pendingInput: TurnInput;
+  snapshots: MonthSnapshotData[];
+  gameOver: GameOverResult | null;
 
   // ─── Acciones ──────────────────────────────────────────────────────────────
   setGameState: (state: GameState) => void;
   setGameId: (id: string) => void;
+  setSnapshots: (snapshots: MonthSnapshotData[]) => void;
   advanceMonth: () => Promise<void>;
   updateBudget: (ministryKey: string, percent: number) => void;
   updateSubDecision: (ministryKey: string, key: string, value: number | boolean) => void;
@@ -32,6 +35,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isLoading: false,
   lastTurnResult: null,
   pendingInput: {},
+  snapshots: [],
+  gameOver: null,
 
   setGameState: (state: GameState) => {
     set({ gameState: state });
@@ -39,6 +44,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setGameId: (id: string) => {
     set({ gameId: id });
+  },
+
+  setSnapshots: (snapshots: MonthSnapshotData[]) => {
+    set({ snapshots });
   },
 
   advanceMonth: async () => {
@@ -63,6 +72,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         },
         lastTurnResult: result,
         notifications: [...get().notifications, ...result.notifications],
+        gameOver: result.gameOver ?? null,
+        snapshots: [...get().snapshots, result.monthSnapshot],
       });
       get().resetPendingInput();
     } finally {

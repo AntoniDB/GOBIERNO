@@ -184,6 +184,24 @@ export interface TurnInput {
   voteBuyingPartyIds?: string[];
 }
 
+/** Configuracion de fin de partida */
+export interface GameOverConfig {
+  electionIntervalYears: number;
+  termLimit: number;
+  consecutiveLowApprovalMonths: number;
+}
+
+/** Resultado de evaluar condiciones de fin de partida */
+export interface GameOverResult {
+  reason: "golpe_estado" | "juicio_politico" | "renuncia_forzada" | "perdida_electoral" | "fin_mandato" | "asesinato" | "estado_fallido";
+  description: string;
+  regimeType: string;
+  approval: number;
+  corruption: number;
+  treasury: number;
+  gdp: number;
+}
+
 /** Resultado de procesar un turno */
 export interface TurnOutput {
   newState: GameState;
@@ -191,6 +209,7 @@ export interface TurnOutput {
   notifications: TurnNotification[];
   newEvents: EventState[];
   mediaCoverages: MediaCoverageData[];
+  gameOver: GameOverResult | null;
 }
 
 export interface MonthSnapshotData {

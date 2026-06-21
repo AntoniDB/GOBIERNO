@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ShieldAlertIcon, AlertTriangleIcon } from "lucide-react";
+import { toast } from "sonner";
 
 const ROLE_LABEL: Record<string, string> = {
   MINISTER: "Ministro",
@@ -22,6 +23,7 @@ const ROLE_LABEL: Record<string, string> = {
   GENERAL: "General",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
   COMPTROLLER: "Contralor",
+  POLITICAL_LEADER: "Lider politico",
 };
 
 export function InvestigationOrder({
@@ -43,16 +45,7 @@ export function InvestigationOrder({
   const isPoliticalRisk = judicialIndependence < 40;
 
   const handleConfirm = () => {
-    const pendingInput = useGameStore.getState().pendingInput;
-    useGameStore.setState({
-      pendingInput: {
-        ...pendingInput,
-        investigations: [
-          ...(pendingInput.investigations ?? []),
-          official.id,
-        ],
-      },
-    });
+    toast.info(`Investigacion ordenada contra ${official.name}. Se abrira un caso al avanzar el mes.`);
     onConfirm(official.id);
   };
 

@@ -4,6 +4,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { simulateSenateVote } from "@/lib/engine/congress";
@@ -205,6 +207,18 @@ export async function advanceMonth(
   gameId: string,
   input: TurnInput,
 ): Promise<TurnOutput> {
+  // Verificar ownership
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const gameOwnership = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { userId: true },
+  });
+  if (!gameOwnership || gameOwnership.userId !== session.user.id) {
+    throw new Error("No tienes acceso a esta partida.");
+  }
+
   const [game, latestMetrics, latestSnapshot, lawCatalog] = await Promise.all([
     fetchGameData(gameId),
     prisma.regimeMetrics.findFirst({
@@ -245,7 +259,7 @@ export async function advanceMonth(
 
   // Ejecutar motor puro
   const output = processTurn(gameState, input, rng);
-  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages } = output;
+  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages, gameOver } = output;
 
   // Calcular nuevo año/mes
   const monthAdvanced = game.currentMonth + 1;
@@ -312,6 +326,7 @@ export async function advanceMonth(
         currentMonth: newMonth,
         treasury: newState.treasury,
         population: newState.population,
+        status: gameOver ? ("FINISHED" as const) : undefined,
       },
     });
 
@@ -427,8 +442,27 @@ export async function advanceMonth(
       },
     });
 
-    // g. JudicialCases
+    // g. JudicialCases — con verificacion anti-duplicados a nivel DB
     for (const jc of newState.judicialCases) {
+      // Para casos nuevos de corrupcion, verificar que no exista ya uno activo
+      // del mismo tipo para el mismo funcionario. Esto es la ultima linea de defensa:
+      // el motor puro tambien chequea, pero una constraint a nivel DB garantiza integridad.
+      if (jc.id.startsWith("auto-") && jc.caseType === "CORRUPTION") {
+        const existing = await tx.judicialCase.findFirst({
+          where: {
+            defendantOfficialId: jc.defendantOfficialId,
+            caseType: jc.caseType as string,
+            currentPhase: { not: "CLOSED" as const },
+            id: { not: jc.id },
+          },
+          select: { id: true },
+        });
+        if (existing) {
+          // Ya existe un caso activo del mismo tipo para este funcionario. Saltar.
+          continue;
+        }
+      }
+
       await tx.judicialCase.upsert({
         where: { id: jc.id },
         create: {
@@ -557,5 +591,6 @@ export async function advanceMonth(
     notifications: [...notifications, ...lawNotifications],
     newEvents,
     mediaCoverages,
+    gameOver,
   };
 }

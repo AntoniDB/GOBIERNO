@@ -2,6 +2,7 @@
 
 import { useGameStore } from "@/lib/store/game-store";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   Radio,
   Shield,
   BarChart3,
+  LogOut,
 } from "lucide-react";
 
 interface NavItem {
@@ -29,7 +31,7 @@ const navItems: NavItem[] = [
   { label: "Población", icon: Users, href: "/poblacion" },
   { label: "Medios", icon: Radio, href: "/medios" },
   { label: "Régimen", icon: Shield, href: "/regimen" },
-  { label: "Reportes", icon: BarChart3, disabled: true },
+  { label: "Reportes", icon: BarChart3, href: "/reportes" },
 ];
 
 export default function Sidebar() {
@@ -78,10 +80,17 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
         <p className="text-xs text-muted-foreground">
-          Sesión 2 — Núcleo jugable
+          Sesión 7 — Cierre
         </p>
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          <LogOut className="size-3" />
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   );

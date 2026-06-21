@@ -3,6 +3,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import type {
   GameState,
   RegimeMetricsState,
@@ -31,7 +33,7 @@ function asIdeology(raw: any): Ideology {
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchGameData(gameId: string) {
-  return prisma.game.findUnique({
+  return prisma.game.findUniqueOrThrow({
     where: { id: gameId },
     include: {
       ministries: true,
@@ -188,11 +190,29 @@ function buildGameState(
 
 // ─── Server Action ────────────────────────────────────────────────────────────
 
+async function verifyOwnership(gameId: string): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { userId: true },
+  });
+
+  if (!game || game.userId !== session.user.id) {
+    throw new Error("No tienes acceso a esta partida.");
+  }
+
+  return session.user.id;
+}
+
 /**
  * Carga el estado completo de un juego desde la base de datos.
- * Retorna null si el juego no existe.
+ * Verifica que el usuario autenticado sea el dueño.
  */
 export async function getGameState(gameId: string): Promise<GameState | null> {
+  await verifyOwnership(gameId);
+
   const [game, latestMetrics, latestSnapshot, lawCatalog] = await Promise.all([
     fetchGameData(gameId),
     prisma.regimeMetrics.findFirst({
@@ -228,4 +248,55 @@ export async function getGameState(gameId: string): Promise<GameState | null> {
     latestSnapshot as MonthSnapshotData | null,
     lawCatalogMap,
   );
+}
+
+/**
+ * Obtiene todos los snapshots historicos de una partida.
+ * Utilizado por los graficos de reportes (Recharts).
+ */
+export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]> {
+  await verifyOwnership(gameId);
+
+  const snapshots = await prisma.monthSnapshot.findMany({
+    where: { gameId },
+    orderBy: [{ year: "asc" }, { month: "asc" }],
+  });
+
+  return snapshots.map((s: Record<string, unknown>) => ({
+    year: s.year as number,
+    month: s.month as number,
+    treasury: s.treasury as number,
+    gdp: s.gdp as number,
+    population: s.population as number,
+    approval: s.approval as number,
+    corruption: s.corruption as number,
+    povertyRate: s.povertyRate as number,
+    unemploymentRate: s.unemploymentRate as number,
+    sickRate: s.sickRate as number,
+    crimeRate: s.crimeRate as number,
+    foodSecurity: s.foodSecurity as number,
+    educationLevel: s.educationLevel as number,
+    inflation: s.inflation as number,
+    gini: s.gini as number,
+    regimeType: s.regimeType as string,
+    regimeMetrics: (s.regimeMetrics ?? {
+      powerConcentration: 0, pressFreedom: 0, judicialIndependence: 0,
+      politicalPluralism: 0, civilLiberties: 0, transparency: 0, militarySubordination: 0,
+    }) as MonthSnapshotData["regimeMetrics"],
+  }));
+}
+
+/**
+ * Crea una nueva partida para el usuario autenticado.
+ */
+export async function createGame(params: {
+  countryName: string;
+  preset: "estable_democratico" | "pobre_con_potencial" | "crisis_economica" | "post_conflicto";
+  difficulty: "facil" | "normal" | "dificil";
+}): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const { crearPartidaAction } = await import("./seed-game");
+  return crearPartidaAction(params, session.user.id);
 }

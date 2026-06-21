@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   SenatorState,
@@ -8,6 +10,19 @@ import type {
   LawCatalogEntry,
   Ideology,
 } from "@/lib/engine/types";
+
+async function verifyOwnership(gameId: string): Promise<string> {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: { userId: true },
+  });
+  if (!game || game.userId !== session.user.id) {
+    throw new Error("No tienes acceso a esta partida.");
+  }
+  return session.user.id;
+}
 
 // ─── Tipos para la UI ─────────────────────────────────────────────────────
 
@@ -80,6 +95,8 @@ export async function simulateVoteAction(
   gameId: string,
   lawKey: string,
 ): Promise<SimulateVoteResult> {
+  await verifyOwnership(gameId);
+
   // Obtener juego con senadores y partidos, catálogo de ley y último snapshot
   const [game, lawCatalogEntry, latestSnapshot] = await Promise.all([
     prisma.game.findUniqueOrThrow({
@@ -193,6 +210,8 @@ export async function simulateVoteAction(
  * @returns Objeto plano con todos los datos del congreso
  */
 export async function getCongressData(gameId: string): Promise<CongressData> {
+  await verifyOwnership(gameId);
+
   const [game, lawCatalog, latestSnapshot] = await Promise.all([
     prisma.game.findUniqueOrThrow({
       where: { id: gameId },

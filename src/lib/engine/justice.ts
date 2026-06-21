@@ -288,6 +288,17 @@ export function openAutoCases(
     if (official.corruption < BALANCE.CORRUPTION_AUTO_CASE_THRESHOLD) continue;
     if (official.status === "CONVICTED" || official.status === "DISMISSED") continue;
 
+    // Verificar si ya existe un caso activo del mismo tipo para este funcionario
+    // Evita duplicados: un funcionario no puede tener dos casos CORRUPTION abiertos
+    // simultaneamente. Si permite caseTypes distintos (CORRUPTION + CRIMINAL).
+    const existingActiveCase = state.judicialCases.find(
+      (jc) =>
+        jc.defendantOfficialId === official.id &&
+        jc.caseType === "CORRUPTION" &&
+        jc.currentPhase !== "CLOSED"
+    );
+    if (existingActiveCase) continue;
+
     // Probabilidad mensual de apertura de caso
     let monthlyProb =
       BALANCE.JUSTICE_AUTO_CASE_MONTHLY_PROB * (fiscaliaEff / 100);
@@ -298,8 +309,18 @@ export function openAutoCases(
     }
 
     if (rng() < monthlyProb) {
-      const prosecutor = randomPick(prosecutors, rng);
-      const judge = randomPick(judges, rng);
+      // Excluir al acusado de la lista de fiscales y jueces
+      const eligibleProsecutors = prosecutors.filter(
+        (o) => o.id !== official.id
+      );
+      const eligibleJudges = judges.filter(
+        (o) => o.id !== official.id
+      );
+
+      if (eligibleProsecutors.length === 0 || eligibleJudges.length === 0) continue;
+
+      const prosecutor = randomPick(eligibleProsecutors, rng);
+      const judge = randomPick(eligibleJudges, rng);
 
       // Evidencia inicial: depende de la corrupción del funcionario
       const evidenceStrength = Math.min(

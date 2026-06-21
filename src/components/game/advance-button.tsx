@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/store/game-store";
 import { Button } from "@/components/ui/button";
 import { NotificationsPanel } from "@/components/game/notifications-panel";
@@ -14,10 +15,18 @@ function computeNextMonth(currentMonth: number, currentYear: number) {
 }
 
 export function AdvanceButton() {
+  const router = useRouter();
   const gameState = useGameStore((s) => s.gameState);
+  const gameOver = useGameStore((s) => s.gameOver);
   const isLoading = useGameStore((s) => s.isLoading);
   const advanceMonth = useGameStore((s) => s.advanceMonth);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    if (gameOver) {
+      router.push("/fin");
+    }
+  }, [gameOver, router]);
 
   let nextLabel = "...";
   if (gameState) {
@@ -39,7 +48,7 @@ export function AdvanceButton() {
       <Button
         size="lg"
         onClick={handleAdvance}
-        disabled={!gameState || isLoading}
+        disabled={!gameState || isLoading || !!gameOver}
         className="gap-2"
       >
         {isLoading ? (

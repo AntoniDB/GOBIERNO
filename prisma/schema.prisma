@@ -35,6 +35,7 @@ enum OfficialRole {
   COMPTROLLER
   OMBUDSMAN
   CENTRAL_BANK_PRESIDENT
+  POLITICAL_LEADER
 }
 
 enum OfficialStatus {
@@ -354,6 +355,7 @@ model JudicialCase {
   judgeId             String?
   verdict             String?
   sentenceMonths      Int?
+  closedByBugfix      Boolean   @default(false)
 
   game                Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
   defendant           Official   @relation("Defendant", fields: [defendantOfficialId], references: [id])

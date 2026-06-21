@@ -27,6 +27,7 @@ const ROLE_LABEL: Record<string, string> = {
   GENERAL: "General",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
   COMPTROLLER: "Contralor",
+  POLITICAL_LEADER: "Lider politico",
 };
 
 const ROLE_BADGE: Record<string, string> = {
@@ -36,6 +37,7 @@ const ROLE_BADGE: Record<string, string> = {
   GENERAL: "bg-red-500/20 text-red-400 border-red-500/30",
   CHIEF_OF_INTELLIGENCE: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   COMPTROLLER: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  POLITICAL_LEADER: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
 };
 
 const STATUS_LABEL: Record<string, string> = {

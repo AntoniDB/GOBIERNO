@@ -46,6 +46,7 @@ import {
 import { triggerRandomEvents, applyEventEffects } from "./events";
 import { generateMediaCoverage } from "./media";
 import { createMonthSnapshot } from "./snapshot";
+import { checkGameOverConditions, canBeAssassinated } from "./game-over";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -261,18 +262,42 @@ export function processTurn(
       (o) => o.role === "JUDGE" && o.status === "ACTIVE"
     );
 
+    // Dedeuplicar: el mismo officialId solo se procesa una vez
+    const seenIds = new Set<string>();
+
     for (const officialId of input.investigations) {
+      if (seenIds.has(officialId)) continue;
+      seenIds.add(officialId);
+
       const official = newState.officials.find(
         (o) => o.id === officialId
       );
       if (!official) continue;
 
+      // Verificar si ya existe un caso activo del mismo tipo para este funcionario
+      const existingActive = newState.judicialCases.find(
+        (jc) =>
+          jc.defendantOfficialId === official.id &&
+          jc.caseType === "CORRUPTION" &&
+          jc.currentPhase !== "CLOSED"
+      );
+      if (existingActive) continue;
+
+      // Excluir al acusado de la lista de fiscales y jueces
+      const eligibleProsecutors = prosecutors.filter(
+        (o) => o.id !== official.id
+      );
+      const eligibleJudges = judges.filter(
+        (o) => o.id !== official.id
+      );
+      if (eligibleProsecutors.length === 0 || eligibleJudges.length === 0) continue;
+
       const prosecutor =
-        prosecutors.length > 0
-          ? prosecutors[caseIdx % prosecutors.length]
+        eligibleProsecutors.length > 0
+          ? eligibleProsecutors[caseIdx % eligibleProsecutors.length]
           : null;
       const judge =
-        judges.length > 0 ? judges[caseIdx % judges.length] : null;
+        eligibleJudges.length > 0 ? eligibleJudges[caseIdx % eligibleJudges.length] : null;
 
       const investigationCase: JudicialCaseState = {
         id: generateId(
@@ -285,7 +310,7 @@ export function processTurn(
         caseType: "CORRUPTION",
         currentPhase: "INVESTIGATION",
         monthsInPhase: 0,
-        evidenceStrength: 30 + Math.floor(rng() * 30), // 30-60 inicial
+        evidenceStrength: 30 + Math.floor(rng() * 30),
         prosecutorId: prosecutor?.id ?? null,
         judgeId: judge?.id ?? null,
         verdict: null,
@@ -538,6 +563,18 @@ export function processTurn(
     newState.currentMonth
   );
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 15: Evaluar condiciones de fin de partida
+  // Lee valores YA calculados (aprobacion, corrupcion, regimen, crimen).
+  // No duplica ningun calculo.
+  // ═══════════════════════════════════════════════════════════════════════
+  let gameOver = checkGameOverConditions(newState, undefined, allNotifications);
+
+  // Chequeo de asesinato (requiere rng por su naturaleza probabilistica)
+  if (!gameOver) {
+    gameOver = canBeAssassinated(newState, rng);
+  }
+
   // ── Construir y devolver resultado ─────────────────────────────────────
   return {
     newState,
@@ -545,5 +582,6 @@ export function processTurn(
     notifications: allNotifications,
     newEvents: allNewEvents,
     mediaCoverages: allMediaCoverages,
+    gameOver,
   };
 }

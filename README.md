@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Simulador de Gobierno y Sociedad
 
-## Getting Started
+Simulador de gobierno y sociedad en el que el jugador asume el cargo de mandatario de un pais. Cada turno representa **1 mes**. Las decisiones del jugador modifican datos crudos y un motor matematico recalcula todo el estado. Los problemas y eventos son **emergentes**, no scripteados.
 
-First, run the development server:
+## Stack
+
+- **Framework**: Next.js 16 (App Router) + TypeScript
+- **Base de datos**: PostgreSQL + Prisma 7
+- **UI**: Tailwind CSS v4 + shadcn/ui
+- **Graficos**: Recharts
+- **Estado del cliente**: Zustand
+- **Tests**: Vitest
+
+## Requisitos previos
+
+- Node.js 22+
+- PostgreSQL 16+
+- Docker (opcional, para levantar la DB)
+
+## Setup
 
 ```bash
+# 1. Clonar e instalar dependencias
+git clone <repo-url>
+cd juego_de_la_vida
+npm install
+
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales de PostgreSQL:
+#   DATABASE_URL="postgresql://usuario:password@localhost:5432/simulador"
+#   AUTH_SECRET="cualquier-string-largo"
+
+# 3. Levantar PostgreSQL (opcion A: Docker)
+docker compose up -d
+
+# 4. Ejecutar migraciones
+npx prisma migrate deploy
+# o para desarrollo:
+npx prisma migrate dev
+
+# 5. Poblar la base de datos con datos de demo
+npx prisma db seed
+
+# 6. Iniciar el servidor de desarrollo
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usuario demo
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Email: `demo@simulador.local`
+- Password: `demo123`
 
-## Learn More
+## Comandos
 
-To learn more about Next.js, take a look at the following resources:
+| Comando | Descripcion |
+|---------|-------------|
+| `npm run dev` | Servidor de desarrollo (Turbopack) |
+| `npm run build` | Build de produccion |
+| `npm run start` | Iniciar en produccion |
+| `npm run lint` | Linter (ESLint) |
+| `npx vitest run` | Ejecutar todos los tests |
+| `npx vitest` | Tests en modo watch |
+| `npx prisma db seed` | Re-poblar la base de datos |
+| `npx prisma studio` | Explorador visual de la DB |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Arquitectura
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/
+│   ├── page.tsx              # Landing page
+│   ├── (game)/               # Layout del juego (sidebar + HUD)
+│   │   ├── dashboard/        # Panel principal
+│   │   ├── ministerios/      # 8 ministerios con sub-decisiones
+│   │   ├── congreso/         # Leyes, Senado, partidos
+│   │   ├── justicia/         # Casos judiciales, funcionarios, organismos
+│   │   ├── poblacion/        # 4 clases sociales
+│   │   ├── medios/           # 3 medios de comunicacion
+│   │   ├── regimen/          # 7 metricas de regimen emergente
+│   │   ├── reportes/         # Graficos historicos (Recharts)
+│   │   └── fin/              # Pantalla de fin de partida
+│   ├── nueva-partida/        # Wizard de creacion de partida
+│   └── actions/              # Server Actions (turno, juego, congreso)
+├── lib/
+│   ├── balance.ts            # Constantes de balance centralizadas
+│   ├── game-factory.ts       # Generacion de entidades por preset
+│   ├── rng.ts                # PRNG determinista (mulberry32)
+│   ├── prisma.ts             # Cliente Prisma singleton
+│   └── engine/               # Motor de calculo puro (14 pasos)
+│       ├── turn.ts           # Orquestador principal
+│       ├── economy.ts        # Ingresos, gastos, tesoro, PIB, inflacion
+│       ├── ministries.ts     # Eficiencia ministerial
+│       ├── corruption.ts     # Corrupcion individual y global
+│       ├── indicators.ts     # 8 indicadores sociales
+│       ├── approval.ts       # Aprobacion por clase social
+│       ├── justice.ts        # Casos judiciales
+│       ├── congress.ts       # Senado bicameral, votacion, mociones
+│       ├── regime.ts         # 7 metricas + clasificacion
+│       ├── events.ts         # Eventos emergentes
+│       ├── media.ts          # Coberturas mediaticas
+│       ├── snapshot.ts       # Creacion de MonthSnapshot
+│       └── game-over.ts      # Condiciones de fin de partida
+└── components/
+    ├── ui/                   # Componentes shadcn/ui
+    └── game/                 # Componentes del juego
+```
 
-## Deploy on Vercel
+## Flujo de un turno
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. El jugador toma decisiones (presupuestos, leyes, nombramientos, organismos)
+2. Presiona "Avanzar Mes"
+3. El servidor ejecuta 14 pasos deterministicos
+4. Se persiste todo en una transaccion atomica
+5. Se genera un `MonthSnapshot` para graficos historicos
+6. Se evaluan condiciones de fin de partida
+7. Se devuelve el nuevo estado + notificaciones
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentacion adicional
+
+- `SPEC.md`: Especificacion completa del proyecto
+- `BALANCE.md`: Formulas del motor y donde ajustarlas
+- `PHASE2.md`: Modulos pendientes y plan de integracion
+- `AGENTS.md`: Instrucciones para desarrollo con agentes
