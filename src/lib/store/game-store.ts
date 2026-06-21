@@ -19,6 +19,7 @@ export interface GameStore {
   updateSubDecision: (ministryKey: string, key: string, value: number | boolean) => void;
   proposeLaw: (lawKey: string) => void;
   removeProposedLaw: (lawKey: string) => void;
+  createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => void;
   clearNotifications: () => void;
   resetPendingInput: () => void;
 }
@@ -109,6 +110,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingInput: {
         ...prev.pendingInput,
         proposedLaws: prev.pendingInput.proposedLaws?.filter((l) => l !== lawKey) ?? [],
+      },
+    }));
+  },
+
+  createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        newOrganisms: {
+          ...prev.pendingInput.newOrganisms,
+          [type]: { name, monthlyBudget, headOfficialId },
+        },
       },
     }));
   },

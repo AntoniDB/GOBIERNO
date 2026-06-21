@@ -51,12 +51,22 @@ export function updateOfficialCorruption(
 
   // Fiscalía Anticorrupción: busca organismo de tipo ANTICORRUPTION
   const anticorruption = state.organisms.find(
-    (org) => org.type === "ANTICORRUPTION"
+    (org) => org.type === "ANTICORRUPTION_PROSECUTION"
   );
   if (anticorruption) {
     reduction +=
       BALANCE.ANTICORRUPTION_CORRUPTION_REDUCTION *
       (anticorruption.effectiveness / 100);
+  }
+
+  // Efectos de autonomía en contraloría
+  if (comptroller) {
+    if (comptroller.autonomyLevel > 70) {
+      reduction += 1; // Extra por alta autonomía
+    }
+    if (comptroller.autonomyLevel < 30) {
+      reduction -= 0.5; // Baja autonomía = menos efectiva
+    }
   }
 
   // Efecto disuasivo por casos judiciales en curso

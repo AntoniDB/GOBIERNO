@@ -451,7 +451,32 @@ export async function advanceMonth(
       });
     }
 
-    // h. Eventos
+    // h. Organismos: upsert (nuevos creados por el jugador)
+    for (const org of newState.organisms) {
+      await tx.organism.upsert({
+        where: { id: org.id },
+        create: {
+          id: org.id,
+          gameId,
+          type: org.type as string,
+          name: org.name,
+          monthlyBudget: org.monthlyBudget,
+          staff: org.staff,
+          effectiveness: org.effectiveness,
+          autonomyLevel: org.autonomyLevel,
+          headOfficialId: org.headOfficialId,
+        },
+        update: {
+          monthlyBudget: org.monthlyBudget,
+          staff: org.staff,
+          effectiveness: org.effectiveness,
+          autonomyLevel: org.autonomyLevel,
+          headOfficialId: org.headOfficialId,
+        },
+      });
+    }
+
+    // i. Eventos
     for (const evt of newEvents) {
       await tx.event.create({
         data: {

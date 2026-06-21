@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { label: "Ministerios", icon: Building2, href: "/ministerios" },
   { label: "Congreso", icon: Landmark, href: "/congreso" },
-  { label: "Justicia", icon: Scale, disabled: true },
+  { label: "Justicia", icon: Scale, href: "/justicia" },
   { label: "Población", icon: Users, disabled: true },
   { label: "Medios", icon: Radio, disabled: true },
   { label: "Régimen", icon: Shield, disabled: true },

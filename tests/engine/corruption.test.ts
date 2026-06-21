@@ -85,7 +85,7 @@ describe("updateOfficialCorruption", () => {
     const state = crearEstadoBase({
       organisms: [
         { id: "org-comp", type: "COMPTROLLER", name: "Contraloría", monthlyBudget: 10000, staff: 20, effectiveness: 80, autonomyLevel: 50, headOfficialId: null },
-        { id: "org-anti", type: "ANTICORRUPTION", name: "Fiscalía AC", monthlyBudget: 15000, staff: 15, effectiveness: 70, autonomyLevel: 50, headOfficialId: null },
+        { id: "org-anti", type: "ANTICORRUPTION_PROSECUTION", name: "Fiscalía AC", monthlyBudget: 15000, staff: 15, effectiveness: 70, autonomyLevel: 50, headOfficialId: null },
       ],
       judicialCases: [],
     });

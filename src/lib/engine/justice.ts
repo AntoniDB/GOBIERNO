@@ -75,20 +75,24 @@ function getNextPhase(
 }
 
 /**
- * Genera un veredicto para un caso que llega a CLOSED.
- * La probabilidad de culpabilidad depende de la fuerza de evidencia.
+ * Genera un veredicto para un caso al entrar a la fase de sentencia.
+ * La probabilidad de culpabilidad depende de la fuerza de evidencia,
+ * modulada por la corrupción del juez asignado (SPEC §4.3).
  */
 function generateVerdict(
   evidenceStrength: number,
+  judgeCorruption: number,
   rng: () => number
-): { verdict: string; sentenceMonths: number | null } {
-  // evidenceStrength 0-100; a mayor evidencia, más probable culpable
-  const guiltyChance = evidenceStrength / 100;
+): { verdict: "GUILTY" | "NOT_GUILTY"; sentenceMonths: number | null } {
+  // Corrupción del juez: reduce la probabilidad de culpabilidad
+  // Un juez corrupto (corruption=100) reduce guiltyChance en 30 puntos porcentuales
+  const corruptionPenalty = (judgeCorruption / 100) * 30;
+  const guiltyChance = Math.max(0, evidenceStrength / 100 - corruptionPenalty / 100);
   const guilty = rng() < guiltyChance;
 
   if (guilty) {
     // Sentencia: 6 a 120 meses según evidencia
-    const base = Math.floor(evidenceStrength / 100 * 60);
+    const base = Math.floor((evidenceStrength / 100) * 60);
     const variation = Math.floor(rng() * 60);
     return {
       verdict: "GUILTY",
@@ -115,6 +119,7 @@ export function advanceJudicialCases(
   officials: OfficialState[]
 ): {
   updatedCases: JudicialCaseState[];
+  updatedOfficials: { id: string; status: string }[];
   notifications: TurnNotification[];
 } {
   const updatedOfficials = new Map<string, OfficialState>();
@@ -127,7 +132,6 @@ export function advanceJudicialCases(
 
   for (const c of cases) {
     if (c.currentPhase === "CLOSED") {
-      // Caso cerrado: no avanza
       updatedCases.push({ ...c });
       continue;
     }
@@ -136,39 +140,67 @@ export function advanceJudicialCases(
     const threshold = getPhaseThreshold(c.id, c.currentPhase);
 
     if (updated.monthsInPhase >= threshold) {
-      // Determinar si hay veredicto en fase SENTENCING → CLOSED
-      const caseRng = createRNG(c.id + "-verdict-" + updated.monthsInPhase);
+      const caseRng = createRNG(c.id + "-verdict-" + c.monthsInPhase);
 
-      if (c.currentPhase === "SENTENCING" || c.currentPhase === "APPEAL") {
+      // Generar veredicto al SALIR de TRIAL (entrar a SENTENCING)
+      // SPEC §4.3: el veredicto se emite al finalizar el juicio
+      if (c.currentPhase === "TRIAL") {
+        // Buscar corrupción del juez asignado para modular el veredicto
+        const judge = c.judgeId
+          ? updatedOfficials.get(c.judgeId)
+          : null;
+        const judgeCorruption = judge?.corruption ?? 10;
+
         const { verdict, sentenceMonths } = generateVerdict(
           c.evidenceStrength,
+          judgeCorruption,
           caseRng
         );
         updated.verdict = verdict;
         updated.sentenceMonths = sentenceMonths;
-
-        if (verdict === "GUILTY" && updated.currentPhase !== "APPEAL") {
-          // Solo se marca convicto si no hay apelación pendiente
-        }
       }
 
       const prevPhase = updated.currentPhase;
       updated.currentPhase = getNextPhase(c.currentPhase, caseRng);
       updated.monthsInPhase = 0;
 
-      // Si llega a CLOSED con veredicto culpable, marcar funcionario como CONVICTED
-      if (
-        updated.currentPhase === "CLOSED" &&
-        updated.verdict === "GUILTY"
-      ) {
-        const official = updatedOfficials.get(c.defendantOfficialId);
-        if (official) {
-          official.status = "CONVICTED";
-          updatedOfficials.set(official.id, official);
+      // Transiciones de status del oficial acusado
+      if (updated.currentPhase === "TRIAL") {
+        const defendant = updatedOfficials.get(c.defendantOfficialId);
+        if (defendant) {
+          defendant.status = "INDICTED";
+          updatedOfficials.set(defendant.id, defendant);
         }
       }
 
-      // Generar notificación por cambio de fase
+      // Al cerrar el caso (SENTENCING → CLOSED o APPEAL → CLOSED), aplicar consecuencias si es culpable
+      if (updated.currentPhase === "CLOSED" && updated.verdict === "GUILTY") {
+        const official = updatedOfficials.get(c.defendantOfficialId);
+        if (official) {
+          if (official.role === "MINISTER") {
+            official.status = "DISMISSED";
+            notifications.push({
+              type: "case",
+              title: "Ministro destituido",
+              description: `${official.name} ha sido condenado y destituido de su cargo como ministro. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
+            });
+          } else {
+            official.status = "CONVICTED";
+          }
+          updatedOfficials.set(official.id, official);
+        }
+
+        // Reducción de corrupción global: condena por corrupción reduce la corrupción del condenado
+        if (c.caseType === "CORRUPTION") {
+          const convicted = updatedOfficials.get(c.defendantOfficialId);
+          if (convicted) {
+            convicted.corruption = Math.max(0, convicted.corruption - 20);
+            updatedOfficials.set(convicted.id, convicted);
+          }
+        }
+      }
+
+      // Notificación de cambio de fase con detalle del veredicto si aplica
       const phaseNames: Record<string, string> = {
         INVESTIGATION: "Investigación",
         TRIAL: "Juicio",
@@ -177,19 +209,28 @@ export function advanceJudicialCases(
         CLOSED: "Cerrado",
       };
 
+      const verdictText = updated.verdict
+        ? updated.verdict === "GUILTY"
+          ? ` | Veredicto: Culpable (${updated.sentenceMonths} meses)`
+          : " | Veredicto: Inocente"
+        : "";
+
       notifications.push({
         type: "case",
-        title: `Caso judicial: cambio de fase`,
-        description: `El caso ${c.id} avanzó de ${phaseNames[prevPhase] ?? prevPhase} a ${phaseNames[updated.currentPhase] ?? updated.currentPhase}.${updated.verdict ? " Veredicto: " + (updated.verdict === "GUILTY" ? "Culpable" : "Inocente") : ""}`,
+        title: "Caso judicial: cambio de fase",
+        description: `El caso de ${c.caseType.toLowerCase()} avanzó de ${phaseNames[prevPhase] ?? prevPhase} a ${phaseNames[updated.currentPhase] ?? updated.currentPhase}.${verdictText}`,
       });
     }
 
     updatedCases.push(updated);
   }
 
-  // Reconstruir lista de officials con los cambios
-  // (no modificamos el array original, solo devolvemos casos)
-  return { updatedCases, notifications };
+  // Devolver officials actualizados con cambios de status y corrupción
+  const updatedOfficialsList: { id: string; status: string; corruption?: number }[] = [];
+  for (const [id, o] of updatedOfficials) {
+    updatedOfficialsList.push({ id, status: o.status, corruption: o.corruption });
+  }
+  return { updatedCases, updatedOfficials: updatedOfficialsList, notifications };
 }
 
 /**
@@ -211,10 +252,7 @@ export function openAutoCases(
 
   // Encontrar la Fiscalía (organismo tipo FISCALIA o ANTICORRUPCION)
   const fiscalia = state.organisms.find(
-    (o) =>
-      o.type === "FISCALIA" ||
-      o.type === "ANTICORRUPCION" ||
-      o.type === "PROSECUTOR_OFFICE"
+    (o) => o.type === "ANTICORRUPTION_PROSECUTION"
   );
   const fiscaliaEff = fiscalia?.effectiveness ?? 50;
 
@@ -234,11 +272,16 @@ export function openAutoCases(
   // Revisar cada funcionario con corrupción por encima del umbral
   for (const official of state.officials) {
     if (official.corruption < BALANCE.CORRUPTION_AUTO_CASE_THRESHOLD) continue;
-    if (official.status === "CONVICTED" || official.status === "IMPRISONED") continue;
+    if (official.status === "CONVICTED" || official.status === "DISMISSED") continue;
 
     // Probabilidad mensual de apertura de caso
-    const monthlyProb =
+    let monthlyProb =
       BALANCE.JUSTICE_AUTO_CASE_MONTHLY_PROB * (fiscaliaEff / 100);
+
+    // Bonus por alta autonomía de la Fiscalía
+    if (fiscalia && fiscalia.autonomyLevel > 70) {
+      monthlyProb *= 1.5;
+    }
 
     if (rng() < monthlyProb) {
       const prosecutor = randomPick(prosecutors, rng);
@@ -264,6 +307,8 @@ export function openAutoCases(
       };
 
       newCases.push(newCase);
+      // Marcar al oficial como INVESTIGATED
+      official.status = "INVESTIGATED";
 
       notifications.push({
         type: "case",

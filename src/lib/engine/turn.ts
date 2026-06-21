@@ -168,21 +168,29 @@ export function processTurn(
         type,
         name: config.name,
         monthlyBudget: config.monthlyBudget,
-        staff: 10, // valor inicial por defecto
-        effectiveness: 50, // efectividad inicial
-        autonomyLevel: 50, // autonomía inicial
+        staff: 10,
+        effectiveness: 50,
+        autonomyLevel: 50,
         headOfficialId: config.headOfficialId ?? null,
       };
       newState.organisms.push(organism);
       orgIndex++;
 
-      // Asignar el jefe del organismo si se especificó
       if (config.headOfficialId) {
         const head = newState.officials.find(
           (o) => o.id === config.headOfficialId
         );
         if (head) {
-          head.role = `HEAD_${type}`;
+          // Asignar rol válido según tipo de organismo
+          const organismRoleMap: Record<string, string> = {
+            COMPTROLLER: "COMPTROLLER",
+            ANTICORRUPTION_PROSECUTION: "PROSECUTOR",
+            INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
+            OMBUDSMAN: "OMBUDSMAN",
+            CONSTITUTIONAL_COURT: "JUDGE",
+            CENTRAL_BANK: "CENTRAL_BANK_PRESIDENT",
+          };
+          head.role = organismRoleMap[type] ?? head.role;
           allNotifications.push({
             type: "info",
             title: "Nuevo organismo creado",
@@ -264,7 +272,7 @@ export function processTurn(
           caseIdx
         ),
         defendantOfficialId: official.id,
-        caseType: "INVESTIGATION",
+        caseType: "CORRUPTION",
         currentPhase: "INVESTIGATION",
         monthsInPhase: 0,
         evidenceStrength: 30 + Math.floor(rng() * 30), // 30-60 inicial
@@ -275,6 +283,7 @@ export function processTurn(
       };
 
       newState.judicialCases.push(investigationCase);
+      official.status = "INVESTIGATED";
       caseIdx++;
 
       allNotifications.push({
@@ -346,9 +355,18 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 10: Avanzar casos judiciales + abrir casos automáticos
   // ═══════════════════════════════════════════════════════════════════════
-  const { updatedCases, notifications: caseNotifications } =
+  const { updatedCases, updatedOfficials, notifications: caseNotifications } =
     advanceJudicialCases(newState.judicialCases, newState.officials);
   newState.judicialCases = updatedCases;
+  for (const upd of updatedOfficials) {
+    const off = newState.officials.find((o) => o.id === upd.id);
+    if (off) {
+      off.status = upd.status;
+      if ((upd as { corruption?: number }).corruption !== undefined) {
+        off.corruption = (upd as { corruption?: number }).corruption!;
+      }
+    }
+  }
   allNotifications.push(...caseNotifications);
 
   const { newCases, notifications: autoCaseNotifications } = openAutoCases(

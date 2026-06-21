@@ -296,6 +296,31 @@ async function main() {
   }
   console.log("  ✓ 8 ministerios creados");
 
+  // ─── Contraloría General ─────────────────────────────────────────────────
+  const contralor = await prisma.official.create({
+    data: {
+      gameId: game.id,
+      name: nombreAleatorio(25),
+      role: "COMPTROLLER",
+      ideology: { economic: 0, social: 20, authority: 0 },
+      loyalty: 60, ambition: 20, wealth: 60000, corruption: 3, skill: 75, reputation: 70,
+    },
+  });
+
+  await prisma.organism.create({
+    data: {
+      gameId: game.id,
+      type: "COMPTROLLER",
+      name: "Contraloría General de la República",
+      monthlyBudget: 150000000,
+      staff: 30,
+      effectiveness: 40,
+      autonomyLevel: 70,
+      headOfficialId: contralor.id,
+    },
+  });
+  console.log("  ✓ Contraloría General creada");
+
   // ─── Senadores (20: 15 cámara baja, 5 alta) ──────────────────────────────
 
   const distribucionEscaños = [5, 6, 3, 2, 2]; // baja
