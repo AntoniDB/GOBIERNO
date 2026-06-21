@@ -1,0 +1,554 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MinistryKey {
+  HEALTH
+  EDUCATION
+  ECONOMY
+  DEFENSE
+  SECURITY
+  JUSTICE
+  AGRICULTURE
+  SOCIAL_DEVELOPMENT
+  FOREIGN_AFFAIRS
+  ENVIRONMENT
+  LABOR
+  INFRASTRUCTURE
+  CULTURE
+  SCIENCE_TECH
+}
+
+enum OfficialRole {
+  MINISTER
+  JUDGE
+  PROSECUTOR
+  GENERAL
+  CHIEF_OF_INTELLIGENCE
+  COMPTROLLER
+  OMBUDSMAN
+  CENTRAL_BANK_PRESIDENT
+}
+
+enum OfficialStatus {
+  ACTIVE
+  INVESTIGATED
+  INDICTED
+  CONVICTED
+  DISMISSED
+}
+
+enum Chamber {
+  LOWER
+  UPPER
+}
+
+enum ProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CaseType {
+  CORRUPTION
+  CRIMINAL
+  CIVIL
+}
+
+enum CasePhase {
+  INVESTIGATION
+  TRIAL
+  SENTENCING
+  APPEAL
+  CLOSED
+}
+
+enum OrganismType {
+  COMPTROLLER
+  ANTICORRUPTION_PROSECUTION
+  INTELLIGENCE
+  OMBUDSMAN
+  CONSTITUTIONAL_COURT
+  CENTRAL_BANK
+  TAX_AGENCY
+  ELECTORAL_COUNCIL
+}
+
+enum SocialClassKey {
+  EXTREME_POVERTY
+  POVERTY
+  MIDDLE
+  ELITE
+}
+
+enum MediaType {
+  TV
+  NEWSPAPER
+  DIGITAL
+}
+
+enum MediaStatus {
+  ACTIVE
+  CENSORED
+  CLOSED
+}
+
+enum EventType {
+  EPIDEMIC
+  SCANDAL
+  PROTEST
+  CRIME_SURGE
+  COUP_ATTEMPT
+  DISASTER
+  DISCOVERY
+  ECONOMIC_CRISIS
+  LEAK
+  OTHER
+}
+
+enum GameStatus {
+  ACTIVE
+  PAUSED
+  FINISHED
+}
+
+enum InfrastructureType {
+  ENERGY
+  WATER
+  ROADS
+  RAIL
+  INTERNET
+  HOUSING
+}
+
+// ─── Modelos ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  games        Game[]
+}
+
+model Game {
+  id            String    @id @default(uuid())
+  userId        String
+  countryName   String
+  currentYear   Int       @default(1)
+  currentMonth  Int       @default(1)
+  status        GameStatus @default(ACTIVE)
+  seed          String
+  preset        String
+  difficulty    String    @default("normal")
+  treasury      Float     @default(1000000)
+  population    Int       @default(10000000)
+  createdAt     DateTime  @default(now())
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots     MonthSnapshot[]
+  ministries    Ministry[]
+  officials     Official[]
+  parties       Party[]
+  senators      Senator[]
+  lawProposals  LawProposal[]
+  activeLaws    ActiveLaw[]
+  judicialCases JudicialCase[]
+  organisms     Organism[]
+  socialClasses SocialClass[]
+  regimeMetrics RegimeMetrics[]
+  media         Media[]
+  events         Event[]
+  mediaCoverages MediaCoverage[]
+  countries      Country[]
+  treaties      Treaty[]
+  diseases      Disease[]
+  infrastructures Infrastructure[]
+  regions       Region[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model MonthSnapshot {
+  id            String   @id @default(uuid())
+  gameId        String
+  year          Int
+  month         Int
+  treasury      Float
+  gdp           Float
+  population    Int
+  approval      Float
+  corruption    Float
+  povertyRate       Float
+  unemploymentRate  Float
+  sickRate          Float
+  crimeRate         Float
+  foodSecurity      Float
+  educationLevel    Float
+  inflation         Float
+  gini              Float
+  regimeType        String
+  regimeMetrics     Json
+  createdAt     DateTime @default(now())
+
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, year, month])
+  @@index([gameId])
+}
+
+model Ministry {
+  id               String      @id @default(uuid())
+  gameId           String
+  key              MinistryKey
+  budgetPercent    Float       @default(12.5)
+  efficiency       Float       @default(50)
+  internalCorruption Float     @default(10)
+  subDecisions     Json        @default("{}")
+  ministerOfficialId String?
+
+  game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  minister         Official?      @relation("MinisterMinistry", fields: [ministerOfficialId], references: [id])
+  decisions        MinistryDecision[]
+
+  @@unique([gameId, key])
+  @@index([gameId])
+}
+
+model MinistryDecision {
+  id           String   @id @default(uuid())
+  ministryId   String
+  key          String
+  value        Float
+  activatedAt  DateTime @default(now())
+
+  ministry     Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
+  @@index([ministryId])
+}
+
+model Official {
+  id           String         @id @default(uuid())
+  gameId       String
+  name         String
+  role         OfficialRole
+  ministryId   String?
+  partyId      String?
+  loyalty      Float          @default(50)
+  ambition     Float          @default(30)
+  wealth       Float          @default(10000)
+  ideology     Json           @default("{\"economic\":0,\"social\":0,\"authority\":0}")
+  corruption   Float          @default(10)
+  skill        Float          @default(50)
+  reputation   Float          @default(50)
+  status       OfficialStatus @default(ACTIVE)
+  appointedAt  DateTime       @default(now())
+
+  game             Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  ministryManaged  Ministry[]       @relation("MinisterMinistry")
+  party            Party?           @relation("PartyMembers", fields: [partyId], references: [id])
+  partyLed         Party[]          @relation("PartyLeader")
+  organismHeaded   Organism[]
+  casesAsDefendant JudicialCase[]   @relation("Defendant")
+  casesAsProsecutor JudicialCase[]  @relation("Prosecutor")
+  casesAsJudge     JudicialCase[]   @relation("Judge")
+
+  @@index([gameId])
+  @@index([role])
+  @@index([status])
+}
+
+model Party {
+  id               String    @id @default(uuid())
+  gameId           String
+  name             String
+  ideology         Json      @default("{\"economic\":0,\"social\":0,\"authority\":0}")
+  leaderOfficialId String?
+  popularity       Float     @default(20)
+  seatsLower       Int       @default(0)
+  seatsUpper       Int       @default(0)
+
+  game             Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  leader           Official?  @relation("PartyLeader", fields: [leaderOfficialId], references: [id])
+  senators         Senator[]
+  officials        Official[] @relation("PartyMembers")
+
+  @@index([gameId])
+}
+
+model Senator {
+  id              String  @id @default(uuid())
+  gameId          String
+  partyId         String
+  name            String
+  personalIdeology Json   @default("{\"economic\":0,\"social\":0,\"authority\":0}")
+  chamber         Chamber
+  loyalty         Float   @default(50)
+
+  game            Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  party           Party   @relation(fields: [partyId], references: [id])
+
+  @@index([gameId])
+  @@index([partyId])
+}
+
+model LawCatalog {
+  id            String  @id @default(uuid())
+  key           String  @unique
+  name          String
+  description   String
+  effectsJson   Json
+  idealIdeology Json
+  cost          Float   @default(0)
+  isAvailable   Boolean @default(true)
+}
+
+model LawProposal {
+  id           String         @id @default(uuid())
+  gameId       String
+  lawKey       String
+  proposedAt   DateTime       @default(now())
+  status       ProposalStatus @default(PENDING)
+  votesFor     Int            @default(0)
+  votesAgainst Int            @default(0)
+  votesAbstain Int            @default(0)
+  resolvedAt   DateTime?
+
+  game         Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([status])
+}
+
+model ActiveLaw {
+  id          String    @id @default(uuid())
+  gameId      String
+  lawKey       String
+  activatedAt DateTime  @default(now())
+  repealedAt  DateTime?
+
+  game        Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model JudicialCase {
+  id                  String    @id @default(uuid())
+  gameId              String
+  defendantOfficialId String
+  caseType            CaseType
+  description         String
+  openedAt            DateTime  @default(now())
+  currentPhase        CasePhase @default(INVESTIGATION)
+  monthsInPhase       Int       @default(0)
+  evidenceStrength    Float     @default(30)
+  prosecutorId        String?
+  judgeId             String?
+  verdict             String?
+  sentenceMonths      Int?
+
+  game                Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  defendant           Official   @relation("Defendant", fields: [defendantOfficialId], references: [id])
+  prosecutor          Official?  @relation("Prosecutor", fields: [prosecutorId], references: [id])
+  judge               Official?  @relation("Judge", fields: [judgeId], references: [id])
+  investigations      Investigation[]
+
+  @@index([gameId])
+  @@index([currentPhase])
+}
+
+model Investigation {
+  id          String  @id @default(uuid())
+  caseId      String
+  openedBy    String
+  monthsActive Int    @default(0)
+  progress    Float   @default(0)
+
+  judicialCase JudicialCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model Organism {
+  id              String       @id @default(uuid())
+  gameId          String
+  type            OrganismType
+  name            String
+  monthlyBudget   Float        @default(0)
+  staff           Int          @default(0)
+  effectiveness   Float        @default(20)
+  autonomyLevel   Float        @default(50)
+  headOfficialId  String?
+  createdAt       DateTime     @default(now())
+  dissolvedAt     DateTime?
+
+  game            Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  headOfficial    Official?    @relation(fields: [headOfficialId], references: [id])
+
+  @@index([gameId])
+  @@index([type])
+}
+
+model SocialClass {
+  id               String        @id @default(uuid())
+  gameId           String
+  key              SocialClassKey
+  populationPercent Float        @default(25)
+  averageIncome    Float         @default(0)
+  approval         Float         @default(50)
+  demands          Json          @default("[]")
+  educationLevel   Float         @default(30)
+  healthAccess     Float         @default(50)
+
+  game             Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, key])
+  @@index([gameId])
+}
+
+model RegimeMetrics {
+  id                    String   @id @default(uuid())
+  gameId                String
+  powerConcentration    Float    @default(30)
+  pressFreedom          Float    @default(70)
+  judicialIndependence  Float    @default(60)
+  politicalPluralism    Float    @default(70)
+  civilLiberties        Float    @default(70)
+  transparency          Float    @default(50)
+  militarySubordination Float    @default(60)
+  updatedAt             DateTime @updatedAt
+
+  game                  Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model Media {
+  id                  String      @id @default(uuid())
+  gameId              String
+  name                String
+  type                MediaType
+  ideologicalAffinity Json        @default("{\"economic\":0,\"social\":0,\"authority\":0}")
+  reach               Float       @default(50)
+  credibility         Float       @default(60)
+  governmentAffinity  Float       @default(0)
+  status              MediaStatus @default(ACTIVE)
+
+  game                Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  coverages           MediaCoverage[]
+
+  @@index([gameId])
+}
+
+model MediaCoverage {
+  id               String   @id @default(uuid())
+  mediaId          String
+  gameId           String
+  year             Int
+  month            Int
+  eventId          String?
+  headline         String
+  sentiment        Float    @default(0)
+  impactOnApproval Json     @default("{}")
+
+  media            Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  game             Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([mediaId])
+  @@index([gameId])
+  @@index([gameId, year, month])
+}
+
+model Event {
+  id             String    @id @default(uuid())
+  gameId         String
+  type           EventType
+  severity       Float     @default(50)
+  year           Int
+  month          Int
+  description    String
+  effectsApplied Json      @default("{}")
+  resolvedAt     DateTime?
+
+  game           Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([gameId, year, month])
+}
+
+// ─── Fase 2: solo esquema, lógica como stub ──────────────────────────────────
+
+model Country {
+  id             String @id @default(uuid())
+  gameId         String
+  name           String
+  relationStatus String @default("neutral")
+  militaryPower  Float  @default(50)
+  economicPower  Float  @default(50)
+  isNeighbor     Boolean @default(false)
+
+  game           Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model Treaty {
+  id        String   @id @default(uuid())
+  gameId    String
+  countryId String
+  type      String
+  signedAt  DateTime @default(now())
+
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([countryId])
+}
+
+model Disease {
+  id            String  @id @default(uuid())
+  gameId        String
+  name          String
+  contagionRate Float   @default(0.1)
+  mortalityRate Float   @default(0.01)
+  prevalence    Float   @default(0)
+  hasVaccine    Boolean @default(false)
+
+  game          Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model Infrastructure {
+  id              String             @id @default(uuid())
+  gameId          String
+  type            InfrastructureType
+  coveragePercent Float              @default(50)
+  maintenanceCost Float              @default(0)
+  condition       Float              @default(50)
+
+  game            Game               @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}
+
+model Region {
+  id                  String @id @default(uuid())
+  gameId              String
+  name                String
+  populationPercent   Float  @default(25)
+  povertyRate         Float  @default(30)
+  infrastructureLevel Float  @default(50)
+
+  game                Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+}

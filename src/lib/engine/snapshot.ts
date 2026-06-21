@@ -1,0 +1,86 @@
+// ─── Creación de snapshot mensual ────────────────────────────────────────────
+// Captura el estado del país en un momento dado para guardar en la serie
+// histórica. Funciones puras y deterministas.
+
+import type { GameState, MonthSnapshotData } from "./types";
+import { calculateApprovalByClass, calculateGeneralApproval } from "./approval";
+import { calculateGlobalCorruption } from "./corruption";
+import { classifyRegime } from "./regime";
+import {
+  calculatePoverty,
+  calculateUnemployment,
+  calculateHealth,
+  calculateFoodSecurity,
+  calculateCrime,
+  calculateEducation,
+  calculateGini,
+  calculateInflationSimple,
+} from "./indicators";
+import { calculateGDP } from "./economy";
+
+/**
+ * Crea un snapshot mensual del estado del país.
+ * Recopila todos los indicadores calculados, aprobación, corrupción,
+ * PIB y clasificación de régimen en un solo objeto para almacenar
+ * en la serie histórica.
+ *
+ * @param state - Estado completo del juego después del procesamiento del turno
+ * @param year - Año actual
+ * @param month - Mes actual
+ * @returns Snapshot con todos los indicadores y clasificaciones
+ */
+export function createMonthSnapshot(
+  state: GameState,
+  year: number,
+  month: number
+): MonthSnapshotData {
+  // ── Eventos de este mes ────────────────────────────────────────────────
+  const eventsThisMonth = state.events.filter(
+    (e) => e.year === year && e.month === month
+  );
+
+  // ── Indicadores sociales (desde indicators.ts) ─────────────────────────
+  const povertyRate = calculatePoverty(state);
+  const unemploymentRate = calculateUnemployment(state);
+  const sickRate = calculateHealth(state);
+  const foodSecurity = calculateFoodSecurity(state);
+  const crimeRate = calculateCrime(state);
+  const educationLevel = calculateEducation(state);
+  const inflation = calculateInflationSimple(state);
+  const gini = calculateGini(state, state.activeLaws);
+  const gdp = calculateGDP(state);
+
+  // ── Aprobación general ─────────────────────────────────────────────────
+  const approval = calculateGeneralApproval(state, eventsThisMonth);
+
+  // ── Corrupción global (promedio ponderado de funcionarios) ──────────────
+  const corruption = calculateGlobalCorruption(state.officials);
+
+  // ── Clasificación de régimen ───────────────────────────────────────────
+  const regimeType = classifyRegime(
+    state.regimeMetrics,
+    crimeRate,
+    corruption,
+    approval
+  );
+
+  return {
+    year,
+    month,
+    treasury: state.treasury,
+    gdp,
+    population: state.population,
+    approval,
+    corruption,
+    povertyRate,
+    unemploymentRate,
+    sickRate,
+    crimeRate,
+    foodSecurity,
+    educationLevel,
+    inflation,
+    gini,
+    regimeType,
+    regimeMetrics: { ...state.regimeMetrics },
+  };
+}

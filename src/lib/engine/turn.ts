@@ -1,0 +1,422 @@
+// ─── Orquestador principal del motor de turno ────────────────────────────────
+// Ejecuta los 14 pasos del ciclo mensual en orden, usando funciones puras.
+// Recibe GameState + TurnInput + rng, devuelve TurnOutput con el nuevo estado,
+// snapshot, notificaciones, eventos y coberturas mediáticas.
+
+import type {
+  GameState,
+  TurnInput,
+  TurnOutput,
+  MinistryState,
+  OfficialState,
+  OrganismState,
+  JudicialCaseState,
+  TurnNotification,
+  EventState,
+  MediaCoverageData,
+} from "./types";
+import { BALANCE } from "../balance";
+// ── Funciones del motor (económicas, ministeriales, corrupción, indicadores)
+import { calculateIncome } from "./economy";
+import { calculateExpenses } from "./economy";
+import { calculateTreasury } from "./economy";
+import { calculateMinistryEfficiency } from "./ministries";
+import { updateOfficialCorruption } from "./corruption";
+import { calculateGlobalCorruption } from "./corruption";
+import {
+  calculatePoverty,
+  calculateUnemployment,
+  calculateHealth,
+  calculateFoodSecurity,
+  calculateCrime,
+  calculateEducation,
+  calculateGini,
+  calculateInflationSimple,
+} from "./indicators";
+// ── Funciones escritas en este módulo ────────────────────────────────────
+import { calculateApprovalByClass, calculateGeneralApproval } from "./approval";
+import { advanceJudicialCases, openAutoCases } from "./justice";
+import {
+  calculateRegimeMetrics,
+  classifyRegime,
+} from "./regime";
+import { triggerRandomEvents } from "./events";
+import { generateMediaCoverage } from "./media";
+import { createMonthSnapshot } from "./snapshot";
+
+/**
+ * Clona profundamente el estado del juego para mutarlo de forma segura.
+ */
+function cloneState(state: GameState): GameState {
+  return JSON.parse(JSON.stringify(state)) as GameState;
+}
+
+/**
+ * Genera un ID único basado en año, mes y un contador.
+ */
+function generateId(
+  prefix: string,
+  year: number,
+  month: number,
+  index: number
+): string {
+  return `${prefix}-${year}-${month}-${index}`;
+}
+
+/**
+ * Procesa un turno completo (un mes) de la simulación.
+ *
+ * Ejecuta los 14 pasos en orden:
+ *  1. Aplicar decisiones del jugador
+ *  2. Calcular income
+ *  3. Calcular expenses
+ *  4. Actualizar tesoro
+ *  5. Calcular eficiencia ministerial
+ *  6. Actualizar corrupción individual
+ *  7. Calcular corrupción global
+ *  8. Recalcular indicadores sociales
+ *  9. Recalcular aprobación por clase
+ * 10. Avanzar casos judiciales + abrir casos automáticos
+ * 11. Recalcular métricas de régimen
+ * 12. Disparar eventos aleatorios
+ * 13. Generar coberturas mediáticas
+ * 14. Crear snapshot mensual
+ *
+ * @param state - Estado actual del juego
+ * @param input - Decisiones del jugador para este turno
+ * @param rng - Función generadora de números aleatorios (determinista)
+ * @returns Resultado completo del turno
+ */
+export function processTurn(
+  state: GameState,
+  input: TurnInput,
+  rng: () => number
+): TurnOutput {
+  // Clonar estado para trabajar sobre copia mutable
+  const newState = cloneState(state);
+  const allNotifications: TurnNotification[] = [];
+  let allNewEvents: EventState[] = [];
+  let allMediaCoverages: MediaCoverageData[] = [];
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 1: Aplicar decisiones del jugador
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // 1a. Ajustes de presupuesto por ministerio
+  if (input.budgetAdjustments) {
+    for (const [ministryKey, newPercent] of Object.entries(
+      input.budgetAdjustments
+    )) {
+      const clamped = Math.max(
+        BALANCE.MIN_BUDGET_PERCENT,
+        Math.min(BALANCE.MAX_BUDGET_PERCENT, newPercent)
+      );
+      const ministry = newState.ministries.find(
+        (m) => m.key === ministryKey
+      );
+      if (ministry) {
+        ministry.budgetPercent = clamped;
+      }
+    }
+  }
+
+  // 1b. Cambios de sub-decisiones por ministerio
+  if (input.subDecisionChanges) {
+    for (const [ministryKey, changes] of Object.entries(
+      input.subDecisionChanges
+    )) {
+      const ministry = newState.ministries.find(
+        (m) => m.key === ministryKey
+      );
+      if (ministry) {
+        for (const [subKey, value] of Object.entries(changes)) {
+          ministry.subDecisions[subKey] = value;
+        }
+      }
+    }
+  }
+
+  // 1c. Nombramientos: asignar funcionarios a roles
+  if (input.appointments) {
+    for (const [role, officialId] of Object.entries(input.appointments)) {
+      const official = newState.officials.find(
+        (o) => o.id === officialId
+      );
+      if (official) {
+        official.role = role;
+        // Buscar ministerio correspondiente al rol y asignarlo
+        const matchingMinistry = newState.ministries.find(
+          (m) =>
+            m.key.toUpperCase() === role.toUpperCase() ||
+            m.ministerOfficialId === null
+        );
+        if (matchingMinistry && !matchingMinistry.ministerOfficialId) {
+          matchingMinistry.ministerOfficialId = official.id;
+          official.ministryId = matchingMinistry.id;
+        }
+      }
+    }
+  }
+
+  // 1d. Crear nuevos organismos
+  if (input.newOrganisms) {
+    let orgIndex = 0;
+    for (const [type, config] of Object.entries(input.newOrganisms)) {
+      const organism: OrganismState = {
+        id: generateId("org", newState.currentYear, newState.currentMonth, orgIndex),
+        type,
+        name: config.name,
+        monthlyBudget: config.monthlyBudget,
+        staff: 10, // valor inicial por defecto
+        effectiveness: 50, // efectividad inicial
+        autonomyLevel: 50, // autonomía inicial
+        headOfficialId: config.headOfficialId ?? null,
+      };
+      newState.organisms.push(organism);
+      orgIndex++;
+
+      // Asignar el jefe del organismo si se especificó
+      if (config.headOfficialId) {
+        const head = newState.officials.find(
+          (o) => o.id === config.headOfficialId
+        );
+        if (head) {
+          head.role = `HEAD_${type}`;
+          allNotifications.push({
+            type: "info",
+            title: "Nuevo organismo creado",
+            description: `Se ha creado el organismo ${config.name} (${type}) con ${head.name} como director.`,
+          });
+        }
+      }
+    }
+  }
+
+  // 1e. Acciones sobre medios
+  if (input.mediaActions) {
+    for (const [mediaId, action] of Object.entries(input.mediaActions)) {
+      const medium = newState.media.find((m) => m.id === mediaId);
+      if (!medium) continue;
+
+      switch (action) {
+        case "censor":
+          medium.status = "CENSORED";
+          medium.credibility = Math.max(10, medium.credibility - 20);
+          allNotifications.push({
+            type: "warning",
+            title: "Medio censurado",
+            description: `El medio ${medium.name} ha sido censurado por el gobierno.`,
+          });
+          break;
+        case "close":
+          medium.status = "CLOSED";
+          allNotifications.push({
+            type: "warning",
+            title: "Medio clausurado",
+            description: `El medio ${medium.name} ha sido clausurado.`,
+          });
+          break;
+        case "boost":
+          medium.reach = Math.min(100, medium.reach + 10);
+          medium.credibility = Math.min(100, medium.credibility + 5);
+          allNotifications.push({
+            type: "info",
+            title: "Medio impulsado",
+            description: `El gobierno ha impulsado al medio ${medium.name}.`,
+          });
+          break;
+        case "none":
+        default:
+          break;
+      }
+    }
+  }
+
+  // 1f. Investigaciones: abrir casos judiciales contra funcionarios
+  if (input.investigations && input.investigations.length > 0) {
+    let caseIdx = 0;
+    const prosecutors = newState.officials.filter(
+      (o) => o.role === "PROSECUTOR" && o.status === "ACTIVE"
+    );
+    const judges = newState.officials.filter(
+      (o) => o.role === "JUDGE" && o.status === "ACTIVE"
+    );
+
+    for (const officialId of input.investigations) {
+      const official = newState.officials.find(
+        (o) => o.id === officialId
+      );
+      if (!official) continue;
+
+      const prosecutor =
+        prosecutors.length > 0
+          ? prosecutors[caseIdx % prosecutors.length]
+          : null;
+      const judge =
+        judges.length > 0 ? judges[caseIdx % judges.length] : null;
+
+      const investigationCase: JudicialCaseState = {
+        id: generateId(
+          "invest",
+          newState.currentYear,
+          newState.currentMonth,
+          caseIdx
+        ),
+        defendantOfficialId: official.id,
+        caseType: "INVESTIGATION",
+        currentPhase: "INVESTIGATION",
+        monthsInPhase: 0,
+        evidenceStrength: 30 + Math.floor(rng() * 30), // 30-60 inicial
+        prosecutorId: prosecutor?.id ?? null,
+        judgeId: judge?.id ?? null,
+        verdict: null,
+        sentenceMonths: null,
+      };
+
+      newState.judicialCases.push(investigationCase);
+      caseIdx++;
+
+      allNotifications.push({
+        type: "case",
+        title: "Investigación abierta",
+        description: `Se ha abierto una investigación contra ${official.name} por orden del ejecutivo.`,
+      });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 2: Calcular ingresos fiscales
+  // ═══════════════════════════════════════════════════════════════════════
+  const income = calculateIncome(newState);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 3: Calcular gastos
+  // ═══════════════════════════════════════════════════════════════════════
+  const expenses = calculateExpenses(newState);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 4: Actualizar tesoro
+  // ═══════════════════════════════════════════════════════════════════════
+  newState.treasury = calculateTreasury(newState.treasury, income, expenses);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 5: Calcular eficiencia de cada ministerio
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const ministry of newState.ministries) {
+    const minister = ministry.ministerOfficialId
+      ? newState.officials.find((o) => o.id === ministry.ministerOfficialId)
+      : undefined;
+    ministry.efficiency = calculateMinistryEfficiency(ministry, minister);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 6: Actualizar corrupción individual de cada funcionario
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const official of newState.officials) {
+    official.corruption = updateOfficialCorruption(official, newState);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 7: Calcular corrupción global
+  // ═══════════════════════════════════════════════════════════════════════
+  const globalCorruption = calculateGlobalCorruption(newState.officials);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 8: Recalcular indicadores sociales
+  // (poverty, unemployment, health, food, crime, education, gini, inflation)
+  // Estos se recalculan implícitamente en los pasos siguientes y en el
+  // snapshot. Las funciones de cálculo están en snapshot.ts y se invocan
+  // en el paso 14.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 9: Recalcular aprobación por clase social
+  // ═══════════════════════════════════════════════════════════════════════
+  const eventsThisMonth = newState.events.filter(
+    (e) =>
+      e.year === newState.currentYear &&
+      e.month === newState.currentMonth
+  );
+
+  for (const sc of newState.socialClasses) {
+    sc.approval = calculateApprovalByClass(sc, newState, eventsThisMonth);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 10: Avanzar casos judiciales + abrir casos automáticos
+  // ═══════════════════════════════════════════════════════════════════════
+  const { updatedCases, notifications: caseNotifications } =
+    advanceJudicialCases(newState.judicialCases, newState.officials);
+  newState.judicialCases = updatedCases;
+  allNotifications.push(...caseNotifications);
+
+  const { newCases, notifications: autoCaseNotifications } = openAutoCases(
+    newState,
+    rng
+  );
+  newState.judicialCases.push(...newCases);
+  allNotifications.push(...autoCaseNotifications);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 11: Recalcular métricas de régimen + clasificar
+  // ═══════════════════════════════════════════════════════════════════════
+  // Aplicar modificadores por acciones del turno
+  const regimeActions = {
+    censorMedia: Object.values(input.mediaActions ?? {}).some(
+      (a) => a === "censor"
+    ),
+    nombrarJuecesAfines: Object.keys(input.appointments ?? {}).some(
+      (r) => r === "JUDGE"
+    ),
+    disolverCongreso: false, // se determina por otras vías
+    estadoEmergencia: false, // se determina por otras vías
+    comprarVotos: false, // se determina por otras vías
+  };
+
+  newState.regimeMetrics = calculateRegimeMetrics(
+    newState.regimeMetrics,
+    regimeActions
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 12: Disparar eventos aleatorios
+  // ═══════════════════════════════════════════════════════════════════════
+  const { newEvents, notifications: eventNotifications } =
+    triggerRandomEvents(newState, rng);
+
+  newState.events.push(...newEvents);
+  allNewEvents = newEvents;
+  allNotifications.push(...eventNotifications);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 13: Generar coberturas mediáticas
+  // ═══════════════════════════════════════════════════════════════════════
+  const allEventsThisMonth = [
+    ...eventsThisMonth,
+    ...newEvents,
+  ];
+
+  allMediaCoverages = generateMediaCoverage(
+    newState,
+    allEventsThisMonth,
+    rng
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 14: Crear MonthSnapshot
+  // ═══════════════════════════════════════════════════════════════════════
+  const monthSnapshot = createMonthSnapshot(
+    newState,
+    newState.currentYear,
+    newState.currentMonth
+  );
+
+  // ── Construir y devolver resultado ─────────────────────────────────────
+  return {
+    newState,
+    monthSnapshot,
+    notifications: allNotifications,
+    newEvents: allNewEvents,
+    mediaCoverages: allMediaCoverages,
+  };
+}
