@@ -78,6 +78,7 @@ function getEfficiencyColor(value: number) {
 
 export function MinistryView({ ministry }: { ministry: MinistryState }) {
   const gameState = useGameStore((s) => s.gameState);
+  const pendingInput = useGameStore((s) => s.pendingInput);
   const updateBudget = useGameStore((s) => s.updateBudget);
   const updateSubDecision = useGameStore((s) => s.updateSubDecision);
 
@@ -90,6 +91,12 @@ export function MinistryView({ ministry }: { ministry: MinistryState }) {
   const minister: OfficialState | null | undefined = ministry.ministerOfficialId
     ? gameState?.officials.find((o) => o.id === ministry.ministerOfficialId)
     : null;
+
+  const hasPendingBudget =
+    pendingInput.budgetAdjustments?.[ministry.key] !== undefined;
+  const hasPendingSubDecisions =
+    pendingInput.subDecisionChanges?.[ministry.key] !== undefined;
+  const hasPendingChanges = hasPendingBudget || hasPendingSubDecisions;
 
   return (
     <div className="space-y-6">
@@ -107,6 +114,13 @@ export function MinistryView({ ministry }: { ministry: MinistryState }) {
           <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-2xl">
             {description}
           </p>
+          {hasPendingChanges && (
+            <div className="mt-2 flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                Cambios pendientes — Avanzar mes para aplicar
+              </Badge>
+            </div>
+          )}
         </div>
       </div>
 

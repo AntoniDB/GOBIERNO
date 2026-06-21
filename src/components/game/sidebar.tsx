@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { label: "Congreso", icon: Landmark, href: "/congreso" },
   { label: "Justicia", icon: Scale, href: "/justicia" },
   { label: "Población", icon: Users, href: "/poblacion" },
-  { label: "Medios", icon: Radio, disabled: true },
+  { label: "Medios", icon: Radio, href: "/medios" },
   { label: "Régimen", icon: Shield, href: "/regimen" },
   { label: "Reportes", icon: BarChart3, disabled: true },
 ];

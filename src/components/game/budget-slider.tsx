@@ -39,14 +39,23 @@ interface BudgetSliderProps {
 
 export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: BudgetSliderProps) {
   const gameState = useGameStore((s) => s.gameState);
+  const pendingInput = useGameStore((s) => s.pendingInput);
   const allMinistries = useMemo(() => gameState?.ministries ?? [], [gameState?.ministries]);
+
+  // Valor efectivo: el pendiente si existe, si no el del estado actual del juego.
+  // Esto da feedback visual inmediato al arrastrar, porque al escribir en pendingInput
+  // el componente re-renderiza y muestra la nueva posición del thumb.
+  const effectiveBudget =
+    pendingInput.budgetAdjustments?.[ministryKey] ?? currentBudget;
 
   const totalBudget = useMemo(() => {
     return allMinistries.reduce((sum, m) => {
-      if (m.key === ministryKey) return sum + currentBudget;
-      return sum + m.budgetPercent;
+      // Usar valor pendiente si existe, si no el del game state
+      const mBudget = pendingInput.budgetAdjustments?.[m.key] ?? m.budgetPercent;
+      if (m.key === ministryKey) return sum + effectiveBudget;
+      return sum + mBudget;
     }, 0);
-  }, [allMinistries, ministryKey, currentBudget]);
+  }, [allMinistries, ministryKey, effectiveBudget, pendingInput.budgetAdjustments]);
 
   const remaining = 100 - totalBudget;
 
@@ -56,7 +65,7 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
     return "bg-destructive";
   }
 
-  const budgetLevelColor = getBudgetLevelColor(currentBudget);
+  const budgetLevelColor = getBudgetLevelColor(effectiveBudget);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-5">
@@ -64,19 +73,19 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium text-foreground">Presupuesto asignado</Label>
           <span className="text-sm font-bold tabular-nums text-foreground">
-            {currentBudget.toFixed(1)}%
+            {effectiveBudget.toFixed(1)}%
           </span>
         </div>
 
         <div className="h-2 w-full rounded-full bg-muted">
           <div
             className={`h-full rounded-full transition-all ${budgetLevelColor}`}
-            style={{ width: `${Math.min(currentBudget / BUDGET_MAX * 100, 100)}%` }}
+            style={{ width: `${Math.min(effectiveBudget / BUDGET_MAX * 100, 100)}%` }}
           />
         </div>
 
         <Slider
-          value={[currentBudget]}
+          value={[effectiveBudget]}
           min={BUDGET_MIN}
           max={BUDGET_MAX}
           step={0.5}
@@ -110,7 +119,8 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
           <p className="text-xs text-muted-foreground">Distribución total</p>
           <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex">
             {allMinistries.map((m) => {
-              const displayPct = m.key === ministryKey ? currentBudget : m.budgetPercent;
+              const displayPct =
+                pendingInput.budgetAdjustments?.[m.key] ?? m.budgetPercent;
               if (displayPct <= 0) return null;
               return (
                 <div
@@ -131,7 +141,8 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {allMinistries.map((m) => {
-              const displayPct = m.key === ministryKey ? currentBudget : m.budgetPercent;
+              const displayPct =
+                pendingInput.budgetAdjustments?.[m.key] ?? m.budgetPercent;
               return (
                 <div key={m.key} className="flex items-center gap-1 text-xs">
                   <span

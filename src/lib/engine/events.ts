@@ -11,6 +11,18 @@ import { BALANCE } from "../balance";
 import { calculateGeneralApproval } from "./approval";
 
 /**
+ * Deltas acumulados de efectos de eventos sobre el estado del juego.
+ */
+export interface EventEffectsDelta {
+  sickRateDelta: number;
+  crimeRateDelta: number;
+  treasuryDelta: number;
+  foodDelta: number;
+  inflationDelta: number;
+  unemploymentDelta: number;
+}
+
+/**
  * Genera una descripción en español para cada tipo de evento.
  */
 function getEventDescription(
@@ -297,4 +309,49 @@ export function triggerRandomEvents(
   }
 
   return { newEvents, notifications };
+}
+
+/**
+ * Aplica los efectos de los eventos del mes al estado del juego.
+ * Lee effectsApplied de cada evento y acumula los deltas para cada indicador.
+ *
+ * @param events - Eventos ocurridos este mes
+ * @returns Deltas acumulados para aplicar al GameState
+ */
+export function applyEventEffects(
+  events: EventState[]
+): EventEffectsDelta {
+  const deltas: EventEffectsDelta = {
+    sickRateDelta: 0,
+    crimeRateDelta: 0,
+    treasuryDelta: 0,
+    foodDelta: 0,
+    inflationDelta: 0,
+    unemploymentDelta: 0,
+  };
+
+  for (const event of events) {
+    const eff = event.effectsApplied as Record<string, number>;
+
+    if (typeof eff.sickRateIncrease === "number") {
+      deltas.sickRateDelta += eff.sickRateIncrease;
+    }
+    if (typeof eff.crimeRateIncrease === "number") {
+      deltas.crimeRateDelta += eff.crimeRateIncrease;
+    }
+    if (typeof eff.treasuryCost === "number") {
+      deltas.treasuryDelta += eff.treasuryCost;
+    }
+    if (typeof eff.foodSecurityPenalty === "number") {
+      deltas.foodDelta += eff.foodSecurityPenalty;
+    }
+    if (typeof eff.inflationIncrease === "number") {
+      deltas.inflationDelta += eff.inflationIncrease;
+    }
+    if (typeof eff.unemploymentIncrease === "number") {
+      deltas.unemploymentDelta += eff.unemploymentIncrease;
+    }
+  }
+
+  return deltas;
 }

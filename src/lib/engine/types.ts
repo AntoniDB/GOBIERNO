@@ -177,7 +177,7 @@ export interface TurnInput {
   /** Organismos creados: type → { name, budget, headOfficialId } */
   newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
   /** Acciones sobre medios: mediaId → acción */
-  mediaActions?: Record<string, "censor" | "close" | "boost" | "none">;
+  mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "none">;
   /** ¿El jugador ordenó investigar a alguien? officialId[] */
   investigations?: string[];
   /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */

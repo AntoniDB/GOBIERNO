@@ -177,6 +177,20 @@ export const BALANCE = {
   EVENT_COUP_APPROVAL_THRESHOLD: 25,
   EVENT_ECONOMIC_CRISIS_INFLATION: 15,
 
+  /** Multiplicadores de impacto de eventos por clase social.
+   *  Epidemias, desastres y protestas golpean más a clases bajas (menos recursos).
+   *  Escándalos, golpes y crisis criminal golpean más a clases medias/altas
+   *  (más informadas y políticamente activas). */
+  EVENT_CLASS_IMPACT: {
+    EPIDEMIC:       { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.3 },
+    PROTEST:        { EXTREME_POVERTY: 1.6, POVERTY: 1.6, MIDDLE: 0.6, ELITE: 0.2 },
+    SCANDAL:        { EXTREME_POVERTY: 0.4, POVERTY: 0.5, MIDDLE: 1.2, ELITE: 1.3 },
+    CRIME_SURGE:    { EXTREME_POVERTY: 0.5, POVERTY: 0.8, MIDDLE: 1.3, ELITE: 0.7 },
+    COUP_ATTEMPT:   { EXTREME_POVERTY: 0.3, POVERTY: 0.5, MIDDLE: 1.3, ELITE: 1.4 },
+    DISASTER:       { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.3 },
+    ECONOMIC_CRISIS:{ EXTREME_POVERTY: 0.7, POVERTY: 1.0, MIDDLE: 1.4, ELITE: 0.6 },
+  } as const,
+
   // ─── Medios ──────────────────────────────────────────────────────────────
 
   /** Sentimiento base de cobertura (sin sesgo) */
@@ -184,6 +198,12 @@ export const BALANCE = {
 
   /** Factor de sesgo por afinidad gubernamental */
   MEDIA_AFFINITY_SENTIMENT_FACTOR: 0.01,
+
+  /** Bonificación a libertad de prensa al restaurar un medio previamente censurado */
+  MEDIA_RESTORE_PRESS_FREEDOM_BONUS: 10,
+
+  /** Penalización a concentración de poder al restaurar un medio */
+  MEDIA_RESTORE_POWER_CONCENTRATION_PENALTY: -3,
 
   // ─── Justicia ────────────────────────────────────────────────────────────
 

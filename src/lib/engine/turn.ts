@@ -43,7 +43,7 @@ import {
   classifyRegime,
   regenerateRegimeMetrics,
 } from "./regime";
-import { triggerRandomEvents } from "./events";
+import { triggerRandomEvents, applyEventEffects } from "./events";
 import { generateMediaCoverage } from "./media";
 import { createMonthSnapshot } from "./snapshot";
 
@@ -236,6 +236,14 @@ export function processTurn(
             description: `El gobierno ha impulsado al medio ${medium.name}.`,
           });
           break;
+        case "restore":
+          medium.status = "ACTIVE";
+          allNotifications.push({
+            type: "info",
+            title: "Medio restaurado",
+            description: `El medio ${medium.name} ha sido restaurado y vuelve a operar libremente.`,
+          });
+          break;
         case "none":
         default:
           break;
@@ -334,38 +342,22 @@ export function processTurn(
   const globalCorruption = calculateGlobalCorruption(newState.officials);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 8: Recalcular indicadores sociales
-  // (poverty, unemployment, health, food, crime, education, gini, inflation)
-  // Estos se recalculan implícitamente en los pasos siguientes y en el
-  // snapshot. Las funciones de cálculo están en snapshot.ts y se invocan
-  // en el paso 14.
+  // PASO 8: Recalcular indicadores sociales explícitamente
+  // Cada indicador se deriva de la eficiencia ministerial real calculada
+  // en el paso 5. Se persisten en GameState para que los pasos siguientes
+  // (eventos, aprobación, snapshot) usen valores frescos.
   // ═══════════════════════════════════════════════════════════════════════
+  newState.povertyRate = calculatePoverty(newState);
+  newState.unemploymentRate = calculateUnemployment(newState);
+  newState.sickRate = calculateHealth(newState);
+  newState.foodSecurity = calculateFoodSecurity(newState);
+  newState.crimeRate = calculateCrime(newState);
+  newState.educationLevel = calculateEducation(newState);
+  newState.inflation = calculateInflationSimple(newState);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 9: Recalcular aprobación por clase social
-  // ═══════════════════════════════════════════════════════════════════════
-  const eventsThisMonth = newState.events.filter(
-    (e) =>
-      e.year === newState.currentYear &&
-      e.month === newState.currentMonth
-  );
-
-  for (const sc of newState.socialClasses) {
-    sc.approval = calculateApprovalByClass(sc, newState, eventsThisMonth);
-    // Recalcular demandas dinámicas según el estado actual
-    sc.demands = calculateClassDemands(sc, newState);
-  }
-
-  // Recalcular movilidad social y actualizar porcentajes poblacionales
-  const newPopulationPercents = calculateSocialMobility(newState);
-  for (const sc of newState.socialClasses) {
-    if (newPopulationPercents[sc.key] !== undefined) {
-      sc.populationPercent = newPopulationPercents[sc.key];
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PASO 10: Avanzar casos judiciales + abrir casos automáticos
+  // PASO 9: Avanzar casos judiciales + abrir casos automáticos
+  // (produce regimeImpacts que usa el paso 10)
   // ═══════════════════════════════════════════════════════════════════════
   const { updatedCases, updatedOfficials, notifications: caseNotifications, regimeImpacts } =
     advanceJudicialCases(newState.judicialCases, newState.officials);
@@ -389,7 +381,7 @@ export function processTurn(
   allNotifications.push(...autoCaseNotifications);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 10.5: Evaluar mociones del congreso (censura, juicio político)
+  // PASO 9.5: Evaluar mociones del congreso (censura, juicio político)
   // ═══════════════════════════════════════════════════════════════════════
   const currentApproval = calculateGeneralApproval(newState, []);
   const motions = evaluateMotions(
@@ -427,34 +419,32 @@ export function processTurn(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 11: Recalcular métricas de régimen + clasificar
+  // PASO 10: Recalcular métricas de régimen + clasificar
+  // (se ejecuta antes de eventos para que las métricas estén actualizadas
+  //  al evaluar condiciones como subordinación militar para golpes.
+  //  regimeImpacts viene del paso 9)
   // ═══════════════════════════════════════════════════════════════════════
-  // Detectar acciones del jugador que afectan el régimen
   const regimeActions = {
     censorMedia: Object.values(input.mediaActions ?? {}).some(
-      (a) => a === "censor"
+      (a) => a === "censor" || a === "close"
+    ),
+    restoreMedia: Object.values(input.mediaActions ?? {}).some(
+      (a) => a === "restore"
     ),
     nombrarJuecesAfines: Object.keys(input.appointments ?? {}).some(
       (r) => r === "JUDGE"
     ),
-    // Disolver congreso: detectado si el jugador removió senadores sin reemplazo
-    disolverCongreso: input.mediaActions
-      ? Object.values(input.mediaActions).some((a) => a === "dissolve_congress")
-      : false,
-    // Estado de emergencia: detectado si la ley "estado-emergencia" está activa
+    disolverCongreso: false,
     estadoEmergencia: newState.activeLaws.some(
       (l) => l.lawKey === "estado-emergencia"
     ),
-    // Compra de votos: detectada si hay partyIds con beneficios
     comprarVotos:
       input.voteBuyingPartyIds !== undefined &&
       input.voteBuyingPartyIds.length > 0,
   };
 
-  // Guardar métricas antes de aplicar modificadores (para regeneración)
   const metricsBefore = { ...newState.regimeMetrics };
 
-  // Aplicar modificadores de acciones + leyes + organismos + veredictos
   newState.regimeMetrics = calculateRegimeMetrics(
     newState.regimeMetrics,
     regimeActions,
@@ -463,14 +453,15 @@ export function processTurn(
     regimeImpacts
   );
 
-  // Regeneración gradual hacia el baseline (solo métricas no modificadas)
   newState.regimeMetrics = regenerateRegimeMetrics(
     newState.regimeMetrics,
     metricsBefore
   );
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 12: Disparar eventos aleatorios
+  // PASO 11: Disparar eventos aleatorios
+  // (se ejecuta ANTES de la aprobación para que los eventos del mes
+  //  impacten la aprobación que se calcula en el paso 13)
   // ═══════════════════════════════════════════════════════════════════════
   const { newEvents, notifications: eventNotifications } =
     triggerRandomEvents(newState, rng);
@@ -480,18 +471,63 @@ export function processTurn(
   allNotifications.push(...eventNotifications);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 13: Generar coberturas mediáticas
+  // PASO 11b: Aplicar efectos de eventos al estado
+  // Las epidemias suben sickRate, los desastres descuentan tesorería,
+  // las crisis criminales suben crimeRate, etc.
   // ═══════════════════════════════════════════════════════════════════════
-  const allEventsThisMonth = [
-    ...eventsThisMonth,
-    ...newEvents,
-  ];
+  const eventsThisMonth = newState.events.filter(
+    (e) =>
+      e.year === newState.currentYear &&
+      e.month === newState.currentMonth
+  );
 
+  const eventDeltas = applyEventEffects(eventsThisMonth);
+
+  newState.sickRate = Math.max(0, Math.min(100, newState.sickRate + eventDeltas.sickRateDelta));
+  newState.crimeRate = Math.max(0, Math.min(100, newState.crimeRate + eventDeltas.crimeRateDelta));
+  newState.treasury = Math.max(0, newState.treasury - eventDeltas.treasuryDelta);
+  newState.foodSecurity = Math.max(0, Math.min(100, newState.foodSecurity + eventDeltas.foodDelta));
+  newState.inflation = Math.max(0, Math.min(100, newState.inflation + eventDeltas.inflationDelta));
+  newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 12: Generar coberturas mediáticas
+  // ═══════════════════════════════════════════════════════════════════════
   allMediaCoverages = generateMediaCoverage(
     newState,
-    allEventsThisMonth,
+    eventsThisMonth,
     rng
   );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 12b: Aplicar impacto de coberturas mediáticas a la aprobación
+  // Cada cobertura tiene un impactOnApproval por clase social, calculado
+  // según el sentimiento y el alcance del medio.
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const coverage of allMediaCoverages) {
+    for (const sc of newState.socialClasses) {
+      const impact = coverage.impactOnApproval[sc.key] ?? 0;
+      sc.approval = Math.max(0, Math.min(100, sc.approval + impact));
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 13: Recalcular aprobación por clase social
+  // Ahora se ejecuta DESPUÉS de eventos (paso 11) y coberturas (paso 12),
+  // por lo que ambos afectan la aprobación final de cada clase.
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const sc of newState.socialClasses) {
+    sc.approval = calculateApprovalByClass(sc, newState, eventsThisMonth);
+    sc.demands = calculateClassDemands(sc, newState);
+  }
+
+  // Recalcular movilidad social y actualizar porcentajes poblacionales
+  const newPopulationPercents = calculateSocialMobility(newState);
+  for (const sc of newState.socialClasses) {
+    if (newPopulationPercents[sc.key] !== undefined) {
+      sc.populationPercent = newPopulationPercents[sc.key];
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 14: Crear MonthSnapshot

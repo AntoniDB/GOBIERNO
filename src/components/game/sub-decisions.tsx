@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { useGameStore } from "@/lib/store/game-store";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -429,6 +431,16 @@ function SocialDevelopmentDecisions({
 }
 
 export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }: SubDecisionsProps) {
+  const pendingInput = useGameStore((s) => s.pendingInput);
+
+  // Fusionar valores pendientes sobre los del estado del juego.
+  // El slider de Radix es controlado: necesita ver el valor pendiente
+  // para que el thumb no rebote a la posición original al soltar.
+  const effectiveSubDecisions = useMemo(() => {
+    const pending = pendingInput.subDecisionChanges?.[ministryKey] ?? {};
+    return { ...subDecisions, ...pending };
+  }, [subDecisions, pendingInput.subDecisionChanges, ministryKey]);
+
   const handleChange = (key: string, value: number | boolean) => {
     onSubDecisionChange(ministryKey, key, value);
   };
@@ -436,21 +448,21 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
   const renderDecisions = () => {
     switch (ministryKey) {
       case "HEALTH":
-        return <HealthDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <HealthDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "EDUCATION":
-        return <EducationDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <EducationDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "ECONOMY":
-        return <EconomyDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <EconomyDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "DEFENSE":
-        return <DefenseDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <DefenseDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "SECURITY":
-        return <SecurityDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <SecurityDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "JUSTICE":
-        return <JusticeDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <JusticeDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "AGRICULTURE":
-        return <AgricultureDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <AgricultureDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       case "SOCIAL_DEVELOPMENT":
-        return <SocialDevelopmentDecisions subDecisions={subDecisions} onChange={handleChange} />;
+        return <SocialDevelopmentDecisions subDecisions={effectiveSubDecisions} onChange={handleChange} />;
       default:
         return <p className="text-sm text-muted-foreground">Sin decisiones configuradas para este ministerio.</p>;
     }

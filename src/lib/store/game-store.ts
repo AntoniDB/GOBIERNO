@@ -22,6 +22,7 @@ export interface GameStore {
   createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => void;
   clearNotifications: () => void;
   resetPendingInput: () => void;
+  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "none") => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -132,5 +133,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetPendingInput: () => {
     set({ pendingInput: {} });
+  },
+
+  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "none") => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        mediaActions: {
+          ...prev.pendingInput.mediaActions,
+          [mediaId]: action,
+        },
+      },
+    }));
   },
 }));

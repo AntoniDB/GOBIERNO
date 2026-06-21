@@ -54,16 +54,25 @@ export function calculateApprovalByClass(
   }
 
   // ── Modificadores por eventos del mes ───────────────────────────────────
-  // Los eventos negativos reducen aprobación según severidad;
-  // el impacto se pondera por BALANCE.APPROVAL_EVENT_WEIGHT
+  // Cada tipo de evento afecta de forma diferenciada a cada clase social.
+  // El multiplicador por clase está en BALANCE.EVENT_CLASS_IMPACT.
+  // Ej: una protesta golpea ×1.6 a POVERTY y solo ×0.2 a ELITE.
   for (const event of eventsThisMonth) {
     const isNegative = isNegativeEventType(event.type);
-    const impact =
+    const impactBase =
       event.severity * BALANCE.APPROVAL_EVENT_WEIGHT * 10;
+
+    const classImpactMap =
+      BALANCE.EVENT_CLASS_IMPACT[event.type as keyof typeof BALANCE.EVENT_CLASS_IMPACT];
+    const classMultiplier =
+      classImpactMap?.[socialClass.key as keyof typeof classImpactMap] ?? 1.0;
+
+    const impact = impactBase * classMultiplier;
+
     if (isNegative) {
       approval -= impact;
     } else {
-      approval += impact * 0.5; // eventos positivos tienen la mitad de impacto
+      approval += impact * 0.5;
     }
   }
 

@@ -46,6 +46,7 @@ export function calculateRegimeMetrics(
     disolverCongreso?: boolean;
     estadoEmergencia?: boolean;
     comprarVotos?: boolean;
+    restoreMedia?: boolean;
   },
   activeLaws: ActiveLawState[] = [],
   organisms: OrganismState[] = [],
@@ -57,6 +58,12 @@ export function calculateRegimeMetrics(
   if (actions.censorMedia) {
     result.pressFreedom += BALANCE.REGIME_CENSOR_PRESS_PENALTY;
     result.powerConcentration += BALANCE.REGIME_CENSOR_POWER_BONUS;
+  }
+
+  // ── Restauración de medios: recupera libertad de prensa ────────────────
+  if (actions.restoreMedia) {
+    result.pressFreedom += BALANCE.MEDIA_RESTORE_PRESS_FREEDOM_BONUS;
+    result.powerConcentration += BALANCE.MEDIA_RESTORE_POWER_CONCENTRATION_PENALTY;
   }
 
   // ── Nombrar jueces afines: reduce independencia judicial ───────────────

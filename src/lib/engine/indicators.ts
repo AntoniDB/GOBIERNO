@@ -8,10 +8,24 @@ import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } 
 
 /**
  * Busca la eficiencia de un ministerio por su clave en el estado.
+ * Soporta tanto claves en inglés (seed: "AGRICULTURE", "HEALTH"...)
+ * como en español (tests: "agricultura", "salud"...).
  * Si no existe, retorna 50 (valor neutro).
  */
-function getMinistryEfficiency(state: GameState, key: string): number {
-  const ministry = state.ministries.find((m) => m.key === key);
+const MINISTRY_KEY_ALIASES: Record<string, string[]> = {
+  desarrollo_social: ["SOCIAL_DEVELOPMENT", "desarrollo_social"],
+  economia: ["ECONOMY", "economia"],
+  salud: ["HEALTH", "salud"],
+  agricultura: ["AGRICULTURE", "agricultura"],
+  seguridad: ["SECURITY", "seguridad"],
+  educacion: ["EDUCATION", "educacion"],
+  defensa: ["DEFENSE", "defensa"],
+  justicia: ["JUSTICE", "justicia"],
+};
+
+function getMinistryEfficiency(state: GameState, lookupKey: string): number {
+  const aliases = MINISTRY_KEY_ALIASES[lookupKey] ?? [lookupKey];
+  const ministry = state.ministries.find((m) => aliases.includes(m.key));
   return ministry?.efficiency ?? 50;
 }
 
