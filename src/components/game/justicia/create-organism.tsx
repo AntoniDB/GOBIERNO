@@ -36,10 +36,15 @@ const ORGANISM_ROLE_MAP: Record<string, string> = {
   INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
 };
 
+const FALLBACK_ROLES = ["MINISTER", "JUDGE", "PROSECUTOR", "GENERAL"];
+
 const ROLE_LABEL: Record<string, string> = {
   COMPTROLLER: "Contralor",
   PROSECUTOR: "Fiscal",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
+  MINISTER: "Ministro",
+  JUDGE: "Juez",
+  GENERAL: "General",
 };
 
 function formatBudget(amount: number): string {
@@ -64,9 +69,21 @@ export function CreateOrganism({
 
   const eligibleOfficials = useMemo(() => {
     const requiredRole = ORGANISM_ROLE_MAP[type];
-    return officials.filter(
+    // Primero buscar oficiales con el rol exacto requerido
+    const exactMatch = officials.filter(
       (o) => o.role === requiredRole && o.status === "ACTIVE"
     );
+    if (exactMatch.length > 0) return exactMatch;
+
+    // Si no hay rol exacto, permitir cualquiera de los roles alternativos
+    return officials.filter(
+      (o) => FALLBACK_ROLES.includes(o.role) && o.status === "ACTIVE"
+    );
+  }, [officials, type]);
+
+  const hasExactRole = useMemo(() => {
+    const requiredRole = ORGANISM_ROLE_MAP[type];
+    return officials.some((o) => o.role === requiredRole && o.status === "ACTIVE");
   }, [officials, type]);
 
   const handleCreate = () => {
@@ -144,33 +161,31 @@ export function CreateOrganism({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="org-titular">Titular</Label>
-            <Select
-              value={headOfficialId}
-              onValueChange={(v) => v && setHeadOfficialId(v)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Seleccionar titular..." />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleOfficials.length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    No hay funcionarios disponibles para este rol
-                  </SelectItem>
-                ) : (
-                  eligibleOfficials.map((o) => (
+            <Label htmlFor="org-titular">Titular {eligibleOfficials.length > 0 ? "" : "(opcional)"}</Label>
+            {eligibleOfficials.length > 0 ? (
+              <Select
+                value={headOfficialId}
+                onValueChange={(v) => v && setHeadOfficialId(v)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={hasExactRole ? "Seleccionar titular..." : "Seleccionar titular (roles alternativos)..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {eligibleOfficials.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.name} ({ROLE_LABEL[o.role] ?? o.role})
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            {eligibleOfficials.length === 0 && (
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-muted-foreground p-2 rounded-md border border-border bg-muted/30">
+                No hay funcionarios activos disponibles. El organismo se puede crear sin titular y designar uno despues.
+              </p>
+            )}
+            {!hasExactRole && eligibleOfficials.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                Se necesita un funcionario con rol{" "}
-                {ROLE_LABEL[ORGANISM_ROLE_MAP[type]] ?? ORGANISM_ROLE_MAP[type]}{" "}
-                activo para asignar como titular.
+                No hay funcionarios con el rol exacto. Se muestran roles alternativos disponibles.
               </p>
             )}
           </div>

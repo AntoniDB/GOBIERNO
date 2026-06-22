@@ -283,6 +283,23 @@ export const BALANCE = {
 
   /** Tasa de mortalidad base mensual */
   POPULATION_DEATH_RATE: 0.0006,
+
+  // ─── Candidatos ──────────────────────────────────────────────────────────
+
+  /** Bonus de skill por nivel educativo (multiplicado por educationLevel/100) */
+  CANDIDATE_EDUCATION_SKILL_BONUS: 20,
+
+  /** Reduccion de corrupcion inicial por transparencia */
+  CANDIDATE_TRANSPARENCY_REDUCTION: 10,
+
+  /** Meses antes de que un candidato expire */
+  CANDIDATE_EXPIRATION_MONTHS: 6,
+
+  /** Costo base de contratar un candidato */
+  CANDIDATE_HIRE_COST_BASE: 200_000,
+
+  /** Costo extra por cada oficial ACTIVE del mismo rol existente */
+  CANDIDATE_HIRE_COST_PER_SAME_ROLE: 50_000,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

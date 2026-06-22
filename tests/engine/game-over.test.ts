@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkGameOverConditions, canBeAssassinated } from "@/lib/engine/game-over";
+import { checkGameOverConditions, canBeAssassinated, electionResult } from "@/lib/engine/game-over";
 import type { GameState, EventState } from "@/lib/engine/types";
 
 function baseState(overrides: Partial<GameState> = {}): GameState {
@@ -45,6 +45,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     },
     media: [],
     events: [],
+    consecutiveLowApprovalMonths: 0,
     ...overrides,
   };
 }
@@ -130,23 +131,57 @@ describe("checkGameOverConditions", () => {
   });
 
   it("detecta renuncia forzada (aprobacion <10, 6 meses consecutivos)", () => {
-    const state = cfgCritical();
+    const state = cfgCritical({ consecutiveLowApprovalMonths: 6 });
     const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).not.toBeNull();
     expect(result?.reason).toBe("renuncia_forzada");
   });
 
   it("no detecta renuncia forzada si meses < 6", () => {
-    const state = cfgCritical();
-    const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 3 });
+    const state = cfgCritical({ consecutiveLowApprovalMonths: 3 });
+    const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).toBeNull();
   });
 
-  it("detecta fin de mandato al llegar al limite", () => {
-    const state = baseState({ currentYear: 11, currentMonth: 1 });
+  it("pierde eleccion si votos < 50% (anio 6, mes 0)", () => {
+    const state = baseState({
+      currentYear: 6,
+      currentMonth: 0,
+      officials: [
+        { id: "off-1", name: "Corrupto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 20, skill: 50, reputation: 20, status: "ACTIVE" },
+      ],
+      socialClasses: [
+        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
+        { id: "sc-p", key: "POVERTY", populationPercent: 30, averageIncome: 300, approval: 50, demands: [], educationLevel: 20, healthAccess: 35 },
+        { id: "sc-m", key: "MIDDLE", populationPercent: 30, averageIncome: 1000, approval: 50, demands: [], educationLevel: 40, healthAccess: 50 },
+        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 50, demands: [], educationLevel: 80, healthAccess: 90 },
+      ],
+    });
     const result = checkGameOverConditions(state);
     expect(result).not.toBeNull();
-    expect(result?.reason).toBe("fin_mandato");
+    expect(result?.reason).toBe("perdida_electoral");
+  });
+
+  it("gana eleccion si votos >= 50% (anio 6, mes 0)", () => {
+    // Sin corrupcion y con ley de transparencia que sube aprobacion a clase media
+    const state = baseState({
+      currentYear: 6,
+      currentMonth: 0,
+      officials: [
+        { id: "off-1", name: "Honesto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
+      ],
+      activeLaws: [
+        { id: "law-sub", key: "subsidio-alimentario", activatedAt: new Date().toISOString(), effectsJson: { approval: { EXTREME_POVERTY: 8, POVERTY: 4 } } },
+      ],
+      socialClasses: [
+        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
+        { id: "sc-p", key: "POVERTY", populationPercent: 30, averageIncome: 300, approval: 50, demands: [], educationLevel: 20, healthAccess: 35 },
+        { id: "sc-m", key: "MIDDLE", populationPercent: 30, averageIncome: 1000, approval: 50, demands: [], educationLevel: 40, healthAccess: 50 },
+        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 50, demands: [], educationLevel: 80, healthAccess: 90 },
+      ],
+    });
+    const result = checkGameOverConditions(state);
+    expect(result).toBeNull();
   });
 });
 
@@ -175,5 +210,42 @@ describe("canBeAssassinated", () => {
     const result = canBeAssassinated(state, rng);
     expect(result).not.toBeNull();
     expect(result?.reason).toBe("asesinato");
+  });
+});
+
+describe("electionResult", () => {
+  it("calcula votos ponderados por poblacion", () => {
+    const state = baseState({
+      officials: [
+        { id: "off-1", name: "Honesto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
+      ],
+      socialClasses: [
+        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 25, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
+        { id: "sc-p", key: "POVERTY", populationPercent: 35, averageIncome: 300, approval: 40, demands: [], educationLevel: 20, healthAccess: 35 },
+        { id: "sc-m", key: "MIDDLE", populationPercent: 30, averageIncome: 1000, approval: 60, demands: [], educationLevel: 40, healthAccess: 50 },
+        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 55, demands: [], educationLevel: 80, healthAccess: 90 },
+      ],
+    });
+    const result = electionResult(state);
+    // Con corruption=0, cada clase recibe APPROVAL_BASE (50)
+    // 50*1.0 = 50. winner = true
+    expect(result.votePercent).toBe(50);
+    expect(result.winner).toBe(true);
+    expect(result.perClassVotes["EXTREME_POVERTY"]).toBeDefined();
+    expect(result.perClassVotes["MIDDLE"]).toBeDefined();
+  });
+
+  it("devuelve winner false con baja aprobacion", () => {
+    const state = baseState({
+      socialClasses: [
+        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 40, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
+        { id: "sc-p", key: "POVERTY", populationPercent: 30, averageIncome: 300, approval: 10, demands: [], educationLevel: 20, healthAccess: 35 },
+        { id: "sc-m", key: "MIDDLE", populationPercent: 20, averageIncome: 1000, approval: 20, demands: [], educationLevel: 40, healthAccess: 50 },
+        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 20, demands: [], educationLevel: 80, healthAccess: 90 },
+      ],
+    });
+    const result = electionResult(state);
+    expect(result.winner).toBe(false);
+    expect(result.votePercent).toBeLessThan(50);
   });
 });

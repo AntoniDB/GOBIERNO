@@ -2,6 +2,7 @@
 
 import { useGameStore } from "@/lib/store/game-store";
 import { Bell } from "lucide-react";
+import { AdvanceButton } from "@/components/game/advance-button";
 
 function formatTreasury(value: number): string {
   const millions = Math.round(value / 1_000_000);
@@ -111,6 +112,8 @@ export default function HUD() {
       )}
 
       <div className="flex-1" />
+
+      <AdvanceButton />
 
       <button
         className="relative p-1.5 rounded hover:bg-muted transition-colors shrink-0"

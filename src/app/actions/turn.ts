@@ -5,7 +5,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { simulateSenateVote } from "@/lib/engine/congress";
@@ -72,6 +71,7 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
     treasury: latestSnapshot?.treasury ?? DEFAULT_TREASURY,
     population: latestSnapshot?.population ?? DEFAULT_POPULATION,
     seed: game.seed,
+    consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
       key: m.key as string,
@@ -209,7 +209,7 @@ export async function advanceMonth(
 ): Promise<TurnOutput> {
   // Verificar ownership
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
 
   const gameOwnership = await prisma.game.findUnique({
     where: { id: gameId },
@@ -326,6 +326,7 @@ export async function advanceMonth(
         currentMonth: newMonth,
         treasury: newState.treasury,
         population: newState.population,
+        consecutiveLowApprovalMonths: newState.consecutiveLowApprovalMonths ?? 0,
         status: gameOver ? ("FINISHED" as const) : undefined,
       },
     });
@@ -344,11 +345,27 @@ export async function advanceMonth(
       });
     }
 
-    // c. Officials
+    // c. Officials (upsert para soportar nuevos candidatos)
     for (const o of newState.officials) {
-      await tx.official.update({
+      await tx.official.upsert({
         where: { id: o.id },
-        data: {
+        create: {
+          id: o.id,
+          gameId,
+          name: o.name,
+          role: o.role as string,
+          status: o.status as string,
+          corruption: o.corruption,
+          skill: o.skill,
+          loyalty: o.loyalty,
+          ambition: o.ambition,
+          wealth: o.wealth,
+          reputation: o.reputation,
+          ideology: o.ideology as Record<string, unknown>,
+          ministryId: o.ministryId,
+          partyId: o.partyId,
+        },
+        update: {
           corruption: o.corruption,
           status: o.status as string,
           wealth: o.wealth,

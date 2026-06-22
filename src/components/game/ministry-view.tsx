@@ -139,7 +139,7 @@ export function MinistryView({ ministry }: { ministry: MinistryState }) {
         </div>
 
         <div className="w-80 space-y-6 shrink-0">
-          <MinisterCard minister={minister} />
+          <MinisterCard minister={minister} ministry={ministry} />
           <EfficiencyChart ministryKey={ministry.key} />
         </div>
       </div>

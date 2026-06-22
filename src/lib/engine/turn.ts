@@ -20,6 +20,7 @@ import { BALANCE } from "../balance";
 import { calculateIncome } from "./economy";
 import { calculateExpenses } from "./economy";
 import { calculateTreasury } from "./economy";
+import { calculateGDP } from "./economy";
 import { calculateMinistryEfficiency } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
 import { calculateGlobalCorruption } from "./corruption";
@@ -46,7 +47,8 @@ import {
 import { triggerRandomEvents, applyEventEffects } from "./events";
 import { generateMediaCoverage } from "./media";
 import { createMonthSnapshot } from "./snapshot";
-import { checkGameOverConditions, canBeAssassinated } from "./game-over";
+import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
+import { generateCandidates, removeExpiredCandidates } from "./candidates";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -140,25 +142,41 @@ export function processTurn(
     }
   }
 
-  // 1c. Nombramientos: asignar funcionarios a roles
+  // 1c. Nombramientos: asignar funcionarios a ministerios
   if (input.appointments) {
-    for (const [role, officialId] of Object.entries(input.appointments)) {
+    for (const [ministryKey, officialId] of Object.entries(input.appointments)) {
       const official = newState.officials.find(
         (o) => o.id === officialId
       );
-      if (official) {
-        official.role = role;
-        // Buscar ministerio correspondiente al rol y asignarlo
-        const matchingMinistry = newState.ministries.find(
-          (m) =>
-            m.key.toUpperCase() === role.toUpperCase() ||
-            m.ministerOfficialId === null
+      if (!official) continue;
+
+      const matchingMinistry = newState.ministries.find(
+        (m) => m.key === ministryKey
+      );
+      if (!matchingMinistry) continue;
+
+      // Si ya tenia un ministro, desasignarlo
+      if (matchingMinistry.ministerOfficialId) {
+        const oldMinister = newState.officials.find(
+          (o) => o.id === matchingMinistry.ministerOfficialId
         );
-        if (matchingMinistry && !matchingMinistry.ministerOfficialId) {
-          matchingMinistry.ministerOfficialId = official.id;
-          official.ministryId = matchingMinistry.id;
+        if (oldMinister) {
+          oldMinister.ministryId = null;
         }
       }
+
+      // Si el nuevo oficial ya estaba en otro ministerio, desasignarlo de alli
+      if (official.ministryId) {
+        const oldMinistry = newState.ministries.find(
+          (m) => m.id === official.ministryId
+        );
+        if (oldMinistry) {
+          oldMinistry.ministerOfficialId = null;
+        }
+      }
+
+      matchingMinistry.ministerOfficialId = official.id;
+      official.ministryId = matchingMinistry.id;
     }
   }
 
@@ -329,6 +347,55 @@ export function processTurn(
     }
   }
 
+  // 1g. Contratar candidatos: cambiar status de CANDIDATE a ACTIVE
+  // y descontar el costo del tesoro
+  if (input.hireCandidateIds && input.hireCandidateIds.length > 0) {
+    for (const candidateId of input.hireCandidateIds) {
+      const candidate = newState.officials.find(
+        (o) => o.id === candidateId && o.status === "CANDIDATE"
+      );
+      if (!candidate) continue;
+
+      const sameRoleCount = newState.officials.filter(
+        (o) => o.role === candidate.role && o.status === "ACTIVE"
+      ).length;
+      const hireCost =
+        BALANCE.CANDIDATE_HIRE_COST_BASE +
+        sameRoleCount * BALANCE.CANDIDATE_HIRE_COST_PER_SAME_ROLE;
+
+      if (newState.treasury >= hireCost) {
+        newState.treasury -= hireCost;
+        candidate.status = "ACTIVE";
+        allNotifications.push({
+          type: "info",
+          title: "Candidato contratado",
+          description: `${candidate.name} ha sido contratado como ${candidate.role}. Costo: M$ ${(hireCost / 1_000_000).toFixed(1)}.`,
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 1h: Pool de candidatos naturales
+  // Cada 6 meses se generan nuevos funcionarios (candidatos) segun el
+  // nivel educativo. Los candidatos expiran si no se contratan en 6 meses.
+  // ═══════════════════════════════════════════════════════════════════════
+  newState.officials = removeExpiredCandidates(
+    newState.officials,
+    newState.currentYear,
+    newState.currentMonth
+  );
+
+  const newCandidates = generateCandidates(newState, rng);
+  if (newCandidates.length > 0) {
+    newState.officials.push(...newCandidates);
+    allNotifications.push({
+      type: "info",
+      title: "Nuevos candidatos disponibles",
+      description: `Han surgido ${newCandidates.length} nuevo(s) candidato(s) para cargos publicos. Revisalos en Justicia > Candidatos.`,
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 2: Calcular ingresos fiscales
   // ═══════════════════════════════════════════════════════════════════════
@@ -379,6 +446,7 @@ export function processTurn(
   newState.crimeRate = calculateCrime(newState);
   newState.educationLevel = calculateEducation(newState);
   newState.inflation = calculateInflationSimple(newState);
+  newState.gdp = calculateGDP(newState);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 9: Avanzar casos judiciales + abrir casos automáticos
@@ -568,7 +636,46 @@ export function processTurn(
   // Lee valores YA calculados (aprobacion, corrupcion, regimen, crimen).
   // No duplica ningun calculo.
   // ═══════════════════════════════════════════════════════════════════════
+
+  // Actualizar contador de meses consecutivos con baja aprobacion (<10%)
+  const postApproval = calculateGeneralApproval(newState, eventsThisMonth);
+  if (postApproval < 10) {
+    newState.consecutiveLowApprovalMonths = (newState.consecutiveLowApprovalMonths ?? 0) + 1;
+  } else {
+    newState.consecutiveLowApprovalMonths = 0;
+  }
+
   let gameOver = checkGameOverConditions(newState, undefined, allNotifications);
+
+  // Si no hay game over y es mes de elecciones, verificar si gano
+  // para generar notificacion de reeleccion y evento
+  if (!gameOver) {
+    const totalMonths = (newState.currentYear - 1) * 12 + newState.currentMonth;
+    if (totalMonths > 0 && totalMonths % 60 === 0 && newState.currentMonth === 0) {
+      const result = electionResult(newState);
+      if (result.winner) {
+        allNotifications.push({
+          type: "info",
+          title: "Elecciones presidenciales",
+          description: `Has sido reelecto con el ${result.votePercent.toFixed(1)}% de los votos. La oposicion obtuvo el ${(100 - result.votePercent).toFixed(1)}%. Inicias un nuevo mandato.`,
+        });
+
+        // Evento de eleccion para cobertura mediatica
+        const electionEvent = {
+          id: `election-${newState.currentYear}-${newState.currentMonth}`,
+          type: "OTHER",
+          severity: Math.min(100, Math.round(100 - result.votePercent)),
+          year: newState.currentYear,
+          month: newState.currentMonth,
+          description: `Elecciones presidenciales: el mandatario reelecto con ${result.votePercent.toFixed(1)}% de los votos.`,
+          effectsApplied: {} as Record<string, unknown>,
+          resolvedAt: null,
+        };
+        newState.events.push(electionEvent);
+        allNewEvents.push(electionEvent);
+      }
+    }
+  }
 
   // Chequeo de asesinato (requiere rng por su naturaleza probabilistica)
   if (!gameOver) {

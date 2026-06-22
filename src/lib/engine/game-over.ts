@@ -12,7 +12,7 @@
 //  - Estado fallido: crimen >80, corrupcion >80, aprobacion <15
 
 import type { GameState, GameOverResult, GameOverConfig, RegimeMetricsState } from "./types";
-import { calculateGeneralApproval } from "./approval";
+import { calculateGeneralApproval, calculateApprovalByClass } from "./approval";
 import { calculateGlobalCorruption } from "./corruption";
 import { BALANCE } from "../balance";
 
@@ -127,13 +127,13 @@ export function checkGameOverConditions(
   }
 
   // ── 5. Renuncia forzada ───────────────────────────────────────────────
-  // aprobacion <10 durante 6 meses consecutivos
-  // (El contador de meses se maneja externamente via config)
-  if (approval < 10 && config.consecutiveLowApprovalMonths >= 6) {
+  // aprobacion <10 durante N meses consecutivos
+  // Usa el contador real de GameState, no una constante
+  if (approval < 10 && (state.consecutiveLowApprovalMonths ?? 0) >= config.consecutiveLowApprovalMonths) {
     return {
       reason: "renuncia_forzada",
       description:
-        "Tras 6 meses consecutivos con una aprobacion por debajo del 10%, la presion social y politica ha forzado la renuncia del mandatario. El gobierno ha perdido toda legitimidad.",
+        `Tras ${state.consecutiveLowApprovalMonths} meses consecutivos con una aprobacion por debajo del 10%, la presion social y politica ha forzado la renuncia del mandatario. El gobierno ha perdido toda legitimidad.`,
       regimeType: classifyFromMetrics(
         state.regimeMetrics,
         crimeRate,
@@ -147,57 +147,76 @@ export function checkGameOverConditions(
     };
   }
 
-  // ── 6. Perdida electoral ──────────────────────────────────────────────
-  // Elecciones cada config.electionIntervalYears anios
-  // Pierdes si aprobacion < 40
   const totalMonths = (state.currentYear - 1) * 12 + state.currentMonth;
   const electionIntervalMonths = config.electionIntervalYears * 12;
+
+  // ── 6. Elecciones presidenciales ──────────────────────────────────────
+  // Cada electionIntervalYears anios, se evalua el resultado electoral
+  // basado en la aprobacion de cada clase social ponderada por su poblacion.
+  // Pierdes si el porcentaje de votos es < 50%.
+  // ═══════════════════════════════════════════════════════════════════════
   if (
     totalMonths > 0 &&
     totalMonths % electionIntervalMonths === 0 &&
     state.currentMonth === 0
   ) {
-    if (approval < 40) {
+    const result = electionResult(state);
+    if (result.votePercent < 50) {
       return {
         reason: "perdida_electoral",
         description:
-          "Han transcurrido las elecciones presidenciales y el mandatario ha perdido en las urnas. La baja aprobacion popular se tradujo en una derrota electoral contundente.",
+          `Han transcurrido las elecciones presidenciales y el mandatario ha perdido en las urnas con solo el ${result.votePercent.toFixed(1)}% de los votos. La oposicion ha obtenido una mayoria contundente.`,
         regimeType: classifyFromMetrics(
-          state.regimeMetrics,
-          crimeRate,
-          corruption,
-          approval
+          state.regimeMetrics, crimeRate, corruption, approval
         ),
         approval,
         corruption,
         treasury: state.treasury,
         gdp: state.gdp ?? 0,
+        votePercent: result.votePercent,
+        perClassVotes: result.perClassVotes,
       };
     }
+    // Si gana, no se devuelve game over. La notificacion de reeleccion
+    // y el evento se generan en processTurn (PASO 15).
   }
 
   // ── 7. Fin de mandato ─────────────────────────────────────────────────
-  // Limite constitucional de mandatos
-  const maxMonths = config.termLimit * config.electionIntervalYears * 12;
-  if (totalMonths >= maxMonths) {
-    return {
-      reason: "fin_mandato",
-      description:
-        "El mandatario ha alcanzado el limite constitucional de mandatos. Es hora de pasar el poder a un sucesor electo democraticamente.",
-      regimeType: classifyFromMetrics(
-        state.regimeMetrics,
-        crimeRate,
-        corruption,
-        approval
-      ),
-      approval,
-      corruption,
-      treasury: state.treasury,
-      gdp: state.gdp ?? 0,
-    };
-  }
+  // Eliminado: las elecciones continuan cada 5 anios indefinidamente.
+  // El jugador puede ser reelecto mientras mantenga mayoria de votos.
 
   return null;
+}
+
+/**
+ * Calcula el resultado de una eleccion presidencial basada en la aprobacion
+ * de cada clase social, ponderada por su porcentaje poblacional.
+ * Retorna el % de votos y el desglose por clase.
+ */
+export function electionResult(state: GameState): {
+  winner: boolean;
+  votePercent: number;
+  perClassVotes: Record<string, number>;
+} {
+  const perClassVotes: Record<string, number> = {};
+  let totalVotes = 0;
+  let totalPopulation = 0;
+
+  for (const sc of state.socialClasses) {
+    const approval = calculateApprovalByClass(sc, state, []);
+    const populationWeight = sc.populationPercent / 100;
+    totalVotes += approval * populationWeight;
+    totalPopulation += sc.populationPercent;
+    perClassVotes[sc.key] = approval;
+  }
+
+  const votePercent = totalPopulation > 0 ? totalVotes : 0;
+
+  return {
+    winner: votePercent >= 50,
+    votePercent: Math.round(votePercent * 10) / 10,
+    perClassVotes,
+  };
 }
 
 /**

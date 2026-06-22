@@ -14,10 +14,11 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScaleIcon, UsersIcon, Building2Icon } from "lucide-react";
+import { ScaleIcon, UsersIcon, Building2Icon, UserPlusIcon } from "lucide-react";
 import { CaseList } from "@/components/game/justicia/case-list";
 import { OfficialList } from "@/components/game/justicia/official-list";
 import { OrganismList } from "@/components/game/justicia/organism-list";
+import { CandidatesPanel } from "@/components/game/justicia/candidates-panel";
 
 export default function JusticiaPage() {
   const gameState = useGameStore((s) => s.gameState);
@@ -83,6 +84,10 @@ export default function JusticiaPage() {
             <Building2Icon className="size-4" />
             Organismos
           </TabsTrigger>
+          <TabsTrigger value="candidatos">
+            <UserPlusIcon className="size-4" />
+            Candidatos
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="casos">
@@ -115,6 +120,10 @@ export default function JusticiaPage() {
             organisms={gameState.organisms}
             officials={gameState.officials}
           />
+        </TabsContent>
+
+        <TabsContent value="candidatos">
+          <CandidatesPanel />
         </TabsContent>
       </Tabs>
     </div>

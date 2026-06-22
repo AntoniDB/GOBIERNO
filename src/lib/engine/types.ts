@@ -28,6 +28,7 @@ export interface GameState {
   regimeMetrics: RegimeMetricsState;
   media: MediaState[];
   events: EventState[];
+  consecutiveLowApprovalMonths: number;
 }
 
 export interface MinistryState {
@@ -182,6 +183,8 @@ export interface TurnInput {
   investigations?: string[];
   /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */
   voteBuyingPartyIds?: string[];
+  /** IDs de candidatos a contratar (status CANDIDATE → ACTIVE) */
+  hireCandidateIds?: string[];
 }
 
 /** Configuracion de fin de partida */
@@ -193,13 +196,17 @@ export interface GameOverConfig {
 
 /** Resultado de evaluar condiciones de fin de partida */
 export interface GameOverResult {
-  reason: "golpe_estado" | "juicio_politico" | "renuncia_forzada" | "perdida_electoral" | "fin_mandato" | "asesinato" | "estado_fallido";
+  reason: "golpe_estado" | "juicio_politico" | "renuncia_forzada" | "perdida_electoral" | "fin_mandato" | "asesinato" | "estado_fallido" | "reeleccion";
   description: string;
   regimeType: string;
   approval: number;
   corruption: number;
   treasury: number;
   gdp: number;
+  /** % de votos obtenidos (solo para perdida_electoral y reeleccion) */
+  votePercent?: number;
+  /** Desglose de votos por clase social (solo elecciones) */
+  perClassVotes?: Record<string, number>;
 }
 
 /** Resultado de procesar un turno */

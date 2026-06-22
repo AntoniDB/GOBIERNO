@@ -43,6 +43,7 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     },
     media: [],
     events: [],
+    consecutiveLowApprovalMonths: 0,
     ...overrides,
   };
 }

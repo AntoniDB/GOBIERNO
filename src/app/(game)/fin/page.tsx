@@ -27,24 +27,22 @@ export default function FinPage() {
   const gameId = useGameStore((s) => s.gameId);
   const setSnapshots = useGameStore((s) => s.setSnapshots);
   const snapshots = useGameStore((s) => s.snapshots);
-  const [chartSnapshots, setChartSnapshots] = useState<MonthSnapshotData[]>([]);
+  const [chartSnapshots, setChartSnapshots] = useState<MonthSnapshotData[]>(snapshots);
 
   useEffect(() => {
     if (!gameOver) {
       router.push("/dashboard");
       return;
     }
-    if (gameId) {
-      getSnapshots(gameId).then((s) => {
-        if (s && s.length > 0) {
-          setSnapshots(s);
-          setChartSnapshots(s);
-        }
-      });
-    } else if (snapshots.length > 0) {
-      setChartSnapshots(snapshots);
-    }
-  }, [gameOver, gameId, router, setSnapshots, snapshots]);
+    if (!gameId) return;
+
+    getSnapshots(gameId).then((s) => {
+      if (s && s.length > 0) {
+        setSnapshots(s);
+        setChartSnapshots(s);
+      }
+    });
+  }, [gameOver, gameId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!gameOver) {
     return (
@@ -60,10 +58,10 @@ export default function FinPage() {
 
   const chartData = chartSnapshots.map((s: MonthSnapshotData) => ({
     label: `A${s.year}M${s.month}`,
-    aprobacion: s.approval,
-    corrupcion: s.corruption,
-    pib: s.gdp,
-    tesoreria: s.treasury,
+    aprobacion: Number(s.approval) || 0,
+    corrupcion: Number(s.corruption) || 0,
+    pib: Number(s.gdp) || 0,
+    tesoreria: Number(s.treasury) || 0,
   }));
 
   return (
@@ -127,6 +125,30 @@ export default function FinPage() {
               </p>
             </CardContent>
           </Card>
+          {gameOver.reason === "perdida_electoral" && gameOver.votePercent !== undefined && (
+            <Card className="col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
+                  Resultado electoral
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-lg font-bold mb-2">
+                  {gameOver.votePercent.toFixed(1)}% de los votos
+                </p>
+                {gameOver.perClassVotes && (
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    {Object.entries(gameOver.perClassVotes).map(([clase, pct]) => (
+                      <div key={clase} className="flex justify-between">
+                        <span>{clase === "EXTREME_POVERTY" ? "Pobreza extrema" : clase === "POVERTY" ? "Pobreza" : clase === "MIDDLE" ? "Clase media" : "Elite"}</span>
+                        <span className="tabular-nums font-medium text-foreground">{Number(pct).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {chartData.length > 1 && (

@@ -26,6 +26,8 @@ export interface GameStore {
   clearNotifications: () => void;
   resetPendingInput: () => void;
   setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "none") => void;
+  appointMinister: (ministryKey: string, officialId: string) => void;
+  hireCandidate: (officialId: string) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -154,6 +156,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ...prev.pendingInput.mediaActions,
           [mediaId]: action,
         },
+      },
+    }));
+  },
+
+  appointMinister: (ministryKey: string, officialId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        appointments: {
+          ...prev.pendingInput.appointments,
+          [ministryKey]: officialId,
+        },
+      },
+    }));
+  },
+
+  hireCandidate: (officialId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        hireCandidateIds: [
+          ...(prev.pendingInput.hireCandidateIds ?? []),
+          officialId,
+        ],
       },
     }));
   },

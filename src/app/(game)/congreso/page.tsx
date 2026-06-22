@@ -134,6 +134,7 @@ export default function CongresoPage() {
               <LawCatalog
                 laws={lawCatalog}
                 proposedLaws={proposedLaws}
+                activeLaws={gameState?.activeLaws.map((l) => l.lawKey) ?? []}
                 onPropose={proposeLaw}
                 senators={gameState?.senators ?? []}
                 parties={gameState?.parties ?? []}

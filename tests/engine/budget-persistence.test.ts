@@ -36,6 +36,7 @@ function crearEstado(): GameState {
     regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 60, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 60 },
     media: [],
     events: [],
+    consecutiveLowApprovalMonths: 0,
   };
 }
 

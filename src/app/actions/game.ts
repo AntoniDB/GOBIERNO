@@ -4,7 +4,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import type {
   GameState,
   RegimeMetricsState,
@@ -74,6 +73,7 @@ function buildGameState(
     educationLevel: latestSnapshot?.educationLevel ?? 0,
     inflation: latestSnapshot?.inflation ?? 0,
     seed: game.seed,
+    consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
       key: m.key as string,
@@ -192,7 +192,7 @@ function buildGameState(
 
 async function verifyOwnership(gameId: string): Promise<string> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
 
   const game = await prisma.game.findUnique({
     where: { id: gameId },
@@ -263,21 +263,21 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
   });
 
   return snapshots.map((s: Record<string, unknown>) => ({
-    year: s.year as number,
-    month: s.month as number,
-    treasury: s.treasury as number,
-    gdp: s.gdp as number,
-    population: s.population as number,
-    approval: s.approval as number,
-    corruption: s.corruption as number,
-    povertyRate: s.povertyRate as number,
-    unemploymentRate: s.unemploymentRate as number,
-    sickRate: s.sickRate as number,
-    crimeRate: s.crimeRate as number,
-    foodSecurity: s.foodSecurity as number,
-    educationLevel: s.educationLevel as number,
-    inflation: s.inflation as number,
-    gini: s.gini as number,
+    year: Number(s.year),
+    month: Number(s.month),
+    treasury: Number(s.treasury) || 0,
+    gdp: Number(s.gdp) || 0,
+    population: Number(s.population) || 0,
+    approval: Number(s.approval) || 0,
+    corruption: Number(s.corruption) || 0,
+    povertyRate: Number(s.povertyRate) || 0,
+    unemploymentRate: Number(s.unemploymentRate) || 0,
+    sickRate: Number(s.sickRate) || 0,
+    crimeRate: Number(s.crimeRate) || 0,
+    foodSecurity: Number(s.foodSecurity) || 0,
+    educationLevel: Number(s.educationLevel) || 0,
+    inflation: Number(s.inflation) || 0,
+    gini: Number(s.gini) || 0,
     regimeType: s.regimeType as string,
     regimeMetrics: (s.regimeMetrics ?? {
       powerConcentration: 0, pressFreedom: 0, judicialIndependence: 0,
@@ -295,7 +295,7 @@ export async function createGame(params: {
   difficulty: "facil" | "normal" | "dificil";
 }): Promise<string> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
 
   const { crearPartidaAction } = await import("./seed-game");
   return crearPartidaAction(params, session.user.id);

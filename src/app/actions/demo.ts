@@ -3,7 +3,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import type { GameState } from "@/lib/engine/types";
-import { redirect } from "next/navigation";
 
 /**
  * Obtiene el ID del juego activo del usuario autenticado.
@@ -11,7 +10,7 @@ import { redirect } from "next/navigation";
  */
 export async function getUserActiveGameId(): Promise<string | null> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
 
   const game = await prisma.game.findFirst({
     where: { userId: session.user.id, status: "ACTIVE" },
@@ -27,7 +26,7 @@ export async function getUserActiveGameId(): Promise<string | null> {
  */
 export async function getUserGames(): Promise<{ id: string; countryName: string; status: string; currentYear: number; currentMonth: number }[]> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
 
   const games = await prisma.game.findMany({
     where: { userId: session.user.id },

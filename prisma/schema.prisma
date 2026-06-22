@@ -44,6 +44,7 @@ enum OfficialStatus {
   INDICTED
   CONVICTED
   DISMISSED
+  CANDIDATE
 }
 
 enum Chamber {
@@ -151,6 +152,7 @@ model Game {
   difficulty    String    @default("normal")
   treasury      Float     @default(1000000)
   population    Int       @default(10000000)
+  consecutiveLowApprovalMonths Int @default(0)
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)

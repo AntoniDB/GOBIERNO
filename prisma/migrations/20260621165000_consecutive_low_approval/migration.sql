@@ -1,0 +1,1 @@
+ALTER TABLE "Game" ADD COLUMN IF NOT EXISTS "consecutiveLowApprovalMonths" INTEGER NOT NULL DEFAULT 0;

@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   SenatorState,
@@ -13,7 +12,7 @@ import type {
 
 async function verifyOwnership(gameId: string): Promise<string> {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) throw new Error("Sesion no encontrada");
   const game = await prisma.game.findUnique({
     where: { id: gameId },
     select: { userId: true },

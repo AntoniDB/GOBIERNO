@@ -84,6 +84,7 @@ function getClassLabel(key: string): string {
 export function LawCatalog({
   laws,
   proposedLaws,
+  activeLaws,
   onPropose,
   senators,
   parties,
@@ -91,6 +92,7 @@ export function LawCatalog({
 }: {
   laws: LawCatalogEntry[];
   proposedLaws: string[];
+  activeLaws: string[];
   onPropose: (lawKey: string) => void;
   senators: SenatorState[];
   parties: PartyState[];
@@ -123,6 +125,7 @@ export function LawCatalog({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filtered.map((law) => {
           const isProposed = proposedLaws.includes(law.key);
+          const isActive = activeLaws.includes(law.key);
 
           return (
             <Card key={law.key} size="sm" className="flex flex-col">
@@ -186,7 +189,12 @@ export function LawCatalog({
                       ? "Sin costo"
                       : `M$ ${(law.cost / 1_000_000).toFixed(0)}`}
                   </span>
-                  {isProposed ? (
+                  {isActive ? (
+                    <Badge variant="default" className="gap-1 bg-accent/20 text-accent border-accent/30">
+                      <CheckIcon className="size-3" />
+                      Activa
+                    </Badge>
+                  ) : isProposed ? (
                     <Badge variant="secondary" className="gap-1">
                       <CheckIcon className="size-3" />
                       Propuesta

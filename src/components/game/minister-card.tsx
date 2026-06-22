@@ -1,13 +1,17 @@
 "use client";
 
-import type { OfficialState } from "@/lib/engine/types";
+import { useState } from "react";
+import type { OfficialState, MinistryState } from "@/lib/engine/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress, ProgressTrack, ProgressIndicator, ProgressLabel, ProgressValue } from "@/components/ui/progress";
-import { User } from "lucide-react";
+import { User, UserPlus } from "lucide-react";
+import { MinisterSelector } from "@/components/game/minister-selector";
 
 interface MinisterCardProps {
   minister: OfficialState | null | undefined;
+  ministry?: MinistryState;
 }
 
 function StatBar({
@@ -66,13 +70,28 @@ function IdeologyBar({
   );
 }
 
-export function MinisterCard({ minister }: MinisterCardProps) {
+export function MinisterCard({ minister, ministry }: MinisterCardProps) {
+  const [selectorOpen, setSelectorOpen] = useState(false);
+
   if (!minister) {
     return (
       <Card>
-        <CardContent className="py-8 flex flex-col items-center justify-center gap-2">
+        <CardContent className="py-8 flex flex-col items-center justify-center gap-3">
           <User className="size-10 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">Sin ministro asignado</p>
+          {ministry && (
+            <Button size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
+              <UserPlus className="size-3 mr-1" />
+              Asignar ministro
+            </Button>
+          )}
+          {ministry && (
+            <MinisterSelector
+              open={selectorOpen}
+              onClose={() => setSelectorOpen(false)}
+              ministry={ministry}
+            />
+          )}
         </CardContent>
       </Card>
     );
@@ -88,6 +107,11 @@ export function MinisterCard({ minister }: MinisterCardProps) {
               {minister.role}
             </Badge>
           </div>
+          {ministry && (
+            <Button size="xs" variant="ghost" onClick={() => setSelectorOpen(true)}>
+              <UserPlus className="size-3" />
+            </Button>
+          )}
         </div>
         <Badge
           variant={minister.status === "active" ? "default" : "outline"}
@@ -105,7 +129,7 @@ export function MinisterCard({ minister }: MinisterCardProps) {
             colorFn={(v) => (v >= 70 ? "bg-accent" : v >= 40 ? "bg-chart-5" : "bg-destructive")}
           />
           <StatBar
-            label="Corrupción"
+            label="Corrupcion"
             value={minister.corruption}
             max={100}
             colorFn={(v) => (v > 50 ? "bg-destructive" : v > 20 ? "bg-chart-5" : "bg-accent")}
@@ -117,7 +141,7 @@ export function MinisterCard({ minister }: MinisterCardProps) {
             colorFn={(v) => (v >= 70 ? "bg-accent" : v >= 40 ? "bg-chart-5" : "bg-destructive")}
           />
           <StatBar
-            label="Reputación"
+            label="Reputacion"
             value={minister.reputation}
             max={100}
             colorFn={(v) => (v >= 60 ? "bg-accent" : v >= 30 ? "bg-chart-5" : "bg-destructive")}
@@ -125,8 +149,8 @@ export function MinisterCard({ minister }: MinisterCardProps) {
         </div>
 
         <div className="space-y-3 pt-2 border-t border-border">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ideología</p>
-          <IdeologyBar label="Económico" value={minister.ideology.economic} />
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ideologia</p>
+          <IdeologyBar label="Economico" value={minister.ideology.economic} />
           <IdeologyBar label="Social" value={minister.ideology.social} />
           <IdeologyBar label="Autoridad" value={minister.ideology.authority} />
         </div>
@@ -138,6 +162,14 @@ export function MinisterCard({ minister }: MinisterCardProps) {
           </span>
         </div>
       </CardContent>
+
+      {ministry && (
+        <MinisterSelector
+          open={selectorOpen}
+          onClose={() => setSelectorOpen(false)}
+          ministry={ministry}
+        />
+      )}
     </Card>
   );
 }
