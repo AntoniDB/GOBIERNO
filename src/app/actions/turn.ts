@@ -27,6 +27,7 @@ import type {
   MonthSnapshotData,
   TurnNotification,
   MediaCoverageData,
+  MediaPollData,
   LawCatalogEntry,
 } from "@/lib/engine/types";
 
@@ -259,7 +260,7 @@ export async function advanceMonth(
 
   // Ejecutar motor puro
   const output = processTurn(gameState, input, rng);
-  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages, gameOver } = output;
+  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages, mediaPolls, gameOver } = output;
 
   // Calcular nuevo año/mes
   const monthAdvanced = game.currentMonth + 1;
@@ -351,19 +352,19 @@ export async function advanceMonth(
         where: { id: o.id },
         create: {
           id: o.id,
-          gameId,
+          game: { connect: { id: gameId } },
           name: o.name,
           role: o.role as string,
           status: o.status as string,
           corruption: o.corruption,
-          skill: o.skill,
+          skill: o.skill ?? 50,
           loyalty: o.loyalty,
           ambition: o.ambition,
           wealth: o.wealth,
           reputation: o.reputation,
           ideology: o.ideology as Record<string, unknown>,
           ministryId: o.ministryId,
-          partyId: o.partyId,
+          party: o.partyId ? { connect: { id: o.partyId } } : undefined,
         },
         update: {
           corruption: o.corruption,
@@ -371,11 +372,11 @@ export async function advanceMonth(
           wealth: o.wealth,
           reputation: o.reputation,
           ministryId: o.ministryId,
-          partyId: o.partyId,
+          party: o.partyId ? { connect: { id: o.partyId } } : { disconnect: true },
           role: o.role as string,
           loyalty: o.loyalty,
           ambition: o.ambition,
-          skill: o.skill,
+          skill: o.skill ?? 50,
           ideology: o.ideology as Record<string, unknown>,
         },
       });
@@ -421,7 +422,7 @@ export async function advanceMonth(
       },
       create: {
         id: crypto.randomUUID(),
-        gameId,
+        game: { connect: { id: gameId } },
         year: game.currentYear,
         month: game.currentMonth,
         treasury: monthSnapshot.treasury,
@@ -484,15 +485,15 @@ export async function advanceMonth(
         where: { id: jc.id },
         create: {
           id: jc.id,
-          gameId,
-          defendantOfficialId: jc.defendantOfficialId,
+          game: { connect: { id: gameId } },
+          defendant: { connect: { id: jc.defendantOfficialId } },
           caseType: jc.caseType as string,
           description: `Caso ${jc.caseType.toLowerCase()} abierto contra funcionario`,
           currentPhase: jc.currentPhase as string,
           monthsInPhase: jc.monthsInPhase,
           evidenceStrength: jc.evidenceStrength,
-          prosecutorId: jc.prosecutorId,
-          judgeId: jc.judgeId,
+          prosecutor: jc.prosecutorId ? { connect: { id: jc.prosecutorId } } : undefined,
+          judge: jc.judgeId ? { connect: { id: jc.judgeId } } : undefined,
           verdict: jc.verdict,
           sentenceMonths: jc.sentenceMonths,
         },
@@ -500,8 +501,8 @@ export async function advanceMonth(
           currentPhase: jc.currentPhase as string,
           monthsInPhase: jc.monthsInPhase,
           evidenceStrength: jc.evidenceStrength,
-          prosecutorId: jc.prosecutorId,
-          judgeId: jc.judgeId,
+          prosecutor: jc.prosecutorId ? { connect: { id: jc.prosecutorId } } : { disconnect: true },
+          judge: jc.judgeId ? { connect: { id: jc.judgeId } } : { disconnect: true },
           verdict: jc.verdict,
           sentenceMonths: jc.sentenceMonths,
         },
@@ -510,25 +511,36 @@ export async function advanceMonth(
 
     // h. Organismos: upsert (nuevos creados por el jugador)
     for (const org of newState.organisms) {
+      // Si el organismo esta siendo disuelto, registrar la fecha
+      const isDissolved = org.effectiveness <= 0;
+      const existingOrg = isDissolved
+        ? await tx.organism.findUnique({ where: { id: org.id }, select: { dissolvedAt: true } })
+        : null;
+      const dissolvedAt = isDissolved
+        ? (existingOrg?.dissolvedAt ?? new Date())
+        : null;
+
       await tx.organism.upsert({
         where: { id: org.id },
         create: {
           id: org.id,
-          gameId,
+          game: { connect: { id: gameId } },
           type: org.type as string,
           name: org.name,
           monthlyBudget: org.monthlyBudget,
           staff: org.staff,
           effectiveness: org.effectiveness,
           autonomyLevel: org.autonomyLevel,
-          headOfficialId: org.headOfficialId,
+          headOfficial: org.headOfficialId ? { connect: { id: org.headOfficialId } } : undefined,
+          dissolvedAt,
         },
         update: {
           monthlyBudget: org.monthlyBudget,
           staff: org.staff,
           effectiveness: org.effectiveness,
           autonomyLevel: org.autonomyLevel,
-          headOfficialId: org.headOfficialId,
+          headOfficial: org.headOfficialId ? { connect: { id: org.headOfficialId } } : { disconnect: true },
+          dissolvedAt,
         },
       });
     }
@@ -584,7 +596,7 @@ export async function advanceMonth(
       if (result.approved) {
         await tx.activeLaw.create({
           data: {
-            id: crypto.randomUUID(),
+          id: crypto.randomUUID(),
             gameId,
             lawKey: result.lawKey,
           },
@@ -608,6 +620,7 @@ export async function advanceMonth(
     notifications: [...notifications, ...lawNotifications],
     newEvents,
     mediaCoverages,
+    mediaPolls,
     gameOver,
   };
 }

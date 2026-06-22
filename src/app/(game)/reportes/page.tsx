@@ -3,12 +3,46 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { getSnapshots } from "@/app/actions/game";
-import { ReportChart, type ChartSeries } from "@/components/game/report-chart";
+import { ReportChart } from "@/components/game/report-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
+import {
+  Coins,
+  TrendingUp,
+  Percent,
+  Users,
+  Heart,
+  Shield,
+  GraduationCap,
+  Scale,
+  Landmark,
+  AlertTriangle,
+  BarChart3,
+} from "lucide-react";
 import type { MonthSnapshotData } from "@/lib/engine/types";
 
 type TabKey = "economia" | "social" | "gobierno" | "regimen";
+
+function getRegimeBadge(regimeType: string) {
+  switch (regimeType) {
+    case "Democracia plena": return "bg-accent/20 text-accent border-accent/30";
+    case "Democracia defectuosa": return "bg-yellow-400/20 text-yellow-400 border-yellow-400/30";
+    case "Regimen hibrido": return "bg-orange-400/20 text-orange-400 border-orange-400/30";
+    case "Autoritarismo electoral": return "bg-destructive/20 text-destructive border-destructive/30";
+    case "Dictadura": return "bg-destructive text-destructive-foreground";
+    case "Estado fallido": return "bg-destructive/80 text-destructive-foreground";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
 
 export default function ReportesPage() {
   const gameState = useGameStore((s) => s.gameState);
@@ -40,44 +74,69 @@ export default function ReportesPage() {
       gini: Number(s.gini) || 0,
       aprobacion: Number(s.approval) || 0,
       corrupcion: Number(s.corruption) || 0,
-      tipoRegimen: s.regimeType,
+      tipoRegimen: s.regimeType ?? "",
     }));
   }, [snapshots]);
 
   if (!gameState) {
     return (
       <div className="space-y-6 p-6">
+        <Skeleton className="h-5 w-48" />
         <Skeleton className="h-8 w-72" />
+        <Skeleton className="h-8 w-96" />
         <Skeleton className="h-96 rounded-xl" />
       </div>
     );
   }
 
-  const tabItems: { key: TabKey; label: string }[] = [
-    { key: "economia", label: "Economia" },
-    { key: "social", label: "Social" },
-    { key: "gobierno", label: "Gobierno" },
-    { key: "regimen", label: "Regimen" },
-  ];
+  const latestRegime = snapshots.length > 0 ? snapshots[snapshots.length - 1].regimeType : null;
 
   return (
     <div className="space-y-6 p-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Reportes</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reportes Historicos</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Datos acumulados de {chartData.length} meses
+            {chartData.length} meses de datos acumulados
           </p>
         </div>
+        {latestRegime && (
+          <Badge className={`text-xs ${getRegimeBadge(latestRegime)}`}>
+            {latestRegime}
+          </Badge>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList className="mb-4">
-          {tabItems.map((item) => (
-            <TabsTrigger key={item.key} value={item.key}>
-              {item.label}
-            </TabsTrigger>
-          ))}
+        <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="economia">
+            <Coins className="size-4" />
+            Economia
+          </TabsTrigger>
+          <TabsTrigger value="social">
+            <Users className="size-4" />
+            Social
+          </TabsTrigger>
+          <TabsTrigger value="gobierno">
+            <Landmark className="size-4" />
+            Gobierno
+          </TabsTrigger>
+          <TabsTrigger value="regimen">
+            <Shield className="size-4" />
+            Regimen
+          </TabsTrigger>
         </TabsList>
 
         {/* ECONOMIA */}
@@ -143,7 +202,7 @@ export default function ReportesPage() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ReportChart
-              title="Salud y Alimentación"
+              title="Salud y Seguridad Alimentaria"
               data={chartData}
               series={[
                 { dataKey: "salud", name: "Salud (%)", color: "var(--color-chart-2)" },
@@ -175,10 +234,10 @@ export default function ReportesPage() {
               domain={[0, 100]}
             />
             <ReportChart
-              title="Desigualdad (Gini)"
+              title="Desigualdad — Coeficiente Gini"
               data={chartData}
               series={[
-                { dataKey: "gini", name: "Coeficiente Gini", color: "var(--color-chart-3)" },
+                { dataKey: "gini", name: "Gini", color: "var(--color-chart-3)" },
               ]}
               chartType="line"
               valueFormatter={(v) => `${v.toFixed(1)}`}
@@ -225,39 +284,35 @@ export default function ReportesPage() {
 
         {/* REGIMEN */}
         <TabsContent value="regimen" className="space-y-6">
-          <div className="p-4 bg-muted/30 rounded-lg border border-border mb-4">
-            <p className="text-sm text-muted-foreground">
-              Tipo de regimen actual:{" "}
-              <span className="font-semibold text-foreground">
-                {gameState.regimeMetrics
-                  ? "Consultar vista de Regimen para detalle"
-                  : "No disponible"}
-              </span>
-            </p>
-          </div>
+          {latestRegime && (
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
+              <AlertTriangle className={`size-5 ${latestRegime === "Estado fallido" || latestRegime === "Dictadura" ? "text-destructive" : "text-muted-foreground"}`} />
+              <div>
+                <span className="text-sm text-muted-foreground">Regimen actual: </span>
+                <Badge className={`text-xs ${getRegimeBadge(latestRegime)}`}>
+                  {latestRegime}
+                </Badge>
+              </div>
+            </div>
+          )}
           <ReportChart
-            title="Evolución de Régimen (tipo)"
+            title="Evolución del Régimen"
             data={chartData.map((d) => ({
               ...d,
               tipoRegimenValor:
-                d.tipoRegimen === "Democracia plena"
-                  ? 5
-                  : d.tipoRegimen === "Democracia defectuosa"
-                  ? 4
-                  : d.tipoRegimen === "Regimen hibrido"
-                  ? 3
-                  : d.tipoRegimen === "Autoritarismo electoral"
-                  ? 2
-                  : d.tipoRegimen === "Dictadura"
-                  ? 1
-                  : 0,
+                d.tipoRegimen === "Democracia plena" ? 5
+                : d.tipoRegimen === "Democracia defectuosa" ? 4
+                : d.tipoRegimen === "Regimen hibrido" ? 3
+                : d.tipoRegimen === "Autoritarismo electoral" ? 2
+                : d.tipoRegimen === "Dictadura" ? 1
+                : 0,
             }))}
             series={[
               { dataKey: "tipoRegimenValor", name: "Calidad democratica", color: "var(--color-chart-1)" },
             ]}
             chartType="area"
             valueFormatter={(v) => {
-              const labels = ["Estado fallido", "Dictadura", "Autoritarismo", "Regimen hibrido", "Democracia defectuosa", "Democracia plena"];
+              const labels = ["Estado fallido", "Dictadura", "Autoritarismo", "R. hibrido", "Dem. defectuosa", "Dem. plena"];
               return labels[Math.round(v)] ?? `${v}`;
             }}
             domain={[0, 5]}

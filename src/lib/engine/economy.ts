@@ -17,9 +17,14 @@ export function calculateIncome(state: GameState): number {
   // Tasa impositiva base + modificadores de leyes activas
   let taxRate = BALANCE.TAX_RATE_BASE;
   for (const law of state.activeLaws) {
-    const modifier = law.effectsJson["taxRateModifier"];
+    const effects = law.effectsJson as Record<string, unknown>;
+    const modifier = effects["taxRateModifier"];
     if (typeof modifier === "number") {
       taxRate += modifier;
+    }
+    const taxRev = effects["taxRevenue"];
+    if (typeof taxRev === "number") {
+      taxRate += taxRev / 100; // taxRevenue viene en %, convertir a decimal
     }
   }
 
@@ -53,7 +58,8 @@ export function calculateExpenses(state: GameState): number {
   // Costo de leyes activas que tengan un costo definido en effectsJson
   let lawCosts = 0;
   for (const law of state.activeLaws) {
-    const cost = law.effectsJson["monthlyCost"];
+    const effects = law.effectsJson as Record<string, unknown>;
+    const cost = effects["monthlyCost"] ?? effects["cost"];
     if (typeof cost === "number") {
       lawCosts += cost;
     }
@@ -108,5 +114,16 @@ export function calculateGDP(state: GameState): number {
   const efficiency = economyMinistry?.efficiency ?? 50;
 
   // La eficiencia (0-100) escala linealmente el PIB base
-  return baseGDP * (efficiency / 100);
+  let gdp = baseGDP * (efficiency / 100);
+
+  // Aplicar modificadores de leyes activas
+  for (const law of state.activeLaws) {
+    const effects = law.effectsJson as Record<string, unknown>;
+    const gdpMod = effects["gdp"];
+    if (typeof gdpMod === "number") {
+      gdp += gdp * (gdpMod / 100);
+    }
+  }
+
+  return Math.max(0, gdp);
 }

@@ -5,7 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { Sparkles } from "lucide-react";
 import { NotificationsPanel } from "@/components/game/notifications-panel";
+import { AiAdvisorPanel } from "@/components/game/ai-advisor-panel";
+import { checkAiAvailability } from "@/app/actions/ai";
 
 const NAV_ITEMS = [
   { label: "DASHBOARD", icon: "▣", href: "/dashboard" },
@@ -35,10 +38,17 @@ export function GameShell({ children }: { children: React.ReactNode }) {
   const advanceMonth = useGameStore((s) => s.advanceMonth);
   const isLoading = useGameStore((s) => s.isLoading);
   const gameOver = useGameStore((s) => s.gameOver);
+  const gameId = useGameStore((s) => s.gameId);
   const pathname = usePathname();
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAdvisor, setShowAdvisor] = useState(false);
+  const [aiAvailable, setAiAvailable] = useState(false);
   const [time, setTime] = useState("00:00");
+
+  useEffect(() => {
+    checkAiAvailability().then(setAiAvailable);
+  }, []);
 
   useEffect(() => {
     const update = () => {
@@ -231,6 +241,9 @@ export function GameShell({ children }: { children: React.ReactNode }) {
         <div
           style={{
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
             paddingRight: 20,
             borderRight: "2px solid rgba(255,255,255,0.12)",
           }}
@@ -272,6 +285,27 @@ export function GameShell({ children }: { children: React.ReactNode }) {
           >
             TURNO {turnLabel}
           </div>
+          {aiAvailable && (
+            <button
+              onClick={() => setShowAdvisor(true)}
+              disabled={!gameState || !!gameOver}
+              title="Consultar Asesor IA"
+              style={{
+                cursor: !gameState || !!gameOver ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 42,
+                height: 42,
+                background: "#1A1A2E",
+                border: "2.5px solid #00C2B8",
+                boxShadow: "3px 3px 0 #00C2B8",
+                opacity: !gameState || !!gameOver ? 0.5 : 1,
+              }}
+            >
+              <Sparkles style={{ width: 20, height: 20, color: "#00C2B8" }} />
+            </button>
+          )}
         </div>
 
         {/* Presidente + Reloj */}
@@ -407,6 +441,15 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <NotificationsPanel open={showNotifications} onOpenChange={setShowNotifications} />
+      {aiAvailable && (
+        <AiAdvisorPanel
+          open={showAdvisor}
+          onOpenChange={setShowAdvisor}
+          gameId={gameId ?? ""}
+          currentYear={gameState?.currentYear ?? 1}
+          currentMonth={gameState?.currentMonth ?? 1}
+        />
+      )}
     </div>
   );
 }

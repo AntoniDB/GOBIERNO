@@ -178,13 +178,17 @@ export interface TurnInput {
   /** Organismos creados: type → { name, budget, headOfficialId } */
   newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
   /** Acciones sobre medios: mediaId → acción */
-  mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "none">;
+  mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none">;
   /** ¿El jugador ordenó investigar a alguien? officialId[] */
   investigations?: string[];
   /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */
   voteBuyingPartyIds?: string[];
   /** IDs de candidatos a contratar (status CANDIDATE → ACTIVE) */
   hireCandidateIds?: string[];
+  /** Cambios de titular de organismos existentes: organismId → officialId */
+  organismHeadChanges?: Record<string, string>;
+  /** IDs de organismos a disolver este mes */
+  dissolveOrganismIds?: string[];
 }
 
 /** Configuracion de fin de partida */
@@ -216,6 +220,7 @@ export interface TurnOutput {
   notifications: TurnNotification[];
   newEvents: EventState[];
   mediaCoverages: MediaCoverageData[];
+  mediaPolls: MediaPollData[];
   gameOver: GameOverResult | null;
 }
 
@@ -247,8 +252,18 @@ export interface TurnNotification {
 }
 
 export interface MediaCoverageData {
+  id: string;
   mediaId: string;
   headline: string;
   sentiment: number;
   impactOnApproval: Record<string, number>;
+}
+
+export interface MediaPollData {
+  mediaId: string;
+  mediaName: string;
+  approvalPoll: number;
+  corruptionPoll: number;
+  credibility: number;
+  governmentAffinity: number;
 }

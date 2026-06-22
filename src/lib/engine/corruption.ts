@@ -75,6 +75,15 @@ export function updateOfficialCorruption(
   ).length;
   reduction += BALANCE.CORRUPTION_DETERRENCE_BY_CASES * activeCases;
 
+  // Efecto de leyes anticorrupcion
+  for (const law of state.activeLaws) {
+    const effects = law.effectsJson as Record<string, unknown>;
+    const corrMod = effects["corruption"];
+    if (typeof corrMod === "number" && corrMod < 0) {
+      reduction += Math.abs(corrMod);
+    }
+  }
+
   // ── Resultado ────────────────────────────────────────────────────────────
 
   const newCorruption = official.corruption + increase - reduction;

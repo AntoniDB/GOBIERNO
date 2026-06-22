@@ -23,6 +23,8 @@ const ROLE_LABEL: Record<string, string> = {
   GENERAL: "General",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
   COMPTROLLER: "Contralor",
+  OMBUDSMAN: "Defensor del Pueblo",
+  CENTRAL_BANK_PRESIDENT: "Presidente del Banco Central",
   POLITICAL_LEADER: "Lider politico",
 };
 

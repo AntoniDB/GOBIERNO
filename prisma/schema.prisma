@@ -200,6 +200,8 @@ model MonthSnapshot {
   gini              Float
   regimeType        String
   regimeMetrics     Json
+  aiEventNarratives     Json?
+  aiCoverageNarratives  Json?
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)

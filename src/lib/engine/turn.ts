@@ -14,6 +14,7 @@ import type {
   TurnNotification,
   EventState,
   MediaCoverageData,
+  MediaPollData,
 } from "./types";
 import { BALANCE } from "../balance";
 // ── Funciones del motor (económicas, ministeriales, corrupción, indicadores)
@@ -45,7 +46,7 @@ import {
   regenerateRegimeMetrics,
 } from "./regime";
 import { triggerRandomEvents, applyEventEffects } from "./events";
-import { generateMediaCoverage } from "./media";
+import { generateMediaCoverage, generateDecisionCoverage, generateEditorialCoverage, generateMediaPolls, generateInvestigativeReports } from "./media";
 import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates } from "./candidates";
@@ -103,6 +104,7 @@ export function processTurn(
   const allNotifications: TurnNotification[] = [];
   let allNewEvents: EventState[] = [];
   let allMediaCoverages: MediaCoverageData[] = [];
+  let allMediaPolls: MediaPollData[] = [];
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 1: Aplicar decisiones del jugador
@@ -210,6 +212,8 @@ export function processTurn(
             OMBUDSMAN: "OMBUDSMAN",
             CONSTITUTIONAL_COURT: "JUDGE",
             CENTRAL_BANK: "CENTRAL_BANK_PRESIDENT",
+            TAX_AGENCY: "COMPTROLLER",
+            ELECTORAL_COUNCIL: "JUDGE",
           };
           head.role = organismRoleMap[type] ?? head.role;
           allNotifications.push({
@@ -219,6 +223,102 @@ export function processTurn(
           });
         }
       }
+    }
+  }
+
+  // 1d. Cambiar titular de organismos existentes
+  if (input.organismHeadChanges) {
+    const organismRoleMap: Record<string, string> = {
+      COMPTROLLER: "COMPTROLLER",
+      ANTICORRUPTION_PROSECUTION: "PROSECUTOR",
+      INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
+      OMBUDSMAN: "OMBUDSMAN",
+      CONSTITUTIONAL_COURT: "JUDGE",
+      CENTRAL_BANK: "CENTRAL_BANK_PRESIDENT",
+      TAX_AGENCY: "COMPTROLLER",
+      ELECTORAL_COUNCIL: "JUDGE",
+    };
+    for (const [organismId, headOfficialId] of Object.entries(input.organismHeadChanges)) {
+      const org = newState.organisms.find((o) => o.id === organismId);
+      if (!org) continue;
+      const head = newState.officials.find((o) => o.id === headOfficialId);
+      if (!head) continue;
+
+      // Si el oficial ya lideraba otro organismo, desasignarlo
+      for (const other of newState.organisms) {
+        if (other.id !== organismId && other.headOfficialId === headOfficialId) {
+          other.headOfficialId = null;
+        }
+      }
+
+      org.headOfficialId = headOfficialId;
+      head.role = organismRoleMap[org.type] ?? head.role;
+
+      allNotifications.push({
+        type: "info",
+        title: "Titular asignado",
+        description: `${head.name} ha sido designado como nuevo titular del organismo ${org.name}.`,
+      });
+    }
+  }
+
+  // 1d-2. Disolver organismos
+  if (input.dissolveOrganismIds && input.dissolveOrganismIds.length > 0) {
+    // Mapa de impacto en métricas de régimen al disolver cada tipo
+    const dissolveRegimeImpacts: Record<string, Record<string, number>> = {
+      COMPTROLLER: { transparency: -10, powerConcentration: 3 },
+      ANTICORRUPTION_PROSECUTION: { transparency: -8, judicialIndependence: -5, powerConcentration: 3 },
+      INTELLIGENCE: { civilLiberties: -3, powerConcentration: -2 },
+      OMBUDSMAN: { civilLiberties: -10, transparency: -5, powerConcentration: 5 },
+      CONSTITUTIONAL_COURT: { judicialIndependence: -15, powerConcentration: 8 },
+      CENTRAL_BANK: { powerConcentration: 3 },
+      TAX_AGENCY: { transparency: -5, powerConcentration: 2 },
+      ELECTORAL_COUNCIL: { politicalPluralism: -12, powerConcentration: 8 },
+    };
+
+    for (const organismId of input.dissolveOrganismIds) {
+      const org = newState.organisms.find((o) => o.id === organismId);
+      if (!org || org.effectiveness <= 0) continue;
+
+      // Liberar al titular
+      if (org.headOfficialId) {
+        const head = newState.officials.find((o) => o.id === org.headOfficialId);
+        if (head) {
+          head.ministryId = null;
+          head.status = "ACTIVE";
+        }
+        org.headOfficialId = null;
+      }
+
+      // Marcar como disuelto (efectividad a 0)
+      org.effectiveness = 0;
+      org.monthlyBudget = 0;
+      org.staff = 0;
+      // Reintegrar presupuesto al tesoro (una devolución simbólica)
+      // El ajuste real se hace via el presupuesto mensual que ya no se gasta
+
+      // Aplicar impactos en métricas de régimen
+      const regimeMetricKeys: Record<string, keyof typeof newState.regimeMetrics> = {
+        transparency: "transparency",
+        judicialIndependence: "judicialIndependence",
+        civilLiberties: "civilLiberties",
+        powerConcentration: "powerConcentration",
+        politicalPluralism: "politicalPluralism",
+      };
+      const impacts = dissolveRegimeImpacts[org.type] ?? {};
+      for (const [key, value] of Object.entries(impacts)) {
+        const metricKey = regimeMetricKeys[key];
+        if (metricKey) {
+          const current = newState.regimeMetrics[metricKey];
+          newState.regimeMetrics[metricKey] = Math.max(0, Math.min(100, current + value));
+        }
+      }
+
+      allNotifications.push({
+        type: "info",
+        title: "Organismo disuelto",
+        description: `El organismo ${org.name} ha sido disuelto. Su titular y presupuesto han sido liberados.`,
+      });
     }
   }
 
@@ -262,6 +362,26 @@ export function processTurn(
             title: "Medio restaurado",
             description: `El medio ${medium.name} ha sido restaurado y vuelve a operar libremente.`,
           });
+          break;
+        case "buyAffinity":
+          // Siempre se puede comprar afinidad, incluso si el medio esta CENSORED o CLOSED
+          if (newState.treasury >= BALANCE.MEDIA_BUY_AFFINITY_COST) {
+            newState.treasury -= BALANCE.MEDIA_BUY_AFFINITY_COST;
+            medium.governmentAffinity = Math.min(
+              100,
+              medium.governmentAffinity + BALANCE.MEDIA_BUY_AFFINITY_AMOUNT
+            );
+            // La compra de afinidad implica acuerdos bajo mesa que reducen transparencia
+            newState.regimeMetrics.transparency = Math.max(
+              0,
+              newState.regimeMetrics.transparency + BALANCE.MEDIA_BUY_AFFINITY_TRANSPARENCY_PENALTY
+            );
+            allNotifications.push({
+              type: "info",
+              title: "Afinidad mediatica comprada",
+              description: `Se ha mejorado la afinidad de ${medium.name} mediante incentivos economicos. Costo: M$ ${(BALANCE.MEDIA_BUY_AFFINITY_COST / 1_000_000).toFixed(1)}.`,
+            });
+          }
           break;
         case "none":
         default:
@@ -584,13 +704,90 @@ export function processTurn(
   newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 12: Generar coberturas mediáticas
+  // PASO 12: Generar coberturas mediáticas (eventos + decisiones)
   // ═══════════════════════════════════════════════════════════════════════
   allMediaCoverages = generateMediaCoverage(
     newState,
     eventsThisMonth,
     rng
   );
+
+  // Cobertura de decisiones gubernamentales (leyes, presupuestos, organismos, nombramientos)
+  const decisionCoverages = generateDecisionCoverage(
+    newState,
+    input,
+    allNewEvents,
+    rng
+  );
+  allMediaCoverages.push(...decisionCoverages);
+
+  // Editoriales de opinión mensuales (una por medio activo)
+  const editorialCoverages = generateEditorialCoverage(newState, rng);
+  allMediaCoverages.push(...editorialCoverages);
+
+  // Encuestas de opinión simuladas (una por medio activo)
+  allMediaPolls = generateMediaPolls(newState, rng);
+
+  // Reportajes de investigación anticorrupción (medios opositores)
+  const investigativeResults = generateInvestigativeReports(newState, rng);
+  for (const result of investigativeResults) {
+    newState.events.push(result.event);
+    allNewEvents.push(result.event);
+    allMediaCoverages.push(result.coverage);
+
+    // Aplicar reducción de reputación
+    const target = newState.officials.find(
+      (o) => o.id === result.exposedOfficialId
+    );
+    if (target) {
+      target.reputation = Math.max(
+        0,
+        target.reputation - result.reputationHit
+      );
+    }
+
+    // Si dispara caso automático, abrirlo
+    if (result.opensCase) {
+      const prosecutors = newState.officials.filter(
+        (o) => o.role === "PROSECUTOR" && o.status === "ACTIVE"
+      );
+      const judges = newState.officials.filter(
+        (o) => o.role === "JUDGE" && o.status === "ACTIVE"
+      );
+      if (
+        prosecutors.length > 0 &&
+        judges.length > 0 &&
+        target
+      ) {
+        const newCase: JudicialCaseState = {
+          id: `auto-invest-${newState.currentYear}-${newState.currentMonth}-${result.exposedOfficialId}`,
+          defendantOfficialId: result.exposedOfficialId,
+          caseType: "CORRUPTION",
+          currentPhase: "INVESTIGATION",
+          monthsInPhase: 0,
+          evidenceStrength: 40 + Math.floor(rng() * 30),
+          prosecutorId: prosecutors[0].id,
+          judgeId: judges[0].id,
+          verdict: null,
+          sentenceMonths: null,
+        };
+        newState.judicialCases.push(newCase);
+        if (target) target.status = "INVESTIGATED";
+        allNotifications.push({
+          type: "case",
+          title: "Caso abierto por reportaje",
+          description: `Tras el reportaje de investigación, se ha abierto un caso judicial contra ${target.name}.`,
+        });
+      }
+    }
+
+    allNotifications.push({
+      type: "warning",
+      title: "Reportaje de investigación",
+      description: result.event.description,
+      severity: result.event.severity,
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 12b: Aplicar impacto de coberturas mediáticas a la aprobación
@@ -689,6 +886,7 @@ export function processTurn(
     notifications: allNotifications,
     newEvents: allNewEvents,
     mediaCoverages: allMediaCoverages,
+    mediaPolls: allMediaPolls,
     gameOver,
   };
 }

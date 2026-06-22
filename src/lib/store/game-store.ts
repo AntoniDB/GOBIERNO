@@ -25,9 +25,11 @@ export interface GameStore {
   createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => void;
   clearNotifications: () => void;
   resetPendingInput: () => void;
-  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "none") => void;
+  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none") => void;
   appointMinister: (ministryKey: string, officialId: string) => void;
   hireCandidate: (officialId: string) => void;
+  assignOrganismHead: (organismId: string, officialId: string) => void;
+  dissolveOrganism: (organismId: string) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -148,7 +150,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ pendingInput: {} });
   },
 
-  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "none") => {
+  setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none") => {
     set((prev) => ({
       pendingInput: {
         ...prev.pendingInput,
@@ -179,6 +181,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
         hireCandidateIds: [
           ...(prev.pendingInput.hireCandidateIds ?? []),
           officialId,
+        ],
+      },
+    }));
+  },
+
+  assignOrganismHead: (organismId: string, officialId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        organismHeadChanges: {
+          ...prev.pendingInput.organismHeadChanges,
+          [organismId]: officialId,
+        },
+      },
+    }));
+  },
+
+  dissolveOrganism: (organismId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        dissolveOrganismIds: [
+          ...(prev.pendingInput.dissolveOrganismIds ?? []),
+          organismId,
         ],
       },
     }));

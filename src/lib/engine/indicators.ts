@@ -30,6 +30,20 @@ function getMinistryEfficiency(state: GameState, lookupKey: string): number {
 }
 
 /**
+ * Suma los modificadores de una key en effectsJson de todas las leyes activas.
+ * Ej: effectsJson.povertyRate: -5 en ley A + effectsJson.povertyRate: -3 en ley B = -8
+ */
+function sumLawEffects(state: GameState, key: string): number {
+  let total = 0;
+  for (const law of state.activeLaws) {
+    const effects = law.effectsJson as Record<string, unknown>;
+    const val = effects[key];
+    if (typeof val === "number") total += val;
+  }
+  return total;
+}
+
+/**
  * Pobreza = BALANCE.POVERTY_SOCIAL_DEV_FACTOR * eficienciaDesarrolloSocial
  *         + BALANCE.POVERTY_UNEMPLOYMENT_FACTOR * desempleo
  *         + BALANCE.POVERTY_INFLATION_FACTOR * inflación
@@ -47,7 +61,7 @@ export function calculatePoverty(state: GameState): number {
     BALANCE.POVERTY_INFLATION_FACTOR * inflation +
     25;
 
-  return Math.max(0, Math.min(100, raw));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "povertyRate")));
 }
 
 /**
@@ -62,7 +76,7 @@ export function calculateUnemployment(state: GameState): number {
     BALANCE.UNEMPLOYMENT_ECONOMY_FACTOR * economyEfficiency +
     BALANCE.UNEMPLOYMENT_BASE;
 
-  return Math.max(2, Math.min(50, raw));
+  return Math.max(2, Math.min(50, raw + sumLawEffects(state, "unemploymentRate")));
 }
 
 /**
@@ -76,7 +90,7 @@ export function calculateHealth(state: GameState): number {
   const raw =
     BALANCE.SICK_HEALTH_FACTOR * healthEfficiency + BALANCE.SICK_BASE;
 
-  return Math.max(0, Math.min(50, raw));
+  return Math.max(0, Math.min(50, raw + sumLawEffects(state, "sickRate")));
 }
 
 /**
@@ -91,7 +105,7 @@ export function calculateFoodSecurity(state: GameState): number {
     BALANCE.FOOD_AGRICULTURE_FACTOR * agricultureEfficiency +
     BALANCE.FOOD_BASE;
 
-  return Math.max(0, Math.min(100, raw));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "foodSecurity")));
 }
 
 /**
@@ -112,7 +126,7 @@ export function calculateCrime(state: GameState): number {
     BALANCE.CRIME_UNEMPLOYMENT_FACTOR * unemployment +
     BALANCE.CRIME_BASE;
 
-  return Math.max(0, Math.min(100, raw));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "crimeRate")));
 }
 
 /**
@@ -126,7 +140,7 @@ export function calculateEducation(state: GameState): number {
   const raw =
     BALANCE.EDUCATION_EDU_FACTOR * educationEfficiency + BALANCE.EDUCATION_BASE;
 
-  return Math.max(0, Math.min(100, raw));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "educationLevel")));
 }
 
 /**
@@ -150,6 +164,8 @@ export function calculateGini(
       gini += BALANCE.GINI_LIBERALIZATION_FACTOR;
     }
   }
+
+  gini += sumLawEffects(state, "gini");
 
   return Math.max(20, Math.min(70, gini));
 }

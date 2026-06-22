@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import AiNarrative from "./ai-narrative";
+import { generateEventNarrative } from "@/app/actions/ai";
 import {
   Biohazard,
   AlertTriangle,
@@ -86,7 +88,7 @@ function renderEventBadgeIcon(type: string) {
   return <IconComponent className="size-3" />;
 }
 
-function EventRow({ event }: { event: EventState }) {
+function EventRow({ event, gameId }: { event: EventState; gameId: string }) {
   return (
     <div className="flex items-start gap-3 rounded-lg border border-border/50 p-3">
       <Badge variant={getEventColor(event.type) as "destructive" | "secondary" | "outline"} className="mt-0.5 shrink-0">
@@ -104,6 +106,13 @@ function EventRow({ event }: { event: EventState }) {
             </span>
           )}
         </div>
+        <AiNarrative
+          gameId={gameId}
+          entityId={event.id}
+          fallbackText={event.description}
+          fetchAction={generateEventNarrative}
+          buttonLabel="Expandir crónica"
+        />
       </div>
     </div>
   );
@@ -129,6 +138,7 @@ function NotificationRow({ notification }: { notification: TurnNotification }) {
 
 export function EventFeed() {
   const gameState = useGameStore((s) => s.gameState);
+  const gameId = useGameStore((s) => s.gameId);
   const notifications = useGameStore((s) => s.notifications);
 
   if (!gameState) {
@@ -164,7 +174,7 @@ export function EventFeed() {
           ) : (
             <div className="space-y-2">
               {events.map((event) => (
-                <EventRow key={event.id} event={event} />
+                <EventRow key={event.id} event={event} gameId={gameId ?? ""} />
               ))}
             </div>
           )}

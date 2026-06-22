@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { OrganismState, OfficialState } from "@/lib/engine/types";
 import {
   Card,
@@ -12,6 +12,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CreateOrganism } from "./create-organism";
 import {
   Building2Icon,
@@ -20,14 +35,42 @@ import {
   UsersIcon,
   PlusIcon,
   ShieldIcon,
+  UserPlusIcon,
 } from "lucide-react";
+import { useGameStore } from "@/lib/store/game-store";
+import { toast } from "sonner";
 
 const ORGANISM_TYPE_LABEL: Record<string, string> = {
   COMPTROLLER: "Contraloría General",
   ANTICORRUPTION_PROSECUTION: "Fiscalía Anticorrupción",
   INTELLIGENCE: "Servicio de Inteligencia",
   OMBUDSMAN: "Defensoría del Pueblo",
-  ELECTORAL_COURT: "Tribunal Electoral",
+  CONSTITUTIONAL_COURT: "Tribunal Constitucional",
+  CENTRAL_BANK: "Banco Central",
+  TAX_AGENCY: "Agencia Tributaria",
+  ELECTORAL_COUNCIL: "Consejo Electoral",
+};
+
+const ORGANISM_ROLE_MAP: Record<string, string> = {
+  COMPTROLLER: "COMPTROLLER",
+  ANTICORRUPTION_PROSECUTION: "PROSECUTOR",
+  INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
+  OMBUDSMAN: "OMBUDSMAN",
+  CONSTITUTIONAL_COURT: "JUDGE",
+  CENTRAL_BANK: "CENTRAL_BANK_PRESIDENT",
+  TAX_AGENCY: "COMPTROLLER",
+  ELECTORAL_COUNCIL: "JUDGE",
+};
+
+const FALLBACK_ROLES = ["MINISTER", "JUDGE", "PROSECUTOR", "GENERAL"];
+
+const ROLE_LABEL: Record<string, string> = {
+  COMPTROLLER: "Contralor",
+  PROSECUTOR: "Fiscal",
+  CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
+  MINISTER: "Ministro",
+  JUDGE: "Juez",
+  GENERAL: "General",
 };
 
 function findOfficial(id: string | null, officials: OfficialState[]): OfficialState | undefined {
@@ -39,6 +82,81 @@ function formatBudget(amount: number): string {
   return `M$ ${(amount / 1_000_000).toFixed(1)}`;
 }
 
+function AssignHeadDialog({
+  open,
+  onClose,
+  organism,
+  officials,
+}: {
+  open: boolean;
+  onClose: () => void;
+  organism: OrganismState;
+  officials: OfficialState[];
+}) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const assignOrganismHead = useGameStore((s) => s.assignOrganismHead);
+
+  const eligibleOfficials = useMemo(() => {
+    const requiredRole = ORGANISM_ROLE_MAP[organism.type];
+    const exactMatch = officials.filter(
+      (o) => o.role === requiredRole && o.status === "ACTIVE"
+    );
+    if (exactMatch.length > 0) return exactMatch;
+    return officials.filter(
+      (o) => FALLBACK_ROLES.includes(o.role) && o.status === "ACTIVE"
+    );
+  }, [officials, organism.type]);
+
+  function handleConfirm() {
+    if (selectedId) {
+      assignOrganismHead(organism.id, selectedId);
+      onClose();
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlusIcon className="size-5 text-primary" />
+            Asignar titular
+          </DialogTitle>
+          <DialogDescription>
+            Selecciona un funcionario para liderar {organism.name}. El cambio se aplicara al avanzar el mes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {eligibleOfficials.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No hay funcionarios activos disponibles. Contrata candidatos en la pestania Candidatos.
+            </p>
+          ) : (
+            <Select value={selectedId} onValueChange={(v) => v && setSelectedId(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar funcionario..." />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleOfficials.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.name} ({ROLE_LABEL[o.role] ?? o.role})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleConfirm} disabled={!selectedId}>Asignar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function OrganismList({
   organisms,
   officials,
@@ -47,6 +165,7 @@ export function OrganismList({
   officials: OfficialState[];
 }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [assignOrg, setAssignOrg] = useState<OrganismState | null>(null);
 
   if (organisms.length === 0) {
     return (
@@ -61,7 +180,6 @@ export function OrganismList({
           open={showCreate}
           onClose={() => setShowCreate(false)}
           officials={officials}
-
         />
       </div>
     );
@@ -153,8 +271,22 @@ export function OrganismList({
                 </div>
               </CardContent>
               {!isDissolved && (
-                <CardFooter>
-                  <Button variant="outline" size="xs" className="w-full">
+                <CardFooter className="gap-2">
+                  {!titular && (
+                    <Button variant="default" size="xs" className="flex-1" onClick={() => setAssignOrg(org)}>
+                      <UserPlusIcon className="size-3" />
+                      Asignar titular
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className={!titular ? "shrink-0" : "w-full"}
+                    onClick={() => {
+                      useGameStore.getState().dissolveOrganism(org.id);
+                      toast.info(`Disolución de ${org.name} programada. Se hará efectiva al avanzar el mes.`);
+                    }}
+                  >
                     <ShieldIcon className="size-3" />
                     Disolver
                   </Button>
@@ -170,6 +302,15 @@ export function OrganismList({
         onClose={() => setShowCreate(false)}
         officials={officials}
       />
+
+      {assignOrg && (
+        <AssignHeadDialog
+          open={!!assignOrg}
+          onClose={() => setAssignOrg(null)}
+          organism={assignOrg}
+          officials={officials}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import MediaCard from "@/components/game/media-card";
+import AiNarrative from "@/components/game/ai-narrative";
+import { generateCoverageNarrative } from "@/app/actions/ai";
 import { Radio, Newspaper } from "lucide-react";
 
 function getSentimentLabel(sentiment: number): string {
@@ -21,6 +23,7 @@ function getSentimentColor(sentiment: number): string {
 
 export default function MediosPage() {
   const gameState = useGameStore((s) => s.gameState);
+  const gameId = useGameStore((s) => s.gameId);
   const lastTurnResult = useGameStore((s) => s.lastTurnResult);
   const pendingInput = useGameStore((s) => s.pendingInput);
 
@@ -39,6 +42,7 @@ export default function MediosPage() {
 
   const media = gameState.media;
   const coverages = lastTurnResult?.mediaCoverages ?? [];
+  const polls = lastTurnResult?.mediaPolls ?? [];
   const pendingMediaActions = pendingInput.mediaActions ?? {};
   const hasPendingActions = Object.values(pendingMediaActions).some(
     (a) => a !== "none"
@@ -62,6 +66,79 @@ export default function MediosPage() {
           <MediaCard key={medium.id} medium={medium} />
         ))}
       </div>
+
+      {/* Encuestas de opinión */}
+      {polls.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Newspaper className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Encuestas de opinión del mes
+            </h2>
+            <Badge variant="outline" className="text-xs">
+              {polls.length} encuestas
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {polls.map((poll) => {
+              const affinityColor =
+                poll.governmentAffinity > 30
+                  ? "text-accent"
+                  : poll.governmentAffinity < -30
+                    ? "text-destructive"
+                    : "text-muted-foreground";
+              return (
+                <Card key={poll.mediaId} size="sm">
+                  <CardContent className="flex flex-col gap-3 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-foreground">
+                        {poll.mediaName}
+                      </span>
+                      <Badge variant="outline" className={`text-[10px] ${affinityColor}`}>
+                        {poll.governmentAffinity > 30
+                          ? "Afín"
+                          : poll.governmentAffinity < -30
+                            ? "Opositor"
+                            : "Neutral"}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          Aprobación
+                        </span>
+                        <div className="text-lg font-bold">
+                          {poll.approvalPoll.toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          Corrupción percibida
+                        </span>
+                        <div className="text-lg font-bold">
+                          {poll.corruptionPoll.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Credibilidad</span>
+                        <span>{poll.credibility}/100</span>
+                      </div>
+                      <div className="h-1 w-full rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary/50"
+                          style={{ width: `${poll.credibility}%` }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Coberturas del mes actual */}
       <div className="space-y-3">
@@ -105,6 +182,13 @@ export default function MediosPage() {
                       </Badge>
                     </div>
                     <p className="text-sm text-foreground">{coverage.headline}</p>
+                    <AiNarrative
+                      gameId={gameId ?? ""}
+                      entityId={coverage.id}
+                      fallbackText={coverage.headline}
+                      fetchAction={generateCoverageNarrative}
+                      buttonLabel="Leer artículo completo"
+                    />
                     {/* Impacto en aprobación por clase */}
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {Object.entries(coverage.impactOnApproval).map(([clase, impact]) => (

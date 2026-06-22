@@ -2,10 +2,11 @@
 
 import type { MediaState } from "@/lib/engine/types";
 import { useGameStore } from "@/lib/store/game-store";
+import { BALANCE } from "@/lib/balance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Radio, Tv, Globe, AlertTriangle, Shield } from "lucide-react";
+import { Radio, Tv, Globe, AlertTriangle, Shield, Handshake, Newspaper } from "lucide-react";
 
 const MEDIA_TYPE_LABELS: Record<string, string> = {
   TV: "Televisión",
@@ -15,7 +16,7 @@ const MEDIA_TYPE_LABELS: Record<string, string> = {
 
 const MEDIA_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   TV: Tv,
-  NEWSPAPER: Radio,
+  NEWSPAPER: Newspaper,
   DIGITAL: Globe,
 };
 
@@ -171,6 +172,17 @@ export default function MediaCard({ medium }: MediaCardProps) {
             >
               Impulsar
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentAction === "buyAffinity"}
+              onClick={() => setMediaAction(medium.id, "buyAffinity")}
+              className="text-xs"
+              title={`Costo: M$ ${(BALANCE.MEDIA_BUY_AFFINITY_COST / 1_000_000).toFixed(1)} — Reduce transparencia`}
+            >
+              <Handshake className="h-3 w-3 mr-1" />
+              Comprar afinidad
+            </Button>
             {currentAction && (
               <Button
                 variant="ghost"
@@ -213,7 +225,7 @@ export default function MediaCard({ medium }: MediaCardProps) {
         {currentAction && currentAction !== "none" && (
           <div className="pt-1">
             <Badge variant="secondary" className="text-xs">
-              Acción pendiente: {currentAction === "censor" ? "Censurar" : currentAction === "close" ? "Clausurar" : currentAction === "boost" ? "Impulsar" : "Restaurar"}
+              Acción pendiente: {currentAction === "censor" ? "Censurar" : currentAction === "close" ? "Clausurar" : currentAction === "boost" ? "Impulsar" : currentAction === "buyAffinity" ? "Comprar afinidad" : "Restaurar"}
             </Badge>
           </div>
         )}

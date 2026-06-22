@@ -27,6 +27,8 @@ const ROLE_LABEL: Record<string, string> = {
   GENERAL: "General",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
   COMPTROLLER: "Contralor",
+  OMBUDSMAN: "Defensor del Pueblo",
+  CENTRAL_BANK_PRESIDENT: "Presidente del Banco Central",
   POLITICAL_LEADER: "Lider politico",
 };
 
@@ -37,6 +39,8 @@ const ROLE_BADGE: Record<string, string> = {
   GENERAL: "bg-red-500/20 text-red-400 border-red-500/30",
   CHIEF_OF_INTELLIGENCE: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   COMPTROLLER: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  OMBUDSMAN: "bg-teal-500/20 text-teal-400 border-teal-500/30",
+  CENTRAL_BANK_PRESIDENT: "bg-slate-500/20 text-slate-400 border-slate-500/30",
   POLITICAL_LEADER: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
 };
 
@@ -46,6 +50,7 @@ const STATUS_LABEL: Record<string, string> = {
   INDICTED: "Procesado",
   CONVICTED: "Condenado",
   DISMISSED: "Despedido",
+  CANDIDATE: "Candidato",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -54,6 +59,7 @@ const STATUS_BADGE: Record<string, string> = {
   INDICTED: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   CONVICTED: "bg-red-500/20 text-red-400 border-red-500/30",
   DISMISSED: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  CANDIDATE: "bg-sky-500/20 text-sky-400 border-sky-500/30",
 };
 
 function CorruptionBar({ value }: { value: number }) {

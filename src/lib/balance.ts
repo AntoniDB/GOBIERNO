@@ -205,6 +205,41 @@ export const BALANCE = {
   /** Penalización a concentración de poder al restaurar un medio */
   MEDIA_RESTORE_POWER_CONCENTRATION_PENALTY: -3,
 
+  /** Costo en tesorería de comprar afinidad de un medio */
+  MEDIA_BUY_AFFINITY_COST: 5_000_000,
+
+  /** Cantidad de puntos de afinidad ganados al comprar un medio */
+  MEDIA_BUY_AFFINITY_AMOUNT: 15,
+
+  /** Penalización a transparencia por comprar afinidad de un medio */
+  MEDIA_BUY_AFFINITY_TRANSPARENCY_PENALTY: -8,
+
+  /** Impacto máximo en aprobación por editorial de opinión */
+  MEDIA_EDITORIAL_MAX_IMPACT: 2,
+
+  /** Peso de los indicadores en el sentimiento editorial */
+  MEDIA_EDITORIAL_APPROVAL_WEIGHT: 0.4,
+  MEDIA_EDITORIAL_ECONOMY_WEIGHT: 0.3,
+  MEDIA_EDITORIAL_CORRUPTION_WEIGHT: 0.3,
+
+  /** Probabilidad mensual de reportaje de investigación por medio opositor */
+  MEDIA_INVESTIGATIVE_PROB: 0.06,
+
+  /** Umbral de corrupción global para que surjan reportajes de investigación */
+  MEDIA_INVESTIGATIVE_CORRUPTION_THRESHOLD: 40,
+
+  /** Umbral de libertad de prensa para que surjan reportajes de investigación */
+  MEDIA_INVESTIGATIVE_PRESS_FREEDOM_THRESHOLD: 50,
+
+  /** Reducción de reputación del funcionario expuesto */
+  MEDIA_INVESTIGATIVE_REPUTATION_HIT: 15,
+
+  /** Bonus de credibilidad para el medio que publica el reportaje */
+  MEDIA_INVESTIGATIVE_CREDIBILITY_BONUS: 5,
+
+  /** Probabilidad de que el reportaje dispare apertura automática de caso */
+  MEDIA_INVESTIGATIVE_CASE_PROB: 0.4,
+
   // ─── Justicia ────────────────────────────────────────────────────────────
 
   /** Meses por fase judicial */
@@ -300,6 +335,21 @@ export const BALANCE = {
 
   /** Costo extra por cada oficial ACTIVE del mismo rol existente */
   CANDIDATE_HIRE_COST_PER_SAME_ROLE: 50_000,
+
+  // ─── IA ────────────────────────────────────────────────────────────────
+
+  /** Feature flag maestro: si es false, no se muestra ni ejecuta nada de IA */
+  AI_ENABLED: true,
+  /** Máximo de tokens en la respuesta narrativa de eventos */
+  AI_EVENT_MAX_TOKENS: 350,
+  /** Máximo de tokens en la respuesta narrativa de coberturas */
+  AI_COVERAGE_MAX_TOKENS: 500,
+  /** Máximo de tokens en la respuesta del asesor de gobierno */
+  AI_ADVISOR_MAX_TOKENS: 800,
+  /** Temperatura para generación (0 = determinista, 1 = creativo) */
+  AI_TEMPERATURE: 0.7,
+  /** Timeout de API call en ms */
+  AI_TIMEOUT_MS: 20000,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;
