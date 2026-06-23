@@ -412,6 +412,12 @@ export function processTurn(
       );
       if (!official) continue;
 
+      // Validar que el funcionario esté en condiciones de ser investigado.
+      // Solo funcionarios ACTIVE pueden ser investigados por orden del ejecutivo.
+      // Esto es una validación de servidor — la UI también la aplica, pero no se debe
+      // confiar únicamente en el cliente.
+      if (official.status !== "ACTIVE") continue;
+
       // Verificar si ya existe un caso activo del mismo tipo para este funcionario
       const existingActive = newState.judicialCases.find(
         (jc) =>
@@ -546,6 +552,20 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   for (const official of newState.officials) {
     official.corruption = updateOfficialCorruption(official, newState);
+  }
+
+  // Sincronizar internalCorruption de cada ministerio con la corrupcion
+  // real de su ministro. La nueva formula de eficiencia lee minister.corruption
+  // directamente, pero persistimos internalCorruption para UI y proximo turno.
+  for (const ministry of newState.ministries) {
+    if (ministry.ministerOfficialId) {
+      const minister = newState.officials.find(
+        (o) => o.id === ministry.ministerOfficialId
+      );
+      if (minister) {
+        ministry.internalCorruption = minister.corruption;
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════

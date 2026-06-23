@@ -1,179 +1,146 @@
 "use client";
 
 import { useGameStore } from "@/lib/store/game-store";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Shield, AlertTriangle } from "lucide-react";
 
-interface MetricDef {
-  key: string;
-  label: string;
-  description: string;
-  higherBetter: boolean;
-}
+const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
+const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
 
-const METRICS: MetricDef[] = [
-  {
-    key: "powerConcentration",
-    label: "Concentración de poder",
-    description: "Cuánto poder acumula el ejecutivo frente a otros poderes",
-    higherBetter: false,
-  },
-  {
-    key: "pressFreedom",
-    label: "Libertad de prensa",
-    description: "Grado de independencia y libertad de los medios",
-    higherBetter: true,
-  },
-  {
-    key: "judicialIndependence",
-    label: "Independencia judicial",
-    description: "Autonomía del Poder Judicial frente al ejecutivo",
-    higherBetter: true,
-  },
-  {
-    key: "politicalPluralism",
-    label: "Pluralismo político",
-    description: "Diversidad y competencia de partidos políticos",
-    higherBetter: true,
-  },
-  {
-    key: "civilLiberties",
-    label: "Libertades civiles",
-    description: "Protección de derechos individuales y colectivos",
-    higherBetter: true,
-  },
-  {
-    key: "transparency",
-    label: "Transparencia",
-    description: "Acceso a la información y rendición de cuentas",
-    higherBetter: true,
-  },
-  {
-    key: "militarySubordination",
-    label: "Subordinación militar",
-    description: "Control civil sobre las fuerzas armadas",
-    higherBetter: true,
-  },
+const METRICS: { key: string; label: string; description: string; higherBetter: boolean }[] = [
+  { key: "powerConcentration",   label: "CONCENTRACIÓN DE PODER",   description: "Cuánto poder acumula el ejecutivo frente a otros poderes",    higherBetter: false },
+  { key: "pressFreedom",         label: "LIBERTAD DE PRENSA",       description: "Grado de independencia y libertad de los medios",             higherBetter: true  },
+  { key: "judicialIndependence", label: "INDEPENDENCIA JUDICIAL",   description: "Autonomía del Poder Judicial frente al ejecutivo",            higherBetter: true  },
+  { key: "politicalPluralism",   label: "PLURALISMO POLÍTICO",      description: "Diversidad y competencia de partidos políticos",              higherBetter: true  },
+  { key: "civilLiberties",       label: "LIBERTADES CIVILES",       description: "Protección de derechos individuales y colectivos",            higherBetter: true  },
+  { key: "transparency",         label: "TRANSPARENCIA",            description: "Acceso a la información y rendición de cuentas",              higherBetter: true  },
+  { key: "militarySubordination",label: "SUBORDINACIÓN MILITAR",    description: "Control civil sobre las fuerzas armadas",                    higherBetter: true  },
 ];
 
-function getRegimeBadgeClass(regimeType: string): string {
+function getRegimeColor(regimeType: string): string {
   switch (regimeType) {
-    case "Democracia plena":
-      return "bg-accent/20 text-accent border-accent/40";
-    case "Democracia defectuosa":
-      return "bg-chart-5/20 text-chart-5 border-chart-5/40";
-    case "Régimen híbrido":
-      return "bg-orange-400/20 text-orange-400 border-orange-400/40";
-    case "Autoritarismo electoral":
-      return "bg-destructive/20 text-destructive border-destructive/40";
-    case "Dictadura":
-      return "bg-destructive text-destructive-foreground";
-    case "Estado fallido":
-      return "bg-destructive/80 text-destructive-foreground";
-    default:
-      return "bg-muted text-muted-foreground";
+    case "Democracia plena":         return "#00C87E";
+    case "Democracia defectuosa":    return "#E08800";
+    case "Régimen híbrido":          return "#FF6600";
+    case "Autoritarismo electoral":  return "#FF2090";
+    case "Dictadura":                return "#CC2244";
+    case "Estado fallido":           return "#CC2244";
+    default:                         return "#666666";
   }
 }
 
 function getMetricColor(value: number, higherBetter: boolean): string {
   if (higherBetter) {
-    if (value >= 70) return "bg-accent";
-    if (value >= 40) return "bg-chart-5";
-    return "bg-destructive";
+    if (value >= 70) return "#00C87E";
+    if (value >= 40) return "#E08800";
+    return "#FF2090";
   }
-  // Para concentración de poder: más bajo = mejor
-  if (value <= 30) return "bg-accent";
-  if (value <= 55) return "bg-chart-5";
-  return "bg-destructive";
+  if (value <= 30) return "#00C87E";
+  if (value <= 55) return "#E08800";
+  return "#FF2090";
+}
+
+function Bar({ value, color }: { value: number; color: string }) {
+  return (
+    <div style={{ height: 10, background: "#F5F0E8", border: "2px solid #0A0A0A" }}>
+      <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, value))}%`, background: color }} />
+    </div>
+  );
 }
 
 export default function RegimenPage() {
-  const gameState = useGameStore((s) => s.gameState);
-  const lastTurnResult = useGameStore((s) => s.lastTurnResult);
+  const gameState       = useGameStore((s) => s.gameState);
+  const lastTurnResult  = useGameStore((s) => s.lastTurnResult);
 
   if (!gameState) {
     return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-8 w-48" />
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
+      <div style={{ maxWidth: 1100, fontFamily: FF }}>
+        <div style={{ height: 28, background: "#E8E0D8", marginBottom: 18, width: 200 }} />
+        {[0,1,2,3,4,5,6].map((i) => (
+          <div key={i} style={{ height: 80, background: "#E8E0D8", border: "2.5px solid #0A0A0A", marginBottom: 10 }} />
         ))}
       </div>
     );
   }
 
-  const metrics = gameState.regimeMetrics;
-  const snapshot = lastTurnResult?.monthSnapshot;
+  const metrics    = gameState.regimeMetrics;
+  const snapshot   = lastTurnResult?.monthSnapshot;
   const regimeType = snapshot?.regimeType ?? "—";
+  const regimeColor= getRegimeColor(regimeType);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Shield className="h-6 w-6 text-foreground" />
-        <h1 className="text-2xl font-bold text-foreground">Régimen Político</h1>
+    <div style={{ maxWidth: 1100, fontFamily: FF }}>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ background: "#0A0A0A", color: "#FFFFFF", fontSize: 9, fontWeight: 700, letterSpacing: 2.5, padding: "4px 12px", display: "inline-block", marginBottom: 10 }}>
+          MÓDULO DE RÉGIMEN
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 900, color: "#0A0A0A", letterSpacing: 4, marginBottom: 4 }}>
+          RÉGIMEN POLÍTICO
+        </div>
       </div>
 
-      {/* Badge del tipo de régimen */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Clasificación actual:</span>
-        <Badge className={`text-sm px-3 py-1 ${getRegimeBadgeClass(regimeType)}`}>
-          {regimeType}
-        </Badge>
-        {regimeType === "Dictadura" && (
-          <span className="flex items-center gap-1 text-xs text-destructive">
-            <AlertTriangle className="h-3 w-3" />
-            Riesgo de sanciones internacionales y fuga de capitales
-          </span>
-        )}
-        {regimeType === "Estado fallido" && (
-          <span className="flex items-center gap-1 text-xs text-destructive">
-            <AlertTriangle className="h-3 w-3" />
-            Posible game over: regiones se autonomizan, grupos armados emergen
-          </span>
+      {/* Regime type banner */}
+      <div
+        style={{
+          background: regimeColor,
+          border: "2.5px solid #0A0A0A",
+          boxShadow: `4px 4px 0 #0A0A0A`,
+          padding: 20,
+          marginBottom: 18,
+          display: "flex",
+          alignItems: "center",
+          gap: 20,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(0,0,0,0.5)", letterSpacing: 2, marginBottom: 4 }}>
+            CLASIFICACIÓN ACTUAL
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: "#FFFFFF", letterSpacing: 3 }}>
+            {regimeType.toUpperCase()}
+          </div>
+        </div>
+        {(regimeType === "Dictadura" || regimeType === "Estado fallido") && (
+          <div style={{ marginLeft: "auto", border: "2px solid rgba(255,255,255,0.5)", padding: "8px 14px", fontSize: 11, fontWeight: 700, color: "#FFFFFF", letterSpacing: 1 }}>
+            ⚠ RIESGO CRÍTICO
+          </div>
         )}
       </div>
 
-      {/* 7 métricas con barras */}
-      <div className="space-y-3">
+      {/* Metrics */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {METRICS.map((metric) => {
           const rawValue = metrics[metric.key as keyof typeof metrics];
-          const value = typeof rawValue === "number" ? rawValue : 0;
-          const colorClass = getMetricColor(value, metric.higherBetter);
+          const value    = typeof rawValue === "number" ? rawValue : 0;
+          const color    = getMetricColor(value, metric.higherBetter);
 
           return (
-            <Card key={metric.key} size="sm">
-              <CardContent className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium text-foreground">
-                      {metric.label}
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      {metric.description}
-                    </p>
+            <div
+              key={metric.key}
+              style={{
+                background: "#FFFFFF",
+                border: "2.5px solid #0A0A0A",
+                boxShadow: "3px 3px 0 #0A0A0A",
+                padding: "16px 20px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#0A0A0A", letterSpacing: 1.5, marginBottom: 3 }}>
+                    {metric.label}
                   </div>
-                  <span className={`text-lg font-bold ${colorClass.replace("bg-", "text-")}`}>
-                    {value.toFixed(0)}/100
-                  </span>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#666" }}>
+                    {metric.description}
+                  </div>
                 </div>
-                <div className="h-2.5 w-full rounded-full bg-muted">
-                  <div
-                    className={`h-full rounded-full transition-all ${colorClass}`}
-                    style={{ width: `${value}%` }}
-                  />
+                <div style={{ fontFamily: FFM, fontSize: 22, color, fontWeight: 700, flexShrink: 0, marginLeft: 16 }}>
+                  {value.toFixed(0)}<span style={{ fontSize: 12 }}>/100</span>
                 </div>
-                {/* Marcadores de umbral */}
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>0</span>
-                  <span>25</span>
-                  <span>50</span>
-                  <span>75</span>
-                  <span>100</span>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <Bar value={value} color={color} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontWeight: 600, color: "#888", marginTop: 4 }}>
+                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+              </div>
+            </div>
           );
         })}
       </div>

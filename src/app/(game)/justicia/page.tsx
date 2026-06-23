@@ -4,48 +4,44 @@ import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { getGameState } from "@/app/actions/game";
 import { getDemoGameId } from "@/app/actions/demo";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbSeparator,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ScaleIcon, UsersIcon, Building2Icon, UserPlusIcon } from "lucide-react";
 import { CaseList } from "@/components/game/justicia/case-list";
 import { OfficialList } from "@/components/game/justicia/official-list";
 import { OrganismList } from "@/components/game/justicia/organism-list";
 import { CandidatesPanel } from "@/components/game/justicia/candidates-panel";
 
-export default function JusticiaPage() {
-  const gameState = useGameStore((s) => s.gameState);
-  const setGameState = useGameStore((s) => s.setGameState);
-  const setGameId = useGameStore((s) => s.setGameId);
+const FF = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
 
-  const [activeTab, setActiveTab] = useState("casos");
+type TabKey = "casos" | "funcionarios" | "organismos" | "candidatos";
+
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+  { key: "casos",        label: "CASOS ACTIVOS",  icon: "⚖"  },
+  { key: "funcionarios", label: "FUNCIONARIOS",   icon: "◈"  },
+  { key: "organismos",   label: "ORGANISMOS",     icon: "⬡"  },
+  { key: "candidatos",   label: "CANDIDATOS",     icon: "◉"  },
+];
+
+export default function JusticiaPage() {
+  const gameState    = useGameStore((s) => s.gameState);
+  const setGameState = useGameStore((s) => s.setGameState);
+  const setGameId    = useGameStore((s) => s.setGameId);
+  const [activeTab, setActiveTab] = useState<TabKey>("casos");
 
   useEffect(() => {
     getDemoGameId().then((id) => {
       if (!id) return;
       setGameId(id);
-      getGameState(id).then((state) => {
-        if (state) setGameState(state);
-      });
+      getGameState(id).then((state) => { if (state) setGameState(state); });
     });
   }, [setGameId, setGameState]);
 
   if (!gameState) {
     return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-8 w-96" />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
+      <div style={{ maxWidth: 1100, fontFamily: FF }}>
+        <div style={{ height: 28, background: "#E8E0D8", marginBottom: 18, width: 200 }} />
+        <div style={{ height: 48, background: "#E8E0D8", border: "2.5px solid #0A0A0A", marginBottom: 18 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+          {[0,1,2,3,4,5].map((i) => (
+            <div key={i} style={{ height: 140, background: "#E8E0D8", border: "2.5px solid #0A0A0A" }} />
           ))}
         </div>
       </div>
@@ -53,79 +49,68 @@ export default function JusticiaPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Justicia</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <div style={{ maxWidth: 1100, fontFamily: FF }}>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ background: "#CC2244", color: "#FFFFFF", fontSize: 9, fontWeight: 700, letterSpacing: 2.5, padding: "4px 12px", display: "inline-block", marginBottom: 10 }}>
+          MÓDULO JUDICIAL
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 900, color: "#0A0A0A", letterSpacing: 4, marginBottom: 4 }}>
+          SISTEMA DE JUSTICIA
+        </div>
+        <div style={{ fontSize: 13, color: "#555", fontWeight: 600 }}>
+          {(gameState.judicialCases ?? []).length} CASOS ACTIVOS · {(gameState.organisms ?? []).length} ORGANISMOS
+        </div>
+      </div>
 
-      <h1 className="text-2xl font-bold text-foreground">
-        Sistema de Justicia
-      </h1>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList variant="line" className="mb-4">
-          <TabsTrigger value="casos">
-            <ScaleIcon className="size-4" />
-            Casos activos
-          </TabsTrigger>
-          <TabsTrigger value="funcionarios">
-            <UsersIcon className="size-4" />
-            Funcionarios
-          </TabsTrigger>
-          <TabsTrigger value="organismos">
-            <Building2Icon className="size-4" />
-            Organismos
-          </TabsTrigger>
-          <TabsTrigger value="candidatos">
-            <UserPlusIcon className="size-4" />
-            Candidatos
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="casos">
-          <CaseList
-            cases={gameState.judicialCases}
-            officials={gameState.officials}
-          />
-        </TabsContent>
-
-        <TabsContent value="funcionarios">
-          <OfficialList
-            officials={gameState.officials}
-            onInvestigate={(officialId) => {
-              const pendingInput = useGameStore.getState().pendingInput;
-              useGameStore.setState({
-                pendingInput: {
-                  ...pendingInput,
-                  investigations: [
-                    ...(pendingInput.investigations ?? []),
-                    officialId,
-                  ],
-                },
-              });
+      {/* GOV.OS Tab nav */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "2px solid #0A0A0A" }}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            style={{
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "10px 16px",
+              background: activeTab === t.key ? "#0A0A0A" : "transparent",
+              border: "none",
+              borderBottom: activeTab === t.key ? "2px solid #CC2244" : "2px solid transparent",
+              fontFamily: FF,
+              fontSize: 11, fontWeight: 800,
+              color: activeTab === t.key ? "#FFFFFF" : "#666",
+              letterSpacing: 1.5,
+              marginBottom: -2,
             }}
-          />
-        </TabsContent>
+          >
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="organismos">
-          <OrganismList
-            organisms={gameState.organisms}
-            officials={gameState.officials}
-          />
-        </TabsContent>
-
-        <TabsContent value="candidatos">
-          <CandidatesPanel />
-        </TabsContent>
-      </Tabs>
+      {/* Tab content */}
+      {activeTab === "casos" && (
+        <CaseList cases={gameState.judicialCases} officials={gameState.officials} />
+      )}
+      {activeTab === "funcionarios" && (
+        <OfficialList
+          officials={gameState.officials}
+          onInvestigate={(officialId) => {
+            const pendingInput = useGameStore.getState().pendingInput;
+            useGameStore.setState({
+              pendingInput: {
+                ...pendingInput,
+                investigations: [...(pendingInput.investigations ?? []), officialId],
+              },
+            });
+          }}
+        />
+      )}
+      {activeTab === "organismos" && (
+        <OrganismList organisms={gameState.organisms} officials={gameState.officials} />
+      )}
+      {activeTab === "candidatos" && <CandidatesPanel />}
     </div>
   );
 }

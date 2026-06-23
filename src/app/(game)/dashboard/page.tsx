@@ -87,6 +87,81 @@ function Bar({ value, color, h = 10 }: { value: number; color: string; h?: numbe
   );
 }
 
+function MiniIndicatorCard({
+  label,
+  value,
+  color,
+  suffix = "%",
+}: {
+  label: string;
+  value: number;
+  color: string;
+  suffix?: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "2.5px solid #0A0A0A",
+        boxShadow: "3px 3px 0 #0A0A0A",
+        padding: 12,
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: color,
+        }}
+      />
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          color: "#666",
+          letterSpacing: 1.5,
+          marginBottom: 8,
+          marginTop: 2,
+          fontFamily: FF,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: FFM,
+          fontSize: 26,
+          color: "#0A0A0A",
+          lineHeight: 1,
+        }}
+      >
+        {value.toFixed(1)}
+        <span style={{ fontSize: 12 }}>{suffix}</span>
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          height: 6,
+          background: "#F5F0E8",
+          border: "1.5px solid #0A0A0A",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min(100, Math.max(0, value))}%`,
+            background: color,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SectionTitle({ label, badge }: { label: string; badge?: string }) {
   return (
     <div
@@ -238,6 +313,25 @@ export default function DashboardPage() {
   const totalSeats    = parties.reduce((s, p) => s + (p.seatsLower ?? 0), 0) || 1;
   const gdpRaw        = gameState.gdp ?? 0;
   const gdpLabel      = gdpRaw >= 1e12 ? `${(gdpRaw/1e12).toFixed(2)}T` : `${(gdpRaw/1e9).toFixed(1)}B`;
+  const treasuryRaw   = gameState.treasury ?? 0;
+  const treasuryLabel = treasuryRaw >= 1e9
+    ? `${(treasuryRaw / 1e9).toFixed(1)}B`
+    : `${(treasuryRaw / 1e6).toFixed(0)}M`;
+  const giniVal       = snap?.gini ?? 0;
+  const regimeLabel   = snap?.regimeType ?? "—";
+  const regimeColorVal = regimeLabel.includes("plena")
+    ? "#00C87E"
+    : regimeLabel.includes("defectuosa")
+    ? "#2468CC"
+    : regimeLabel.includes("híbrido") || regimeLabel.includes("hibrido")
+    ? "#E08800"
+    : regimeLabel.includes("Autoritarismo")
+    ? "#FF6600"
+    : regimeLabel.includes("Dictadura")
+    ? "#FF2090"
+    : regimeLabel.includes("fallido")
+    ? "#CC2244"
+    : "#888888";
 
   return (
     <div style={{ maxWidth: 1100, fontFamily: FF }}>
@@ -272,21 +366,60 @@ export default function DashboardPage() {
             boxShadow: "4px 4px 0 #00C2B8", padding: 18, position: "relative",
           }}
         >
-          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 2, marginBottom: 10 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 5, background: "#00C2B8" }} />
+          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 2, marginBottom: 10, marginTop: 2 }}>
             PIB NACIONAL
           </div>
-          <div style={{ fontFamily: FFM, fontSize: 34, color: "#00C2B8", lineHeight: 1, marginBottom: 6 }}>
-            {gdpLabel} <span style={{ fontSize: 14 }}>AKN</span>
+          <div style={{ fontFamily: FFM, fontSize: 34, color: "#00C2B8", lineHeight: 1 }}>
+            {gdpLabel}
           </div>
-          <div style={{ fontSize: 12, color: "#00C87E", fontWeight: 700, marginBottom: 4 }}>
-            INFLACIÓN: {gameState.inflation?.toFixed(1) ?? "—"}%
-          </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>
-            DESEMPLEO: {gameState.unemploymentRate?.toFixed(1) ?? "—"}%
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6, fontWeight: 600 }}>
+            AKN
           </div>
         </div>
 
         <IndicatorCard label="CORRUPCIÓN SIS." value={corruption} color={valueColor(corruption, true)} />
+      </div>
+
+      {/* ─── Indicadores Sociales ─── */}
+      <div style={{ marginBottom: 18 }}>
+        <SectionTitle label="INDICADORES SOCIALES" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
+          <MiniIndicatorCard label="POBREZA" value={gameState.povertyRate} color={valueColor(gameState.povertyRate, true)} />
+          <MiniIndicatorCard label="CRIMINALIDAD" value={gameState.crimeRate} color={valueColor(gameState.crimeRate, true)} />
+          <MiniIndicatorCard label="ENFERMOS" value={gameState.sickRate} color={valueColor(gameState.sickRate, true)} />
+          <MiniIndicatorCard label="SEG. ALIMENTARIA" value={gameState.foodSecurity} color={valueColor(gameState.foodSecurity)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+          <MiniIndicatorCard label="EDUCACIÓN" value={gameState.educationLevel} color={valueColor(gameState.educationLevel)} />
+          <MiniIndicatorCard label="DESIGUALDAD (GINI)" value={giniVal} color={valueColor(giniVal, true)} suffix="" />
+          <MiniIndicatorCard label="INFLACIÓN" value={gameState.inflation} color={valueColor(gameState.inflation, true)} />
+          <MiniIndicatorCard label="DESEMPLEO" value={gameState.unemploymentRate} color={valueColor(gameState.unemploymentRate, true)} />
+        </div>
+      </div>
+
+      {/* ─── Tesoro + Régimen ─── */}
+      <div style={{ marginBottom: 18 }}>
+        <Card>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 2, marginBottom: 6 }}>
+                TESORO PÚBLICO
+              </div>
+              <div style={{ fontFamily: FFM, fontSize: 24, color: "#0A0A0A", fontWeight: 700, lineHeight: 1 }}>
+                {treasuryLabel} <span style={{ fontSize: 13, fontWeight: 600, color: "#888" }}>AKN</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 2, marginBottom: 6 }}>
+                TIPO DE RÉGIMEN
+              </div>
+              <div style={{ fontFamily: FFM, fontSize: 20, color: regimeColorVal, fontWeight: 700, lineHeight: 1.2, letterSpacing: 1 }}>
+                {regimeLabel}
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* ─── Tensión social + Alertas ─── */}

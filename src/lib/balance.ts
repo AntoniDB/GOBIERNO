@@ -36,10 +36,12 @@ export const BALANCE = {
   BASE_SALARY_PER_MINISTER: 5000,
 
   // ─── Eficiencia ministerial ──────────────────────────────────────────────
-  // eficiencia = budgetPercent * (1 - corrupcionInterna/100) * (skillMinistro/100) * 100
-
-  /** Factor base de eficiencia ministerial */
-  EFFICIENCY_BASE_FACTOR: 1.0,
+  // eficiencia = (1 - corrupcion/100) * (skillMinistro/100) * 100
+  // Representa calidad de gestion pura (0-100), independiente del presupuesto.
+  // El impacto real en indicadores se obtiene con:
+  //   impact = eficiencia * (1 − exp(−budgetPercent / 12))
+  //   Curva no-lineal de presupuesto: rendimientos decrecientes.
+  //   5% budget → ~34% factor, 20% → ~81%, 40% → ~96%.
 
   // ─── Corrupción ──────────────────────────────────────────────────────────
 
@@ -62,36 +64,41 @@ export const BALANCE = {
   CORRUPTION_AUTO_CASE_THRESHOLD: 60,
 
   // ─── Indicadores sociales ────────────────────────────────────────────────
+  // Recalibrados para el nuevo rango de impacto (10-75 puntos reales)
+  // Cada factor multiplica el impact (eficiencia × budgetFactor no-lineal)
 
-  /** Pobreza: impacto de eficiencia de Desarrollo Social (por cada punto) */
-  POVERTY_SOCIAL_DEV_FACTOR: -0.3,
+  /** Pobreza: impacto de Desarrollo Social (por cada punto de impact) */
+  POVERTY_SOCIAL_DEV_FACTOR: -0.50,
+
+  /** Pobreza base (sin intervencion estatal) */
+  POVERTY_BASE: 43,
 
   /** Pobreza: impacto del desempleo (por cada 1% de desempleo) */
   POVERTY_UNEMPLOYMENT_FACTOR: 0.5,
 
-  /** Pobreza: impacto de inflación (por cada 1% de inflación) */
+  /** Pobreza: impacto de inflacion (por cada 1% de inflacion) */
   POVERTY_INFLATION_FACTOR: 0.3,
 
-  /** Desempleo: impacto de eficiencia de Economía (por cada punto) */
-  UNEMPLOYMENT_ECONOMY_FACTOR: -0.4,
+  /** Desempleo: impacto de Economia (por cada punto de impact) */
+  UNEMPLOYMENT_ECONOMY_FACTOR: -0.26,
 
-  /** Desempleo base (sin intervención) */
-  UNEMPLOYMENT_BASE: 8,
+  /** Desempleo base (sin intervencion) */
+  UNEMPLOYMENT_BASE: 25,
 
-  /** Salud/enfermos: impacto de eficiencia de Salud (por cada punto) */
-  SICK_HEALTH_FACTOR: -0.5,
+  /** Salud/enfermos: impacto de Salud (por cada punto de impact) */
+  SICK_HEALTH_FACTOR: -0.34,
 
   /** Salud/enfermos base */
-  SICK_BASE: 5,
+  SICK_BASE: 28,
 
-  /** Seguridad alimentaria: impacto de eficiencia de Agricultura */
-  FOOD_AGRICULTURE_FACTOR: 0.4,
+  /** Seguridad alimentaria: impacto de Agricultura (por cada punto de impact) */
+  FOOD_AGRICULTURE_FACTOR: 0.35,
 
   /** Seguridad alimentaria base */
-  FOOD_BASE: 75,
+  FOOD_BASE: 54,
 
-  /** Crimen: impacto de eficiencia de Seguridad */
-  CRIME_SECURITY_FACTOR: -0.6,
+  /** Crimen: impacto de Seguridad (por cada punto de impact) */
+  CRIME_SECURITY_FACTOR: -0.35,
 
   /** Crimen: impacto de pobreza */
   CRIME_POVERTY_FACTOR: 0.3,
@@ -100,13 +107,13 @@ export const BALANCE = {
   CRIME_UNEMPLOYMENT_FACTOR: 0.4,
 
   /** Crimen base */
-  CRIME_BASE: 10,
+  CRIME_BASE: 29,
 
-  /** Educación: impacto de eficiencia de Educación */
-  EDUCATION_EDU_FACTOR: 0.5,
+  /** Educacion: impacto de Educacion (por cada punto de impact) */
+  EDUCATION_EDU_FACTOR: 0.42,
 
-  /** Educación base */
-  EDUCATION_BASE: 50,
+  /** Educacion base */
+  EDUCATION_BASE: 34,
 
   /** Gini: impacto de impuesto progresivo */
   GINI_PROGRESSIVE_TAX_FACTOR: -2,
@@ -169,7 +176,7 @@ export const BALANCE = {
   EVENT_DISASTER_PROB: 0.03,
 
   /** Umbrales para disparar eventos */
-  EVENT_EPIDEMIC_HEALTH_THRESHOLD: 40,
+  EVENT_EPIDEMIC_HEALTH_THRESHOLD: 55,
   EVENT_SCANDAL_CORRUPTION_THRESHOLD: 40,
   EVENT_PROTEST_POVERTY_THRESHOLD: 50,
   EVENT_PROTEST_APPROVAL_THRESHOLD: 20,
@@ -350,6 +357,28 @@ export const BALANCE = {
   AI_TEMPERATURE: 0.7,
   /** Timeout de API call en ms */
   AI_TIMEOUT_MS: 20000,
+
+  // ─── Golpe de estado ─────────────────────────────────────────────────────
+  // Formula multifactor: riesgo = BASE + pesos * factores - pesos_defensa * impact
+  // Golpe se ejecuta si riesgo > 50.
+
+  /** Riesgo base de golpe (%) */
+  COUP_BASE_RISK: 5,
+
+  /** Peso de subordinacion militar: (100 - militarySubordination) * peso */
+  COUP_MILITARY_SUBORDINATION_WEIGHT: 0.32,
+
+  /** Peso de aprobacion: (100 - approval) * peso */
+  COUP_APPROVAL_WEIGHT: 0.28,
+
+  /** Peso de corrupcion: corruption * peso */
+  COUP_CORRUPTION_WEIGHT: 0.22,
+
+  /** Peso de defensa: defenseImpact * peso (resta del riesgo) */
+  COUP_DEFENSE_WEIGHT: 0.15,
+
+  /** Peso de inteligencia: intelEffectiveness * peso (resta del riesgo) */
+  COUP_INTELLIGENCE_WEIGHT: 0.10,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

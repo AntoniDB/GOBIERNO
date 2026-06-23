@@ -26,7 +26,7 @@ function crearMinistro(overrides?: Partial<OfficialState>): OfficialState {
     ambition: 30,
     wealth: 100000,
     ideology: { economic: 0, social: 0, authority: 0 },
-    corruption: 5,
+    corruption: 0,
     skill: 70,
     reputation: 60,
     status: "ACTIVE",
@@ -35,23 +35,30 @@ function crearMinistro(overrides?: Partial<OfficialState>): OfficialState {
 }
 
 describe("calculateMinistryEfficiency", () => {
-  it("calcula eficiencia con valores conocidos", () => {
-    // budgetPercent=10, corrupción=10 → factorCorrupción=0.9, skill=70 → 0.7
-    // raw = 10 * 0.9 * 0.7 * 1.0 = 6.3
-    const ministry = crearMinisterio({ budgetPercent: 10, internalCorruption: 10 });
-    const minister = crearMinistro({ skill: 70 });
+  it("calcula eficiencia como calidad de gestion pura (sin presupuesto)", () => {
+    // corruption=0, skill=70 → (1 - 0) * 0.7 * 100 = 70
+    const ministry = crearMinisterio();
+    const minister = crearMinistro({ corruption: 0, skill: 70 });
     const eff = calculateMinistryEfficiency(ministry, minister);
-    expect(eff).toBeCloseTo(6.3, 5);
+    expect(eff).toBeCloseTo(70, 5);
   });
 
-  it("eficiencia es 0 cuando presupuesto es 0", () => {
-    const ministry = crearMinisterio({ budgetPercent: 0, internalCorruption: 0 });
-    const minister = crearMinistro({ skill: 80 });
-    expect(calculateMinistryEfficiency(ministry, minister)).toBe(0);
+  it("usa corrupcion del ministro, no la interna del ministerio", () => {
+    // minister.corruption=10, internalCorruption=0 → (1 - 10/100) * 0.7 * 100 = 63
+    const ministry = crearMinisterio({ internalCorruption: 0 });
+    const minister = crearMinistro({ corruption: 10, skill: 70 });
+    const eff = calculateMinistryEfficiency(ministry, minister);
+    expect(eff).toBeCloseTo(63, 5);
+  });
+
+  it("usa internalCorruption si no hay ministro", () => {
+    const ministry = crearMinisterio({ internalCorruption: 20 });
+    // (1 - 20/100) * 0.5 * 100 = 40
+    expect(calculateMinistryEfficiency(ministry, undefined)).toBe(40);
   });
 
   it("escala con la habilidad del ministro", () => {
-    const ministry = crearMinisterio({ budgetPercent: 10, internalCorruption: 0 });
+    const ministry = crearMinisterio();
     const ministroBajo = crearMinistro({ skill: 30 });
     const ministroAlto = crearMinistro({ skill: 90 });
     const effBajo = calculateMinistryEfficiency(ministry, ministroBajo);
@@ -59,24 +66,18 @@ describe("calculateMinistryEfficiency", () => {
     expect(effAlto).toBeGreaterThan(effBajo);
   });
 
-  it("usa habilidad 50 cuando no hay ministro asignado", () => {
-    const ministry = crearMinisterio({ budgetPercent: 20, internalCorruption: 0 });
-    // raw = 20 * 1.0 * 0.5 * 1.0 = 10
-    expect(calculateMinistryEfficiency(ministry, undefined)).toBe(10);
-  });
-
-  it("se trunca a máximo 100", () => {
-    const ministry = crearMinisterio({ budgetPercent: 100, internalCorruption: 0 });
-    const minister = crearMinistro({ skill: 100 });
+  it("se trunca a maximo 100", () => {
+    const ministry = crearMinisterio({ internalCorruption: 0 });
+    const minister = crearMinistro({ corruption: 0, skill: 100 });
     expect(calculateMinistryEfficiency(ministry, minister)).toBe(100);
   });
 
-  it("corrupción interna alta reduce la eficiencia", () => {
-    const ministryLimpio = crearMinisterio({ budgetPercent: 20, internalCorruption: 0 });
-    const ministryCorrupto = crearMinisterio({ budgetPercent: 20, internalCorruption: 80 });
-    const minister = crearMinistro({ skill: 80 });
-    const effLimpio = calculateMinistryEfficiency(ministryLimpio, minister);
-    const effCorrupto = calculateMinistryEfficiency(ministryCorrupto, minister);
+  it("corrupcion alta reduce la eficiencia", () => {
+    const ministry = crearMinisterio({ internalCorruption: 0 });
+    const ministerLimpio = crearMinistro({ corruption: 0, skill: 80 });
+    const ministerCorrupto = crearMinistro({ corruption: 80, skill: 80 });
+    const effLimpio = calculateMinistryEfficiency(ministry, ministerLimpio);
+    const effCorrupto = calculateMinistryEfficiency(ministry, ministerCorrupto);
     expect(effLimpio).toBeGreaterThan(effCorrupto);
   });
 });

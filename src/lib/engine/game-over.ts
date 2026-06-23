@@ -46,12 +46,9 @@ export function checkGameOverConditions(
     (n) => n.type === "juicio_politico"
   );
 
-  // ── Inteligencia (para asesinato y golpe) ─────────────────────────────
+  // ── Inteligencia (para asesinato) ─────────────────────────────────────
   const intelligenceOrg = state.organisms.find(
     (o) => o.type === "INTELLIGENCE"
-  );
-  const defenseMinistry = state.ministries.find(
-    (m) => m.key === "DEFENSE"
   );
 
   // ── 1. Estado fallido ─────────────────────────────────────────────────
@@ -86,33 +83,41 @@ export function checkGameOverConditions(
   }
 
   // ── 3. Golpe de estado ────────────────────────────────────────────────
-  // subordinacion militar <30, aprobacion <25, corrupcion >50
-  // Exito depende de defensa + inteligencia (si existe)
-  if (
-    regimeMetrics.militarySubordination < 30 &&
-    approval < 25 &&
-    corruption > 50
-  ) {
-    const defenseEfficiency = defenseMinistry?.efficiency ?? 50;
-    const intelligenceEffectiveness = intelligenceOrg?.effectiveness ?? 0;
+  // Riesgo multifactor: subordinacion militar, aprobacion, corrupcion,
+  // efectividad de Defensa (impacto = eficiencia * factor presupuesto),
+  // e inteligencia contribuyen gradualmente.
+  // Golpe se ejecuta si coupRisk > 50.
+  const defenseMinistry = state.ministries.find(
+    (m) => m.key === "DEFENSE"
+  );
+  const defenseEff = defenseMinistry?.efficiency ?? 50;
+  const defenseBudget = defenseMinistry?.budgetPercent ?? 5;
+  const defenseBudgetFactor = 1 - Math.exp(-defenseBudget / 12);
+  const defenseImpact = defenseEff * defenseBudgetFactor;
 
-    // Probabilidad de exito del golpe:
-    // Base 70% - defensa/2 + si no hay inteligencia: +20%
-    const coupSuccessChance =
-      70 - defenseEfficiency / 2 + (intelligenceOrg ? 0 : 20);
+  const intelEff = intelligenceOrg?.effectiveness ?? 0;
 
-    if (coupSuccessChance > 50) {
-      return {
-        reason: "golpe_estado",
-        description:
-          "Las fuerzas armadas han ejecutado un golpe de estado exitoso. La baja subordinacion militar, la perdida de apoyo popular y la corrupcion generalizada crearon las condiciones para la ruptura del orden constitucional.",
-        regimeType: "Dictadura",
-        approval,
-        corruption,
-        treasury: state.treasury,
-        gdp: state.gdp ?? 0,
-      };
-    }
+  const coupRisk =
+    BALANCE.COUP_BASE_RISK +
+    BALANCE.COUP_MILITARY_SUBORDINATION_WEIGHT * (100 - regimeMetrics.militarySubordination) +
+    BALANCE.COUP_APPROVAL_WEIGHT * (100 - approval) +
+    BALANCE.COUP_CORRUPTION_WEIGHT * corruption -
+    BALANCE.COUP_DEFENSE_WEIGHT * defenseImpact -
+    BALANCE.COUP_INTELLIGENCE_WEIGHT * intelEff;
+
+  const finalCoupRisk = Math.max(0, Math.min(100, coupRisk));
+
+  if (finalCoupRisk > 50) {
+    return {
+      reason: "golpe_estado",
+      description:
+        "Las fuerzas armadas han ejecutado un golpe de estado exitoso. La baja subordinacion militar, la perdida de apoyo popular y la corrupcion generalizada crearon las condiciones para la ruptura del orden constitucional.",
+      regimeType: "Dictadura",
+      approval,
+      corruption,
+      treasury: state.treasury,
+      gdp: state.gdp ?? 0,
+    };
   }
 
   // ── 4. Asesinato ──────────────────────────────────────────────────────

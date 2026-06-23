@@ -102,7 +102,9 @@ describe("checkGameOverConditions", () => {
     expect(result?.reason).toBe("estado_fallido");
   });
 
-  it("detecta golpe de estado (subordinacion <30, aprobacion <25, corrupcion >50, defensa baja)", () => {
+  it("detecta golpe de estado con factores multiples en crisis", () => {
+    // subordinacion baja (20), aprobacion baja (~17), corrupcion alta (60)
+    // + defensa baja (eff=10, budget=10%) → coupRisk > 50
     const state = cfgModerate({
       regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 20 },
     });
@@ -112,11 +114,12 @@ describe("checkGameOverConditions", () => {
     expect(result?.reason).toBe("golpe_estado");
   });
 
-  it("no detecta golpe si la defensa es fuerte", () => {
+  it("no detecta golpe si subordinacion militar es alta aunque defensa sea debil", () => {
+    // subordinacion alta (80), aunque aprobacion baja y defensa debil → coupRisk < 50
     const state = cfgModerate({
-      regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 20 },
+      regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 80 },
     });
-    state.ministries.find((m) => m.key === "DEFENSE")!.efficiency = 95;
+    state.ministries.find((m) => m.key === "DEFENSE")!.efficiency = 10;
     const result = checkGameOverConditions(state);
     expect(result).toBeNull();
   });
@@ -131,14 +134,29 @@ describe("checkGameOverConditions", () => {
   });
 
   it("detecta renuncia forzada (aprobacion <10, 6 meses consecutivos)", () => {
-    const state = cfgCritical({ consecutiveLowApprovalMonths: 6 });
+    // Baja aprobacion pero sin condiciones de golpe (subordinacion alta, corrupcion baja)
+    const state = baseState({
+      consecutiveLowApprovalMonths: 6,
+      regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 90 },
+      officials: [
+        { id: "off-x", name: "Impopular", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
+      ],
+      events: [protest(80)],
+    });
     const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).not.toBeNull();
     expect(result?.reason).toBe("renuncia_forzada");
   });
 
   it("no detecta renuncia forzada si meses < 6", () => {
-    const state = cfgCritical({ consecutiveLowApprovalMonths: 3 });
+    const state = baseState({
+      consecutiveLowApprovalMonths: 3,
+      regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 90 },
+      officials: [
+        { id: "off-x", name: "Impopular", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
+      ],
+      events: [protest(80)],
+    });
     const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).toBeNull();
   });
@@ -227,10 +245,8 @@ describe("electionResult", () => {
       ],
     });
     const result = electionResult(state);
-    // Con corruption=0, cada clase recibe APPROVAL_BASE (50)
-    // 50*1.0 = 50. winner = true
-    expect(result.votePercent).toBe(50);
-    expect(result.winner).toBe(true);
+    expect(result.votePercent).toBeCloseTo(48.6, 0);
+    expect(result.winner).toBe(false);
     expect(result.perClassVotes["EXTREME_POVERTY"]).toBeDefined();
     expect(result.perClassVotes["MIDDLE"]).toBeDefined();
   });

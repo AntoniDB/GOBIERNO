@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Barlow_Condensed, Share_Tech_Mono } from "next/font/google";
+import { Barlow_Condensed, Share_Tech_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 const barlowCondensed = Barlow_Condensed({
   variable: "--font-barlow-condensed",
-  weight: ["600", "700", "800", "900"],
+  weight: ["400", "600", "700", "800", "900"],
   subsets: ["latin"],
 });
 
@@ -34,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${geistMono.variable} ${barlowCondensed.variable} ${shareTechMono.variable} antialiased`}>
+      <body className={`${barlowCondensed.variable} ${shareTechMono.variable} antialiased`}>
         <AuthProvider>
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />

@@ -132,12 +132,16 @@ export function triggerRandomEvents(
   const healthMinistry = state.ministries.find(
     (m) => m.key === "SALUD" || m.key === "HEALTH"
   );
-  const healthEff = healthMinistry?.efficiency ?? 50;
+  const healthImpact = healthMinistry
+    ? healthMinistry.efficiency * (1 - Math.exp(-healthMinistry.budgetPercent / 12))
+    : 25;
 
   const securityMinistry = state.ministries.find(
     (m) => m.key === "SEGURIDAD" || m.key === "SECURITY"
   );
-  const securityEff = securityMinistry?.efficiency ?? 50;
+  const securityImpact = securityMinistry
+    ? securityMinistry.efficiency * (1 - Math.exp(-securityMinistry.budgetPercent / 12))
+    : 25;
 
   // Corrupción global: promedio de corrupción de funcionarios
   const avgCorruption =
@@ -161,7 +165,7 @@ export function triggerRandomEvents(
   // Crimen: aproximado por eficiencia de Seguridad
   const crimeRate = Math.max(
     0,
-    Math.min(100, BALANCE.CRIME_BASE - BALANCE.CRIME_SECURITY_FACTOR * securityEff)
+    Math.min(100, BALANCE.CRIME_BASE - BALANCE.CRIME_SECURITY_FACTOR * securityImpact)
   );
 
   // Inflación: estimación simple
@@ -183,12 +187,12 @@ export function triggerRandomEvents(
   }[] = [
     {
       type: "EPIDEMIC",
-      condition: healthEff < BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD,
+      condition: healthImpact < BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD,
       baseProb: BALANCE.EVENT_EPIDEMIC_PROB,
       severityFn: () =>
         Math.min(
           100,
-          ((BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD - healthEff) /
+          ((BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD - healthImpact) /
             BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD) *
             100
         ),

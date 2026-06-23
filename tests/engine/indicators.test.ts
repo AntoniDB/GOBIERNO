@@ -57,20 +57,18 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
 describe("calculatePoverty", () => {
   it("calcula pobreza con valores conocidos", () => {
     const state = crearEstadoBase();
-    // socialDevEff = 50 (eficiencia)
-    // unemployment = -0.4 * 50 + 8 = -20 + 8 → clamp(2, 50) → 2? Wait, -20+8=-12, clamp to 2
-    // unemployment = 2
-    // inflation = base 0.2 + sin déficit = 0.2
-    // raw = -0.3*50 + 0.5*2 + 0.3*0.2 + 25 = -15 + 1 + 0.06 + 25 = 11.06
+    // socialDevImpact = eff(50) * budgetFactor(7%) = 50 * 0.442 = 22.1
+    // economyImpact = app, unemployment = -0.26*28.25+25 ≈ 17.65
+    // raw = -0.50*22.1 + 0.5*17.65 + 0.3*0.2 + 43 ≈ 40.8
     const poverty = calculatePoverty(state);
-    expect(poverty).toBeCloseTo(11.06, 1);
+    expect(poverty).toBeCloseTo(40.8, 0);
   });
 
   it("eficiencia alta reduce la pobreza", () => {
     const stateBase = crearEstadoBase();
     const stateAlta = crearEstadoBase({
       ministries: [
-        { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 7, efficiency: 90, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+        { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 10, efficiency: 80, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null },
       ],
     });
     const pobrezaBase = calculatePoverty(stateBase);
@@ -82,17 +80,19 @@ describe("calculatePoverty", () => {
 describe("calculateUnemployment", () => {
   it("calcula desempleo con valores conocidos", () => {
     const state = crearEstadoBase();
-    // economyEff = 50
-    // raw = -0.4 * 50 + 8 = -20 + 8 = -12 → clamp [2, 50] → 2
-    expect(calculateUnemployment(state)).toBe(2);
+    // economyImpact = eff(50) * budgetFactor(10%) = 50 * 0.565 = 28.25
+    // raw = -0.26 * 28.25 + 25 = 17.65
+    expect(calculateUnemployment(state)).toBeCloseTo(17.7, 0);
   });
 
   it("devuelve al menos 2 aunque la eficiencia sea muy alta", () => {
     const state = crearEstadoBase({
       ministries: [
-        { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 100, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null },
+        { id: "min-economia", key: "economia", budgetPercent: 40, efficiency: 100, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null },
       ],
     });
+    // economyImpact = 100 * budgetFactor(40%) = 100 * 0.964 = 96.4
+    // raw = -0.26*96.4 + 25 = -0.06 → clamp → 2
     expect(calculateUnemployment(state)).toBe(2);
   });
 });
@@ -100,41 +100,42 @@ describe("calculateUnemployment", () => {
 describe("calculateHealth", () => {
   it("calcula salud con valores conocidos", () => {
     const state = crearEstadoBase();
-    // healthEff = 50
-    // raw = -0.5 * 50 + 5 = -25 + 5 = -20 → clamp [0, 50] → 0
-    expect(calculateHealth(state)).toBe(0);
+    // healthImpact = eff(50) * budgetFactor(8%) = 50 * 0.487 = 24.35
+    // raw = -0.34 * 24.35 + 28 ≈ 19.7
+    expect(calculateHealth(state)).toBeCloseTo(19.7, 0);
   });
 
-  it("usa eficiencia 50 por defecto si no existe ministerio de salud", () => {
+  it("usa impacto 25 por defecto si no existe ministerio de salud", () => {
     const state = crearEstadoBase({ ministries: [] });
-    expect(calculateHealth(state)).toBe(0);
+    // sin ministerio: impacto = 25. raw = -0.34*25 + 28 = 19.5
+    expect(calculateHealth(state)).toBeCloseTo(19.5, 0);
   });
 });
 
 describe("calculateFoodSecurity", () => {
   it("calcula seguridad alimentaria con valores conocidos", () => {
     const state = crearEstadoBase();
-    // agricultureEff = 50
-    // raw = 0.4 * 50 + 75 = 20 + 75 = 95 → clamp [0, 100] → 95
-    expect(calculateFoodSecurity(state)).toBe(95);
+    // agricultureImpact = eff(50) * budgetFactor(5%) = 50 * 0.341 = 17.05
+    // raw = 0.35 * 17.05 + 54 ≈ 60.0
+    expect(calculateFoodSecurity(state)).toBeCloseTo(60, 0);
   });
 });
 
 describe("calculateCrime", () => {
   it("calcula crimen con valores conocidos", () => {
     const state = crearEstadoBase();
-    // securityEff=50, poverty≈11.06, unemployment=2
-    // raw = -0.6*50 + 0.3*11.06 + 0.4*2 + 10 = -30 + 3.318 + 0.8 + 10 = -15.882 → clamp → 0
-    expect(calculateCrime(state)).toBe(0);
+    // securityImpact = eff(50) * budgetFactor(6%) ≈ 19.65, poverty≈40.8, unemp≈17.7
+    // raw = -0.35*19.65 + 0.3*40.8 + 0.4*17.7 + 29 ≈ 41.4
+    expect(calculateCrime(state)).toBeCloseTo(41.4, 0);
   });
 });
 
 describe("calculateEducation", () => {
-  it("calcula educación con valores conocidos", () => {
+  it("calcula educacion con valores conocidos", () => {
     const state = crearEstadoBase();
-    // educationEff = 50
-    // raw = 0.5 * 50 + 50 = 25 + 50 = 75
-    expect(calculateEducation(state)).toBe(75);
+    // educationImpact = eff(50) * budgetFactor(10%) = 50 * 0.565 = 28.25
+    // raw = 0.42 * 28.25 + 34 ≈ 45.9
+    expect(calculateEducation(state)).toBeCloseTo(45.9, 0);
   });
 });
 

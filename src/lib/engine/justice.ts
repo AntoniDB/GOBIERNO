@@ -175,42 +175,48 @@ export function advanceJudicialCases(
         }
       }
 
-      // Al cerrar el caso (SENTENCING → CLOSED o APPEAL → CLOSED), aplicar consecuencias si es culpable
-      if (updated.currentPhase === "CLOSED" && updated.verdict === "GUILTY") {
+      // Al cerrar el caso (SENTENCING → CLOSED o APPEAL → CLOSED), aplicar consecuencias
+      if (updated.currentPhase === "CLOSED") {
         const official = updatedOfficials.get(c.defendantOfficialId);
         if (official) {
-          if (official.role === "MINISTER") {
-            official.status = "DISMISSED";
-            notifications.push({
-              type: "case",
-              title: "Ministro destituido",
-              description: `${official.name} ha sido condenado y destituido de su cargo como ministro. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
-            });
-          } else if (official.role === "GENERAL") {
-            official.status = "CONVICTED";
-            // Condena de un general corrupto → +10 subordinación militar al poder civil
-            regimeImpacts.push({
-              type: "militarySubordination",
-              value: BALANCE.REGIME_SUBORDINAR_GENERALES.militarySubordination,
-            });
-            notifications.push({
-              type: "case",
-              title: "General condenado",
-              description: `${official.name} (General) ha sido condenado. La subordinación militar al poder civil se fortalece. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
-            });
+          if (updated.verdict === "GUILTY") {
+            // Culpable: destitución o condena según el rol (SPEC §4.3)
+            if (official.role === "MINISTER") {
+              official.status = "DISMISSED";
+              notifications.push({
+                type: "case",
+                title: "Ministro destituido",
+                description: `${official.name} ha sido condenado y destituido de su cargo como ministro. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
+              });
+            } else if (official.role === "GENERAL") {
+              official.status = "CONVICTED";
+              regimeImpacts.push({
+                type: "militarySubordination",
+                value: BALANCE.REGIME_SUBORDINAR_GENERALES.militarySubordination,
+              });
+              notifications.push({
+                type: "case",
+                title: "General condenado",
+                description: `${official.name} (General) ha sido condenado. La subordinación militar al poder civil se fortalece. Sentencia: ${updated.sentenceMonths} meses de prisión.`,
+              });
+            } else {
+              official.status = "CONVICTED";
+            }
+
+            if (c.caseType === "CORRUPTION") {
+              official.corruption = Math.max(0, official.corruption - 20);
+            }
           } else {
-            official.status = "CONVICTED";
+            // Inocente: restaurar estatus a ACTIVE para que pueda seguir en funciones
+            // y estar disponible para futuras investigaciones si su corrupción lo amerita
+            official.status = "ACTIVE";
+            notifications.push({
+              type: "case",
+              title: "Funcionario absuelto",
+              description: `${official.name} ha sido declarado inocente y retoma sus funciones.`,
+            });
           }
           updatedOfficials.set(official.id, official);
-        }
-
-        // Reducción de corrupción global: condena por corrupción reduce la corrupción del condenado
-        if (c.caseType === "CORRUPTION") {
-          const convicted = updatedOfficials.get(c.defendantOfficialId);
-          if (convicted) {
-            convicted.corruption = Math.max(0, convicted.corruption - 20);
-            updatedOfficials.set(convicted.id, convicted);
-          }
         }
       }
 

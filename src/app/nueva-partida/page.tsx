@@ -2,45 +2,51 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, ArrowRight, ArrowLeft, Globe, Check } from "lucide-react";
 import { createGame } from "@/app/actions/game";
 import type { PresetKey, Difficulty } from "@/lib/game-factory";
 
-const PRESETS: { key: PresetKey; title: string; description: string }[] = [
+const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
+const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
+
+const PRESETS: { key: PresetKey; title: string; description: string; tag: string; color: string }[] = [
   {
     key: "estable_democratico",
-    title: "Estable Democratico",
+    title: "ESTABLE DEMOCRÁTICO",
+    tag: "RECOMENDADO",
+    color: "#00C87E",
     description:
-      "Democracia consolidada con instituciones solidas, baja corrupcion y economia estable. El desafio es mantener el equilibrio sin caer en la complacencia.",
+      "Democracia consolidada con instituciones sólidas, baja corrupción y economía estable. El desafío es mantener el equilibrio sin caer en la complacencia.",
   },
   {
     key: "pobre_con_potencial",
-    title: "Pobre con Potencial",
+    title: "POBRE CON POTENCIAL",
+    tag: "DESAFÍO MEDIO",
+    color: "#E08800",
     description:
-      "Pais en desarrollo con grandes recursos naturales pero alta desigualdad. El desafio es sacar a la poblacion de la pobreza sin romper el tejido social.",
+      "País en desarrollo con grandes recursos naturales pero alta desigualdad. El desafío es sacar a la población de la pobreza sin romper el tejido social.",
   },
   {
     key: "crisis_economica",
-    title: "Crisis Economica",
+    title: "CRISIS ECONÓMICA",
+    tag: "DIFÍCIL",
+    color: "#FF6600",
     description:
-      "Recesion profunda, inflacion galopante y desempleo masivo. El desafio es estabilizar la economia antes de que el malestar social desborde.",
+      "Recesión profunda, inflación galopante y desempleo masivo. El desafío es estabilizar la economía antes de que el malestar social desborde.",
   },
   {
     key: "post_conflicto",
-    title: "Post-Conflicto",
+    title: "POST-CONFLICTO",
+    tag: "MUY DIFÍCIL",
+    color: "#FF2090",
     description:
-      "Pais que emerge de un conflicto armado interno. Instituciones fragiles, corrupcion rampante y heridas abiertas. El desafio es reconstruir sin recaer en la violencia.",
+      "País que emerge de un conflicto armado interno. Instituciones frágiles, corrupción rampante y heridas abiertas. El desafío es reconstruir sin recaer en la violencia.",
   },
 ];
 
-const DIFFICULTIES: { key: Difficulty; title: string; description: string }[] = [
-  { key: "facil", title: "Facil", description: "Menos eventos negativos, corrupcion inicial baja, mas margen de error." },
-  { key: "normal", title: "Normal", description: "Balance estandar de desafios y oportunidades." },
-  { key: "dificil", title: "Dificil", description: "Eventos negativos frecuentes, corrupcion alta, poca tolerancia al error." },
+const DIFFICULTIES: { key: Difficulty; title: string; description: string; color: string }[] = [
+  { key: "facil",   title: "FÁCIL",   color: "#00C87E", description: "Menos eventos negativos, corrupción inicial baja, más margen de error." },
+  { key: "normal",  title: "NORMAL",  color: "#00C2B8", description: "Balance estándar de desafíos y oportunidades." },
+  { key: "dificil", title: "DIFÍCIL", color: "#FF2090", description: "Eventos negativos frecuentes, corrupción alta, poca tolerancia al error." },
 ];
 
 export default function NuevaPartidaPage() {
@@ -61,168 +67,313 @@ export default function NuevaPartidaPage() {
     setIsCreating(true);
     setError(null);
     try {
-      const gameId = await createGame({
-        countryName: countryName.trim(),
-        preset,
-        difficulty,
-      });
+      const gameId = await createGame({ countryName: countryName.trim(), preset, difficulty });
       router.push(`/dashboard?id=${gameId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al crear la partida");
-    } finally {
       setIsCreating(false);
     }
   }
 
+  const selectedPreset = PRESETS.find((p) => p.key === preset);
+  const selectedDiff   = DIFFICULTIES.find((d) => d.key === difficulty);
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Nueva Partida</CardTitle>
-          <CardDescription>
-            Configura tu pais y comienza a gobernar
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Paso 1: Nombre del pais */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="countryName">Nombre del pais</Label>
-                <div className="flex gap-2">
-                  <Globe className="size-5 text-muted-foreground mt-2 shrink-0" />
-                  <Input
-                    id="countryName"
-                    placeholder="Ej: Republica de Aurora"
-                    value={countryName}
-                    onChange={(e) => setCountryName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && canProceed1 && setStep(2)}
-                    maxLength={40}
-                    autoFocus
-                  />
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#F5F0E8",
+        fontFamily: FF,
+        padding: 24,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 620 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 28 }}>
+          <div
+            style={{
+              background: "#0A0A0A", color: "#FFFFFF", fontSize: 9, fontWeight: 700,
+              letterSpacing: 2.5, padding: "4px 12px", display: "inline-block", marginBottom: 10,
+            }}
+          >
+            GOV.OS · CONFIGURACIÓN
+          </div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: "#0A0A0A", letterSpacing: 4, marginBottom: 6 }}>
+            NUEVA PARTIDA
+          </div>
+          {/* Step indicators */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {[1, 2, 3].map((s) => (
+              <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div
+                  style={{
+                    width: 28, height: 28, border: `2px solid ${s <= step ? "#0A0A0A" : "rgba(0,0,0,0.2)"}`,
+                    background: s === step ? "#0A0A0A" : s < step ? "#00C2B8" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: FFM, fontSize: 12, fontWeight: 700,
+                    color: s === step ? "#FFFFFF" : s < step ? "#0A0A0A" : "rgba(0,0,0,0.3)",
+                  }}
+                >
+                  {s < step ? "✓" : s}
                 </div>
-                {countryName.length > 0 && countryName.length < 3 && (
-                  <p className="text-xs text-destructive">Minimo 3 caracteres</p>
+                {s < 3 && (
+                  <div style={{ width: 32, height: 2, background: s < step ? "#00C2B8" : "rgba(0,0,0,0.15)" }} />
                 )}
               </div>
-              <div className="flex justify-end">
-                <Button onClick={() => setStep(2)} disabled={!canProceed1}>
-                  Siguiente <ArrowRight className="size-4 ml-1" />
-                </Button>
+            ))}
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#666", letterSpacing: 1, marginLeft: 4 }}>
+              {step === 1 ? "NOMBRE DEL PAÍS" : step === 2 ? "ESCENARIO INICIAL" : "DIFICULTAD"}
+            </span>
+          </div>
+        </div>
+
+        {/* Panel */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "2.5px solid #0A0A0A",
+            boxShadow: "6px 6px 0 #0A0A0A",
+            padding: 28,
+          }}
+        >
+          {/* PASO 1: Nombre */}
+          {step === 1 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 14, paddingBottom: 10, borderBottom: "2px solid #0A0A0A" }}>
+                NOMBRE DEL PAÍS
+              </div>
+              <label style={{ display: "block", fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#666", marginBottom: 8 }}>
+                NOMBRE OFICIAL
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: República de Aurora"
+                value={countryName}
+                onChange={(e) => setCountryName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && canProceed1 && setStep(2)}
+                maxLength={40}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  background: "#F5F0E8",
+                  border: "2px solid #0A0A0A",
+                  fontFamily: FF,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#0A0A0A",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  letterSpacing: 1,
+                }}
+              />
+              {countryName.length > 0 && countryName.length < 3 && (
+                <p style={{ fontSize: 11, color: "#FF2090", fontWeight: 700, marginTop: 6 }}>
+                  Mínimo 3 caracteres
+                </p>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={!canProceed1}
+                  style={{
+                    cursor: canProceed1 ? "pointer" : "not-allowed",
+                    padding: "12px 28px",
+                    background: canProceed1 ? "#0A0A0A" : "#ccc",
+                    border: "2.5px solid #0A0A0A",
+                    boxShadow: canProceed1 ? "3px 3px 0 #00C2B8" : "none",
+                    fontFamily: FF, fontSize: 13, fontWeight: 900,
+                    color: "#FFFFFF", letterSpacing: 2,
+                  }}
+                >
+                  SIGUIENTE ▶
+                </button>
               </div>
             </div>
           )}
 
-          {/* Paso 2: Preset */}
+          {/* PASO 2: Escenario */}
           {step === 2 && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Elige el escenario inicial de tu pais:</p>
-              <div className="space-y-3">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.key}
-                    onClick={() => setPreset(p.key)}
-                    className={`w-full text-left p-4 rounded-lg border transition-colors ${
-                      preset === p.key
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{p.title}</span>
-                      {preset === p.key && <Check className="size-4 text-primary" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
-                  </button>
-                ))}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 14, paddingBottom: 10, borderBottom: "2px solid #0A0A0A" }}>
+                ESCENARIO INICIAL
               </div>
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep(1)}>
-                  <ArrowLeft className="size-4 mr-1" /> Atras
-                </Button>
-                <Button onClick={() => setStep(3)} disabled={!canProceed2}>
-                  Siguiente <ArrowRight className="size-4 ml-1" />
-                </Button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                {PRESETS.map((p) => {
+                  const isSelected = preset === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => setPreset(p.key)}
+                      style={{
+                        textAlign: "left",
+                        padding: 14,
+                        background: isSelected ? "#F5F0E8" : "#FAFAFA",
+                        border: `2px solid ${isSelected ? p.color : "#0A0A0A"}`,
+                        boxShadow: isSelected ? `3px 3px 0 ${p.color}` : "none",
+                        cursor: "pointer",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {isSelected && (
+                        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 5, background: p.color }} />
+                      )}
+                      <div style={{ paddingLeft: isSelected ? 12 : 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: "#0A0A0A", letterSpacing: 1 }}>{p.title}</span>
+                          <span style={{ background: p.color, color: "#FFFFFF", fontSize: 8, fontWeight: 800, letterSpacing: 1.5, padding: "2px 7px" }}>{p.tag}</span>
+                        </div>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "#555", lineHeight: 1.5 }}>{p.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <button
+                  onClick={() => setStep(1)}
+                  style={{
+                    cursor: "pointer", padding: "12px 20px",
+                    background: "transparent", border: "2px solid #0A0A0A",
+                    fontFamily: FF, fontSize: 13, fontWeight: 700,
+                    color: "#0A0A0A", letterSpacing: 1,
+                  }}
+                >
+                  ◀ ATRÁS
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={!canProceed2}
+                  style={{
+                    cursor: canProceed2 ? "pointer" : "not-allowed",
+                    padding: "12px 28px",
+                    background: canProceed2 ? "#0A0A0A" : "#ccc",
+                    border: "2.5px solid #0A0A0A",
+                    boxShadow: canProceed2 ? "3px 3px 0 #00C2B8" : "none",
+                    fontFamily: FF, fontSize: 13, fontWeight: 900,
+                    color: "#FFFFFF", letterSpacing: 2,
+                  }}
+                >
+                  SIGUIENTE ▶
+                </button>
               </div>
             </div>
           )}
 
-          {/* Paso 3: Dificultad + Confirmar */}
+          {/* PASO 3: Dificultad + Confirmar */}
           {step === 3 && (
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Elige la dificultad:</p>
-                {DIFFICULTIES.map((d) => (
-                  <button
-                    key={d.key}
-                    onClick={() => setDifficulty(d.key)}
-                    className={`w-full text-left p-4 rounded-lg border transition-colors ${
-                      difficulty === d.key
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{d.title}</span>
-                      {difficulty === d.key && <Check className="size-4 text-primary" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
-                  </button>
-                ))}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 14, paddingBottom: 10, borderBottom: "2px solid #0A0A0A" }}>
+                DIFICULTAD
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                {DIFFICULTIES.map((d) => {
+                  const isSelected = difficulty === d.key;
+                  return (
+                    <button
+                      key={d.key}
+                      onClick={() => setDifficulty(d.key)}
+                      style={{
+                        textAlign: "left", padding: 14,
+                        background: isSelected ? "#F5F0E8" : "#FAFAFA",
+                        border: `2px solid ${isSelected ? d.color : "#0A0A0A"}`,
+                        boxShadow: isSelected ? `3px 3px 0 ${d.color}` : "none",
+                        cursor: "pointer",
+                        position: "relative", overflow: "hidden",
+                      }}
+                    >
+                      {isSelected && (
+                        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 5, background: d.color }} />
+                      )}
+                      <div style={{ paddingLeft: isSelected ? 12 : 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: "#0A0A0A", letterSpacing: 1, marginBottom: 3 }}>{d.title}</div>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "#555" }}>{d.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Resumen */}
+              <div
+                style={{
+                  padding: "14px 16px",
+                  border: "2px solid #0A0A0A",
+                  background: "#F5F0E8",
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#666", marginBottom: 10 }}>RESUMEN</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                    <span style={{ color: "#666" }}>PAÍS</span>
+                    <span style={{ color: "#0A0A0A" }}>{countryName}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                    <span style={{ color: "#666" }}>ESCENARIO</span>
+                    <span style={{ color: "#0A0A0A" }}>{selectedPreset?.title}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                    <span style={{ color: "#666" }}>DIFICULTAD</span>
+                    <span style={{ color: selectedDiff?.color ?? "#0A0A0A" }}>{selectedDiff?.title}</span>
+                  </div>
+                </div>
               </div>
 
               {error && (
-                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    border: "2px solid #FF2090",
+                    borderLeft: "6px solid #FF2090",
+                    background: "rgba(255,32,144,0.06)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#FF2090",
+                    marginBottom: 16,
+                  }}
+                >
                   {error}
                 </div>
               )}
 
-              <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-                <p className="text-sm font-medium">Resumen</p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Pais:</strong> {countryName}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Escenario:</strong> {PRESETS.find((p) => p.key === preset)?.title}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Dificultad:</strong> {DIFFICULTIES.find((d) => d.key === difficulty)?.title}
-                </p>
-              </div>
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep(2)}>
-                  <ArrowLeft className="size-4 mr-1" /> Atras
-                </Button>
-                <Button onClick={handleCreate} disabled={!canCreate || isCreating}>
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin mr-1" />
-                      Creando...
-                    </>
-                  ) : (
-                    <>
-                      Iniciar Gobierno <ArrowRight className="size-4 ml-1" />
-                    </>
-                  )}
-                </Button>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <button
+                  onClick={() => setStep(2)}
+                  style={{
+                    cursor: "pointer", padding: "12px 20px",
+                    background: "transparent", border: "2px solid #0A0A0A",
+                    fontFamily: FF, fontSize: 13, fontWeight: 700,
+                    color: "#0A0A0A", letterSpacing: 1,
+                  }}
+                >
+                  ◀ ATRÁS
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={!canCreate || isCreating}
+                  style={{
+                    cursor: (!canCreate || isCreating) ? "not-allowed" : "pointer",
+                    padding: "12px 28px",
+                    background: isCreating ? "#008E8A" : "#00C2B8",
+                    border: "2.5px solid #0A0A0A",
+                    boxShadow: "3px 3px 0 #0A0A0A",
+                    fontFamily: FF, fontSize: 13, fontWeight: 900,
+                    color: "#0A0A0A", letterSpacing: 2,
+                    opacity: (!canCreate || isCreating) ? 0.7 : 1,
+                  }}
+                >
+                  {isCreating ? "▶ CREANDO PARTIDA..." : "▶ INICIAR GOBIERNO"}
+                </button>
               </div>
             </div>
           )}
-
-          {/* Progress bar */}
-          <div className="flex gap-2 justify-center pt-2">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`h-1.5 w-12 rounded-full transition-colors ${
-                  s <= step ? "bg-primary" : "bg-muted"
-                }`}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </main>
   );
 }

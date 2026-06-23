@@ -45,9 +45,8 @@ export function calculateExpenses(state: GameState): number {
   }
 
   // Salarios de officials (cada official activo cobra salario base)
-  const officialSalaries =
-    state.officials.filter((o) => o.status === "ACTIVE").length *
-    BALANCE.BASE_SALARY_PER_MINISTER;
+  const activeOfficialCount = state.officials.filter((o) => o.status === "ACTIVE").length;
+  const officialSalaries = activeOfficialCount * BALANCE.BASE_SALARY_PER_MINISTER;
 
   // Presupuestos de organismos
   let organismExpenses = 0;
@@ -57,15 +56,40 @@ export function calculateExpenses(state: GameState): number {
 
   // Costo de leyes activas que tengan un costo definido en effectsJson
   let lawCosts = 0;
+  const lawDetails: Array<{ key: string; cost: number }> = [];
   for (const law of state.activeLaws) {
     const effects = law.effectsJson as Record<string, unknown>;
     const cost = effects["monthlyCost"] ?? effects["cost"];
     if (typeof cost === "number") {
       lawCosts += cost;
+      lawDetails.push({ key: law.lawKey, cost });
     }
   }
 
-  return ministryExpenses + officialSalaries + organismExpenses + lawCosts;
+  const total = ministryExpenses + officialSalaries + organismExpenses + lawCosts;
+
+  // ── DEBUG: Desglose de gastos del turno ──
+  const fmt = (n: number) => n >= 1e9 ? `${(n/1e9).toFixed(2)}B` : `${(n/1e6).toFixed(2)}M`;
+  console.log("═══ GASTOS DEL TURNO ═══");
+  console.log(`  Ingreso:                  ${fmt(income)} AKN`);
+  console.log(`  Ministerios (${state.ministries.length}):         ${fmt(ministryExpenses)} AKN`);
+  for (const m of state.ministries) {
+    console.log(`    ${m.key}: ${m.budgetPercent}% → ${fmt((m.budgetPercent/100)*income)} AKN`);
+  }
+  console.log(`  Salarios (${activeOfficialCount} officials):     ${fmt(officialSalaries)} AKN`);
+  console.log(`  Organismos (${state.organisms.length}):            ${fmt(organismExpenses)} AKN`);
+  for (const org of state.organisms) {
+    console.log(`    ${org.type} "${org.name}": ${fmt(org.monthlyBudget)} AKN/mes`);
+  }
+  console.log(`  Leyes activas (${lawDetails.length} con costo):  ${fmt(lawCosts)} AKN`);
+  for (const l of lawDetails) {
+    console.log(`    ${l.key}: ${fmt(l.cost)} AKN/mes`);
+  }
+  console.log(`  ────────────────────────────────────`);
+  console.log(`  GASTO TOTAL:             ${fmt(total)} AKN`);
+  console.log(`  DÉFICIT/SUPERÁVIT:       ${fmt(income - total)} AKN`);
+
+  return total;
 }
 
 /**
@@ -99,21 +123,21 @@ export function calculateInflation(
 }
 
 /**
- * PIB = population * ingresoPerCápitaMensual * 12, ajustado por eficiencia
- * del ministerio de Economía. La eficiencia actúa como multiplicador:
- * eficiencia 100 → PIB al 100% del potencial; eficiencia 50 → 50%.
+ * PIB = population * ingresoPerCapitaMensual * 12 * (eficienciaEconomia/100).
+ * La eficiencia de Economia representa la calidad pura de gestion del ministerio
+ * (0-100%), sin ponderar por presupuesto. El PIB depende de la economia general,
+ * no solo de cuanto invierte el ministerio.
  */
 export function calculateGDP(state: GameState): number {
   const baseGDP =
     state.population * BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA * 12;
 
-  // Buscar eficiencia del ministerio de Economía
+  // Buscar eficiencia del ministerio de Economia (gestion pura, 0-100%)
   const economyMinistry = state.ministries.find(
     (m) => m.key === "economia" || m.key === "ECONOMY"
   );
   const efficiency = economyMinistry?.efficiency ?? 50;
 
-  // La eficiencia (0-100) escala linealmente el PIB base
   let gdp = baseGDP * (efficiency / 100);
 
   // Aplicar modificadores de leyes activas

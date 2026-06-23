@@ -3,178 +3,223 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ReportChart, type ChartSeries } from "@/components/game/report-chart";
+import { ReportChart } from "@/components/game/report-chart";
 import { getSnapshots } from "@/app/actions/game";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { MonthSnapshotData } from "@/lib/engine/types";
 
+const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
+const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
+
 const REASON_TITLES: Record<string, string> = {
-  golpe_estado: "Golpe de Estado",
-  juicio_politico: "Juicio Politico",
-  renuncia_forzada: "Renuncia Forzada",
-  perdida_electoral: "Perdida Electoral",
-  fin_mandato: "Fin de Mandato",
-  asesinato: "Asesinato",
-  estado_fallido: "Estado Fallido",
+  golpe_estado:       "GOLPE DE ESTADO",
+  juicio_politico:    "JUICIO POLÍTICO",
+  renuncia_forzada:   "RENUNCIA FORZADA",
+  perdida_electoral:  "PÉRDIDA ELECTORAL",
+  fin_mandato:        "FIN DE MANDATO",
+  asesinato:          "ASESINATO",
+  estado_fallido:     "ESTADO FALLIDO",
+};
+
+const CLASS_LABELS: Record<string, string> = {
+  EXTREME_POVERTY: "Pobreza Extrema",
+  POVERTY:         "Pobreza",
+  MIDDLE:          "Clase Media",
+  ELITE:           "Élite",
 };
 
 export default function FinPage() {
-  const router = useRouter();
-  const gameState = useGameStore((s) => s.gameState);
-  const gameOver = useGameStore((s) => s.gameOver);
-  const gameId = useGameStore((s) => s.gameId);
-  const setSnapshots = useGameStore((s) => s.setSnapshots);
-  const snapshots = useGameStore((s) => s.snapshots);
+  const router      = useRouter();
+  const gameState   = useGameStore((s) => s.gameState);
+  const gameOver    = useGameStore((s) => s.gameOver);
+  const gameId      = useGameStore((s) => s.gameId);
+  const setSnapshots= useGameStore((s) => s.setSnapshots);
+  const snapshots   = useGameStore((s) => s.snapshots);
   const [chartSnapshots, setChartSnapshots] = useState<MonthSnapshotData[]>(snapshots);
 
   useEffect(() => {
-    if (!gameOver) {
-      router.push("/dashboard");
-      return;
-    }
+    if (!gameOver) { router.push("/dashboard"); return; }
     if (!gameId) return;
-
     getSnapshots(gameId).then((s) => {
-      if (s && s.length > 0) {
-        setSnapshots(s);
-        setChartSnapshots(s);
-      }
+      if (s && s.length > 0) { setSnapshots(s); setChartSnapshots(s); }
     });
   }, [gameOver, gameId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!gameOver) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Skeleton className="h-64 w-96 rounded-xl" />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F5F0E8" }}>
+        <div style={{ width: 80, height: 80, border: "3px solid #0A0A0A", background: "#EDE8DF" }} />
       </div>
     );
   }
 
   const yearsInPower = gameState
-    ? `${gameState.currentYear} año(s) y ${gameState.currentMonth} mes(es)`
-    : "Desconocido";
+    ? `${gameState.currentYear} AÑO(S) Y ${gameState.currentMonth} MES(ES)`
+    : "DESCONOCIDO";
 
   const chartData = chartSnapshots.map((s: MonthSnapshotData) => ({
-    label: `A${s.year}M${s.month}`,
+    label:     `A${s.year}M${s.month}`,
     aprobacion: Number(s.approval) || 0,
     corrupcion: Number(s.corruption) || 0,
-    pib: Number(s.gdp) || 0,
-    tesoreria: Number(s.treasury) || 0,
+    pib:        Number(s.gdp) || 0,
+    tesoreria:  Number(s.treasury) || 0,
   }));
 
+  const isGoodEnding = gameOver.reason === "fin_mandato";
+  const accentColor  = isGoodEnding ? "#00C87E" : "#FF2090";
+
   return (
-    <main className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-      <div className="max-w-2xl w-full space-y-6">
-        <div className="text-center space-y-3">
-          <h1 className="text-3xl font-bold text-destructive">Fin de la Partida</h1>
-          <div className="inline-block px-4 py-1.5 bg-destructive/10 text-destructive rounded-full text-sm font-medium">
-            {REASON_TITLES[gameOver.reason] ?? gameOver.reason}
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#F5F0E8",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 24px",
+        fontFamily: FF,
+      }}
+    >
+      <div style={{ maxWidth: 680, width: "100%" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div
+            style={{
+              background: accentColor, color: isGoodEnding ? "#0A0A0A" : "#FFFFFF",
+              fontSize: 9, fontWeight: 700, letterSpacing: 2.5,
+              padding: "4px 16px", display: "inline-block", marginBottom: 12,
+            }}
+          >
+            {REASON_TITLES[gameOver.reason] ?? gameOver.reason.toUpperCase()}
+          </div>
+          <div
+            style={{
+              fontSize: 36, fontWeight: 900, color: "#0A0A0A",
+              letterSpacing: 4, lineHeight: 1, marginBottom: 4,
+            }}
+          >
+            FIN DE PARTIDA
+          </div>
+          <div style={{ fontSize: 13, color: "#555", fontWeight: 600, letterSpacing: 1 }}>
+            {gameState?.countryName?.toUpperCase() ?? "ARKON"}
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {gameOver.description}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Description card */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: `2.5px solid #0A0A0A`,
+            borderLeft: `6px solid ${accentColor}`,
+            boxShadow: `4px 4px 0 ${accentColor}`,
+            padding: 20,
+            marginBottom: 18,
+          }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 600, color: "#444", lineHeight: 1.7 }}>
+            {gameOver.description}
+          </p>
+        </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                Tiempo en el poder
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-bold">{yearsInPower}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                Regimen final
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-bold">{gameOver.regimeType}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                Aprobacion final
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-bold">{gameOver.approval.toFixed(1)}%</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                PIB final
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-bold">
-                ${(gameOver.gdp / 1_000_000_000).toFixed(1)}B
-              </p>
-            </CardContent>
-          </Card>
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 18 }}>
+          <StatCard label="TIEMPO EN EL PODER" value={yearsInPower} ffm={FFM} />
+          <StatCard label="RÉGIMEN FINAL"       value={gameOver.regimeType?.toUpperCase() ?? "—"} ffm={FFM} />
+          <StatCard label="APROBACIÓN FINAL"    value={`${gameOver.approval.toFixed(1)}%`} ffm={FFM} color={gameOver.approval > 50 ? "#00C87E" : "#FF2090"} />
+          <StatCard label="PIB FINAL"           value={`${(gameOver.gdp / 1e9).toFixed(1)}B AKN`} ffm={FFM} color="#00C2B8" />
+
           {gameOver.reason === "perdida_electoral" && gameOver.votePercent !== undefined && (
-            <Card className="col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase">
-                  Resultado electoral
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-bold mb-2">
-                  {gameOver.votePercent.toFixed(1)}% de los votos
-                </p>
-                {gameOver.perClassVotes && (
-                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    {Object.entries(gameOver.perClassVotes).map(([clase, pct]) => (
-                      <div key={clase} className="flex justify-between">
-                        <span>{clase === "EXTREME_POVERTY" ? "Pobreza extrema" : clase === "POVERTY" ? "Pobreza" : clase === "MIDDLE" ? "Clase media" : "Elite"}</span>
-                        <span className="tabular-nums font-medium text-foreground">{Number(pct).toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                background: "#FFFFFF", border: "2.5px solid #0A0A0A",
+                boxShadow: "4px 4px 0 #0A0A0A", padding: 20,
+              }}
+            >
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 2, marginBottom: 10 }}>
+                RESULTADO ELECTORAL
+              </div>
+              <div
+                style={{ fontFamily: FFM, fontSize: 32, color: "#0A0A0A", marginBottom: 14 }}
+              >
+                {gameOver.votePercent.toFixed(1)}<span style={{ fontSize: 16 }}>% VOTOS</span>
+              </div>
+              {gameOver.perClassVotes && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+                  {Object.entries(gameOver.perClassVotes).map(([clase, pct]) => (
+                    <div key={clase} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                      <span style={{ color: "#666" }}>{CLASS_LABELS[clase] ?? clase}</span>
+                      <span style={{ fontFamily: FFM, color: "#0A0A0A" }}>{Number(pct).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
+        {/* Historical chart */}
         {chartData.length > 1 && (
-          <ReportChart
-            title="Evolucion historica de la partida"
-            data={chartData}
-            series={[
-              { dataKey: "aprobacion", name: "Aprobacion (%)", color: "var(--color-chart-2)" },
-              { dataKey: "corrupcion", name: "Corrupcion (%)", color: "var(--color-destructive)" },
-            ]}
-            chartType="line"
-            valueFormatter={(v) => `${v.toFixed(1)}%`}
-            domain={[0, 100]}
-            height={200}
-          />
+          <div style={{ marginBottom: 18 }}>
+            <div
+              style={{
+                background: "#FFFFFF", border: "2.5px solid #0A0A0A",
+                boxShadow: "4px 4px 0 #0A0A0A", padding: 20,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 14, paddingBottom: 10, borderBottom: "2px solid #0A0A0A" }}>
+                EVOLUCIÓN HISTÓRICA
+              </div>
+              <ReportChart
+                title=""
+                data={chartData}
+                series={[
+                  { dataKey: "aprobacion", name: "Aprobación (%)", color: "#00C2B8" },
+                  { dataKey: "corrupcion", name: "Corrupción (%)", color: "#FF2090" },
+                ]}
+                chartType="line"
+                valueFormatter={(v) => `${v.toFixed(1)}%`}
+                domain={[0, 100]}
+                height={180}
+              />
+            </div>
+          </div>
         )}
 
-        <div className="text-center">
-          <Button
-            size="lg"
+        {/* CTA */}
+        <div style={{ textAlign: "center" }}>
+          <button
             onClick={() => router.push("/nueva-partida")}
+            style={{
+              cursor: "pointer",
+              padding: "14px 36px",
+              background: "#00C2B8",
+              border: "2.5px solid #0A0A0A",
+              boxShadow: "4px 4px 0 #0A0A0A",
+              fontFamily: FF,
+              fontSize: 14,
+              fontWeight: 900,
+              color: "#0A0A0A",
+              letterSpacing: 3,
+            }}
           >
-            Nueva Partida
-          </Button>
+            ▶ NUEVA PARTIDA
+          </button>
         </div>
       </div>
     </main>
+  );
+}
+
+function StatCard({
+  label, value, ffm, color = "#0A0A0A",
+}: {
+  label: string; value: string; ffm: string; color?: string;
+}) {
+  return (
+    <div style={{ background: "#FFFFFF", border: "2.5px solid #0A0A0A", boxShadow: "4px 4px 0 #0A0A0A", padding: 18 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 2, marginBottom: 8 }}>{label}</div>
+      <div style={{ fontFamily: ffm, fontSize: 20, color, fontWeight: 700, lineHeight: 1.2 }}>{value}</div>
+    </div>
   );
 }

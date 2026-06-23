@@ -1,16 +1,22 @@
 // ─── Funciones puras de indicadores sociales ──────────────────────────────────
 // Cálculo de pobreza, desempleo, salud, seguridad alimentaria, crimen,
 // educación, Gini, inflación simple y movilidad social.
+// 
+// El impacto real de cada ministerio en indicadores se calcula como:
+//   impact = eficiencia × budgetImpactFactor
+//   budgetImpactFactor = 1 − exp(−budgetPercent / 12)
+// La eficiencia (0-100) representa calidad pura de gestion.
+// El budgetImpactFactor (0-1) escala el impacto segun presupuesto asignado.
 
 import type { GameState, ActiveLawState } from "./types";
 import { BALANCE } from "../balance";
 import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
 
 /**
- * Busca la eficiencia de un ministerio por su clave en el estado.
- * Soporta tanto claves en inglés (seed: "AGRICULTURE", "HEALTH"...)
- * como en español (tests: "agricultura", "salud"...).
- * Si no existe, retorna 50 (valor neutro).
+ * Busca el impacto efectivo de un ministerio (eficiencia × factor de presupuesto).
+ * Soporta tanto claves en ingles (seed: "AGRICULTURE", "HEALTH"...)
+ * como en espanol (tests: "agricultura", "salud"...).
+ * Si no existe, retorna 25 (valor neutro correspondiente a eff=50 × factor típico).
  */
 const MINISTRY_KEY_ALIASES: Record<string, string[]> = {
   desarrollo_social: ["SOCIAL_DEVELOPMENT", "desarrollo_social"],
@@ -23,10 +29,15 @@ const MINISTRY_KEY_ALIASES: Record<string, string[]> = {
   justicia: ["JUSTICE", "justicia"],
 };
 
-function getMinistryEfficiency(state: GameState, lookupKey: string): number {
+function budgetImpactFactor(budgetPercent: number): number {
+  return 1 - Math.exp(-budgetPercent / 12);
+}
+
+export function getMinistryImpact(state: GameState, lookupKey: string): number {
   const aliases = MINISTRY_KEY_ALIASES[lookupKey] ?? [lookupKey];
   const ministry = state.ministries.find((m) => aliases.includes(m.key));
-  return ministry?.efficiency ?? 50;
+  if (!ministry) return 25;
+  return ministry.efficiency * budgetImpactFactor(ministry.budgetPercent);
 }
 
 /**
@@ -44,22 +55,22 @@ function sumLawEffects(state: GameState, key: string): number {
 }
 
 /**
- * Pobreza = BALANCE.POVERTY_SOCIAL_DEV_FACTOR * eficienciaDesarrolloSocial
+ * Pobreza = BALANCE.POVERTY_SOCIAL_DEV_FACTOR * impactoDesarrolloSocial
  *         + BALANCE.POVERTY_UNEMPLOYMENT_FACTOR * desempleo
- *         + BALANCE.POVERTY_INFLATION_FACTOR * inflación
- *         + 25 (base).
+ *         + BALANCE.POVERTY_INFLATION_FACTOR * inflacion
+ *         + BALANCE.POVERTY_BASE.
  * El resultado se trunca a [0, 100].
  */
 export function calculatePoverty(state: GameState): number {
-  const socialDevEfficiency = getMinistryEfficiency(state, "desarrollo_social");
+  const socialDevImpact = getMinistryImpact(state, "desarrollo_social");
   const unemployment = calculateUnemployment(state);
   const inflation = calculateInflationSimple(state);
 
   const raw =
-    BALANCE.POVERTY_SOCIAL_DEV_FACTOR * socialDevEfficiency +
+    BALANCE.POVERTY_SOCIAL_DEV_FACTOR * socialDevImpact +
     BALANCE.POVERTY_UNEMPLOYMENT_FACTOR * unemployment +
     BALANCE.POVERTY_INFLATION_FACTOR * inflation +
-    25;
+    BALANCE.POVERTY_BASE;
 
   return Math.max(0, Math.min(100, raw + sumLawEffects(state, "povertyRate")));
 }
@@ -70,7 +81,7 @@ export function calculatePoverty(state: GameState): number {
  * El resultado se trunca a [2, 50].
  */
 export function calculateUnemployment(state: GameState): number {
-  const economyEfficiency = getMinistryEfficiency(state, "economia");
+  const economyEfficiency = getMinistryImpact(state, "economia");
 
   const raw =
     BALANCE.UNEMPLOYMENT_ECONOMY_FACTOR * economyEfficiency +
@@ -85,7 +96,7 @@ export function calculateUnemployment(state: GameState): number {
  * El resultado se trunca a [0, 50].
  */
 export function calculateHealth(state: GameState): number {
-  const healthEfficiency = getMinistryEfficiency(state, "salud");
+  const healthEfficiency = getMinistryImpact(state, "salud");
 
   const raw =
     BALANCE.SICK_HEALTH_FACTOR * healthEfficiency + BALANCE.SICK_BASE;
@@ -99,7 +110,7 @@ export function calculateHealth(state: GameState): number {
  * El resultado se trunca a [0, 100].
  */
 export function calculateFoodSecurity(state: GameState): number {
-  const agricultureEfficiency = getMinistryEfficiency(state, "agricultura");
+  const agricultureEfficiency = getMinistryImpact(state, "agricultura");
 
   const raw =
     BALANCE.FOOD_AGRICULTURE_FACTOR * agricultureEfficiency +
@@ -116,7 +127,7 @@ export function calculateFoodSecurity(state: GameState): number {
  * El resultado se trunca a [0, 100].
  */
 export function calculateCrime(state: GameState): number {
-  const securityEfficiency = getMinistryEfficiency(state, "seguridad");
+  const securityEfficiency = getMinistryImpact(state, "seguridad");
   const poverty = calculatePoverty(state);
   const unemployment = calculateUnemployment(state);
 
@@ -135,7 +146,7 @@ export function calculateCrime(state: GameState): number {
  * El resultado se trunca a [0, 100].
  */
 export function calculateEducation(state: GameState): number {
-  const educationEfficiency = getMinistryEfficiency(state, "educacion");
+  const educationEfficiency = getMinistryImpact(state, "educacion");
 
   const raw =
     BALANCE.EDUCATION_EDU_FACTOR * educationEfficiency + BALANCE.EDUCATION_BASE;

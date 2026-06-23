@@ -3,233 +3,201 @@
 import type { MediaState } from "@/lib/engine/types";
 import { useGameStore } from "@/lib/store/game-store";
 import { BALANCE } from "@/lib/balance";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Radio, Tv, Globe, AlertTriangle, Shield, Handshake, Newspaper } from "lucide-react";
+
+const FF = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
 
 const MEDIA_TYPE_LABELS: Record<string, string> = {
-  TV: "Televisión",
-  NEWSPAPER: "Periódico",
-  DIGITAL: "Digital",
+  TV:        "TELEVISIÓN",
+  NEWSPAPER: "PERIÓDICO",
+  DIGITAL:   "DIGITAL",
 };
 
-const MEDIA_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  TV: Tv,
-  NEWSPAPER: Newspaper,
-  DIGITAL: Globe,
+const MEDIA_TYPE_ICONS: Record<string, string> = {
+  TV:        "◉",
+  NEWSPAPER: "◎",
+  DIGITAL:   "◈",
 };
 
-function getAffinityColor(value: number): string {
-  if (value > 30) return "text-accent";
-  if (value < -30) return "text-destructive";
-  return "text-muted-foreground";
+function getAffinityColor(v: number) {
+  if (v > 30)  return "#00C87E";
+  if (v < -30) return "#FF2090";
+  return "#888888";
 }
 
-function getAffinityBg(value: number): string {
-  if (value > 30) return "bg-accent";
-  if (value < -30) return "bg-destructive";
-  return "bg-muted-foreground";
+function getAffinityLabel(v: number) {
+  if (v > 50)  return "MUY AFÍN";
+  if (v > 20)  return "AFÍN";
+  if (v > -20) return "NEUTRAL";
+  if (v > -50) return "OPOSITOR";
+  return "MUY OPOSITOR";
 }
 
-function getAffinityLabel(value: number): string {
-  if (value > 50) return "Muy afín al gobierno";
-  if (value > 20) return "Afín al gobierno";
-  if (value > -20) return "Neutral";
-  if (value > -50) return "Opositor al gobierno";
-  return "Muy opositor al gobierno";
-}
-
-function getStatusBadge(status: string): { label: string; className: string } {
+function getStatusStyle(status: string): { label: string; bg: string; fg: string } {
   switch (status) {
-    case "ACTIVE":
-      return { label: "Activo", className: "bg-accent/20 text-accent border-accent/40" };
-    case "CENSORED":
-      return { label: "Censurado", className: "bg-chart-5/20 text-chart-5 border-chart-5/40" };
-    case "CLOSED":
-      return { label: "Clausurado", className: "bg-destructive/20 text-destructive border-destructive/40" };
-    default:
-      return { label: status, className: "bg-muted text-muted-foreground" };
+    case "ACTIVE":   return { label: "ACTIVO",     bg: "#00C87E", fg: "#FFFFFF" };
+    case "CENSORED": return { label: "CENSURADO",  bg: "#E08800", fg: "#FFFFFF" };
+    case "CLOSED":   return { label: "CLAUSURADO", bg: "#FF2090", fg: "#FFFFFF" };
+    default:         return { label: status,       bg: "#888",    fg: "#FFFFFF" };
   }
 }
 
-interface MediaCardProps {
-  medium: MediaState;
-}
+const ACTION_LABELS: Record<string, string> = {
+  censor:      "CENSURAR",
+  close:       "CLAUSURAR",
+  boost:       "IMPULSAR",
+  buyAffinity: "COMPRAR AFINIDAD",
+  restore:     "RESTAURAR",
+};
 
-export default function MediaCard({ medium }: MediaCardProps) {
+export default function MediaCard({ medium }: { medium: MediaState }) {
   const setMediaAction = useGameStore((s) => s.setMediaAction);
-  const pendingInput = useGameStore((s) => s.pendingInput);
-  const Icon = MEDIA_TYPE_ICONS[medium.type] ?? Radio;
-  const typeLabel = MEDIA_TYPE_LABELS[medium.type] ?? medium.type;
-  const affinityColor = getAffinityColor(medium.governmentAffinity);
-  const affinityBg = getAffinityBg(medium.governmentAffinity);
-  const affinityLabel = getAffinityLabel(medium.governmentAffinity);
-  const statusInfo = getStatusBadge(medium.status);
+  const pendingInput   = useGameStore((s) => s.pendingInput);
+  const currentAction  = pendingInput.mediaActions?.[medium.id];
 
-  const currentAction = pendingInput.mediaActions?.[medium.id];
+  const statusStyle   = getStatusStyle(medium.status);
+  const affinityColor = getAffinityColor(medium.governmentAffinity);
+  const affinityLabel = getAffinityLabel(medium.governmentAffinity);
+  const icon          = MEDIA_TYPE_ICONS[medium.type] ?? "●";
+  const typeLabel     = MEDIA_TYPE_LABELS[medium.type] ?? medium.type;
+
+  const affinityPct   = Math.abs(medium.governmentAffinity) / 2;
+  const affinityLeft  = medium.governmentAffinity >= 0;
+
+  function Btn({
+    action, label, danger,
+  }: { action: string; label: string; danger?: boolean }) {
+    const active = currentAction === action;
+    return (
+      <button
+        onClick={() => setMediaAction(medium.id, action as Parameters<typeof setMediaAction>[1])}
+        disabled={active}
+        style={{
+          cursor: active ? "default" : "pointer",
+          padding: "6px 12px",
+          background: active ? (danger ? "#AA1060" : "#008E8A") : danger ? "#FF2090" : "#0A0A0A",
+          border: "2px solid #0A0A0A",
+          fontFamily: FF,
+          fontSize: 10,
+          fontWeight: 800,
+          color: "#FFFFFF",
+          letterSpacing: 1.5,
+          opacity: active ? 0.7 : 1,
+        }}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
-    <Card className="border-l-4 border-l-muted/40">
-      <CardContent className="flex flex-col gap-4 pt-4">
-        {/* Cabecera */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Icon className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">
-                {medium.name}
-              </h3>
-              <p className="text-xs text-muted-foreground">{typeLabel}</p>
-            </div>
-          </div>
-          <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
-        </div>
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "2.5px solid #0A0A0A",
+        boxShadow: "4px 4px 0 #0A0A0A",
+        padding: 18,
+        fontFamily: FF,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Color strip by status */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: statusStyle.bg }} />
 
-        {/* Barra de afinidad gubernamental */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Afinidad al gobierno</span>
-            <span className={`text-xs font-semibold ${affinityColor}`}>
-              {affinityLabel}
-            </span>
-          </div>
-          <div className="relative h-2 w-full rounded-full bg-muted">
-            {/* Punto neutro en el centro */}
-            <div className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 bg-border" />
-            {/* Barra de afinidad */}
-            <div
-              className={`absolute h-full rounded-full transition-all ${affinityBg}`}
-              style={{
-                left: "50%",
-                width: `${Math.abs(medium.governmentAffinity) / 2}%`,
-                transform:
-                  medium.governmentAffinity >= 0
-                    ? "translateX(0)"
-                    : "translateX(-100%)",
-              }}
-            />
-          </div>
-          <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>-100</span>
-            <span>0</span>
-            <span>+100</span>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, marginTop: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20, color: "#0A0A0A" }}>{icon}</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#0A0A0A", letterSpacing: 0.5 }}>{medium.name}</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "#888", letterSpacing: 1.5 }}>{typeLabel}</div>
           </div>
         </div>
-
-        {/* Métricas */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Alcance</span>
-            <div className="h-1.5 w-full rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary/60"
-                style={{ width: `${medium.reach}%` }}
-              />
-            </div>
-            <span className="text-xs font-medium">{medium.reach}/100</span>
-          </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Credibilidad</span>
-            <div className="h-1.5 w-full rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary/60"
-                style={{ width: `${medium.credibility}%` }}
-              />
-            </div>
-            <span className="text-xs font-medium">{medium.credibility}/100</span>
-          </div>
+        <div style={{ background: statusStyle.bg, color: statusStyle.fg, fontSize: 9, fontWeight: 800, letterSpacing: 1.5, padding: "3px 8px" }}>
+          {statusStyle.label}
         </div>
+      </div>
 
-        {/* Acciones */}
-        {medium.status === "ACTIVE" && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentAction === "censor"}
-              onClick={() => setMediaAction(medium.id, "censor")}
-              className="text-xs"
-            >
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              Censurar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentAction === "close"}
-              onClick={() => setMediaAction(medium.id, "close")}
-              className="text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
-            >
-              Clausurar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentAction === "boost"}
-              onClick={() => setMediaAction(medium.id, "boost")}
-              className="text-xs"
-            >
-              Impulsar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentAction === "buyAffinity"}
-              onClick={() => setMediaAction(medium.id, "buyAffinity")}
-              className="text-xs"
-              title={`Costo: M$ ${(BALANCE.MEDIA_BUY_AFFINITY_COST / 1_000_000).toFixed(1)} — Reduce transparencia`}
-            >
-              <Handshake className="h-3 w-3 mr-1" />
-              Comprar afinidad
-            </Button>
-            {currentAction && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => setMediaAction(medium.id, "none")}
-              >
-                Cancelar
-              </Button>
-            )}
-          </div>
-        )}
+      {/* Affinity bar */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5 }}>AFINIDAD AL GOBIERNO</span>
+          <span style={{ fontSize: 9, fontWeight: 800, color: affinityColor, letterSpacing: 1 }}>{affinityLabel}</span>
+        </div>
+        <div style={{ position: "relative", height: 10, background: "#F5F0E8", border: "2px solid #0A0A0A" }}>
+          <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "#0A0A0A" }} />
+          <div
+            style={{
+              position: "absolute",
+              height: "100%",
+              width: `${affinityPct}%`,
+              background: affinityColor,
+              left: affinityLeft ? "50%" : undefined,
+              right: affinityLeft ? undefined : "50%",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, fontWeight: 600, color: "#888", marginTop: 2 }}>
+          <span>-100</span><span>0</span><span>+100</span>
+        </div>
+      </div>
 
-        {(medium.status === "CENSORED" || medium.status === "CLOSED") && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentAction === "restore"}
-              onClick={() => setMediaAction(medium.id, "restore")}
-              className="text-xs"
-            >
-              <Shield className="h-3 w-3 mr-1" />
-              Restaurar medio
-            </Button>
-            {currentAction && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => setMediaAction(medium.id, "none")}
-              >
-                Cancelar
-              </Button>
-            )}
+      {/* Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, marginBottom: 5 }}>ALCANCE</div>
+          <div style={{ height: 8, background: "#F5F0E8", border: "1.5px solid #0A0A0A", marginBottom: 4 }}>
+            <div style={{ height: "100%", width: `${medium.reach}%`, background: "#00C2B8" }} />
           </div>
-        )}
+          <span style={{ fontFamily: "var(--font-share-tech-mono,'Share Tech Mono',monospace)", fontSize: 14, color: "#00C2B8" }}>{medium.reach}/100</span>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#666", letterSpacing: 1.5, marginBottom: 5 }}>CREDIBILIDAD</div>
+          <div style={{ height: 8, background: "#F5F0E8", border: "1.5px solid #0A0A0A", marginBottom: 4 }}>
+            <div style={{ height: "100%", width: `${medium.credibility}%`, background: "#00C87E" }} />
+          </div>
+          <span style={{ fontFamily: "var(--font-share-tech-mono,'Share Tech Mono',monospace)", fontSize: 14, color: "#00C87E" }}>{medium.credibility}/100</span>
+        </div>
+      </div>
 
-        {/* Badge de acción pendiente */}
-        {currentAction && currentAction !== "none" && (
-          <div className="pt-1">
-            <Badge variant="secondary" className="text-xs">
-              Acción pendiente: {currentAction === "censor" ? "Censurar" : currentAction === "close" ? "Clausurar" : currentAction === "boost" ? "Impulsar" : currentAction === "buyAffinity" ? "Comprar afinidad" : "Restaurar"}
-            </Badge>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Actions */}
+      {medium.status === "ACTIVE" && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 10, borderTop: "1.5px solid #E8E0D8" }}>
+          <Btn action="censor"      label="CENSURAR" />
+          <Btn action="close"       label="CLAUSURAR" danger />
+          <Btn action="boost"       label="IMPULSAR" />
+          <Btn action="buyAffinity" label="COMPRAR AFINIDAD" />
+          {currentAction && currentAction !== "none" && (
+            <button
+              onClick={() => setMediaAction(medium.id, "none")}
+              style={{ cursor: "pointer", padding: "6px 10px", background: "transparent", border: "2px solid rgba(0,0,0,0.2)", fontFamily: FF, fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 1 }}
+            >
+              CANCELAR
+            </button>
+          )}
+        </div>
+      )}
+
+      {(medium.status === "CENSORED" || medium.status === "CLOSED") && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 10, borderTop: "1.5px solid #E8E0D8" }}>
+          <Btn action="restore" label="RESTAURAR MEDIO" />
+          {currentAction && currentAction !== "none" && (
+            <button
+              onClick={() => setMediaAction(medium.id, "none")}
+              style={{ cursor: "pointer", padding: "6px 10px", background: "transparent", border: "2px solid rgba(0,0,0,0.2)", fontFamily: FF, fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 1 }}
+            >
+              CANCELAR
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Pending badge */}
+      {currentAction && currentAction !== "none" && (
+        <div style={{ marginTop: 8, padding: "4px 10px", background: "#FFE600", border: "2px solid #0A0A0A", fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 1, display: "inline-block" }}>
+          PENDIENTE: {ACTION_LABELS[currentAction] ?? currentAction.toUpperCase()}
+        </div>
+      )}
+    </div>
   );
 }
