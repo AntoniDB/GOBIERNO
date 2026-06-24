@@ -51,6 +51,7 @@ import { generateMediaCoverage, generateDecisionCoverage, generateEditorialCover
 import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates } from "./candidates";
+import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -537,6 +538,48 @@ export function processTurn(
   // PASO 4: Actualizar tesoro
   // ═══════════════════════════════════════════════════════════════════════
   newState.treasury = calculateTreasury(newState.treasury, income, expenses);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 4b: Avanzar decisiones de varios meses (LRD)
+  // - Decrementa monthsRemaining de cada LRD activa
+  // - Descuenta monthlyCost del tesoro por cada LRD activa
+  // - Crea nuevas LRD desde el input del jugador
+  // - Marca COMPLETED las que llegan a 0 meses restantes
+  // - Cancela las marcadas por el jugador
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Crear nuevas LRD (antes de avanzar, para que no se avancen en el mismo turno)
+  const newDecisions = createNewDecisions(newState, input);
+
+  // Avanzar LRD existentes
+  const lrdResult = advanceDecisions(newState, input);
+  newState.treasury -= lrdResult.totalCost;
+
+  // Agregar nuevas LRD al estado
+  newState.longRunningDecisions = [
+    ...lrdResult.updatedDecisions,
+    ...newDecisions,
+  ];
+
+  // Aplicar efectos de LRD completadas
+  if (lrdResult.completed.length > 0) {
+    applyDecisionEffects(lrdResult.completed, newState);
+    for (const completed of lrdResult.completed) {
+      allNotifications.push({
+        type: "info",
+        title: "Decisión completada",
+        description: `La decisión "${completed.name}" se ha completado tras ${completed.totalMonths} meses.`,
+      });
+    }
+  }
+
+  for (const cancelled of lrdResult.cancelled) {
+    allNotifications.push({
+      type: "warning",
+      title: "Decisión cancelada",
+      description: `La decisión "${cancelled.name}" ha sido cancelada. Se pierde lo invertido.`,
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 5: Calcular eficiencia de cada ministerio

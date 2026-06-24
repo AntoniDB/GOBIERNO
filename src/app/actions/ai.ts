@@ -105,6 +105,8 @@ async function loadGameStateForPrompt(gameId: string): Promise<GameState | null>
     media: [],
     events: [],
     consecutiveLowApprovalMonths: 0,
+    lifeExpectancy: 68,
+    longRunningDecisions: [],
   };
 }
 

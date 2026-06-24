@@ -79,9 +79,23 @@ export function createMonthSnapshot(
     foodSecurity,
     educationLevel,
     inflation,
-  gini,
-  regimeType,
-  regimeMetrics: { ...state.regimeMetrics },
-  lifeExpectancy: state.lifeExpectancy,
+    gini,
+    regimeType,
+    regimeMetrics: { ...state.regimeMetrics },
+    lifeExpectancy: state.lifeExpectancy,
+    activeLrdCount: (state.longRunningDecisions ?? []).filter((d) => d.status === "IN_PROGRESS").length,
+    lrdMonthlyCost: (state.longRunningDecisions ?? [])
+      .filter((d) => d.status === "IN_PROGRESS")
+      .reduce((sum, d) => sum + d.monthlyCost, 0),
+    lrdCompletedThisMonth: (state.longRunningDecisions ?? []).filter((d) => {
+      if (d.status !== "COMPLETED" || !d.completedAt) return false;
+      const date = new Date(d.completedAt);
+      return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
+    }).length,
+    lrdCancelledThisMonth: (state.longRunningDecisions ?? []).filter((d) => {
+      if (d.status !== "CANCELLED" || !d.cancelledAt) return false;
+      const date = new Date(d.cancelledAt);
+      return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
+    }).length,
   };
 }

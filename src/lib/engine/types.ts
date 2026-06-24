@@ -29,6 +29,7 @@ export interface GameState {
   regimeMetrics: RegimeMetricsState;
   media: MediaState[];
   events: EventState[];
+  longRunningDecisions: LongRunningDecisionState[];
   consecutiveLowApprovalMonths: number;
 }
 
@@ -151,6 +152,22 @@ export interface EventState {
   resolvedAt: string | null;
 }
 
+export interface LongRunningDecisionState {
+  id: string;
+  type: string;
+  name: string;
+  monthsRemaining: number;
+  totalMonths: number;
+  monthlyCost: number;
+  parameters: Record<string, unknown>;
+  status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  startedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  progressLog: string[];
+  effectOnCompletion: Record<string, unknown>;
+}
+
 export interface LawCatalogEntry {
   key: string;
   name: string;
@@ -190,6 +207,17 @@ export interface TurnInput {
   organismHeadChanges?: Record<string, string>;
   /** IDs de organismos a disolver este mes */
   dissolveOrganismIds?: string[];
+  /** IDs de LRD a cancelar este mes */
+  cancelDecisionIds?: string[];
+  /** Nuevas LRD a iniciar este mes */
+  newLongRunningDecisions?: Array<{
+    type: string;
+    name: string;
+    totalMonths: number;
+    monthlyCost: number;
+    parameters?: Record<string, unknown>;
+    effectOnCompletion?: Record<string, unknown>;
+  }>;
 }
 
 /** Configuracion de fin de partida */
@@ -244,6 +272,10 @@ export interface MonthSnapshotData {
   regimeType: string;
   regimeMetrics: RegimeMetricsState;
   lifeExpectancy: number;
+  activeLrdCount: number;
+  lrdMonthlyCost: number;
+  lrdCompletedThisMonth: number;
+  lrdCancelledThisMonth: number;
 }
 
 export interface TurnNotification {

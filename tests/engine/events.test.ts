@@ -19,6 +19,7 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     foodSecurity: 60,
     educationLevel: 50,
     inflation: 5,
+    lifeExpectancy: 68,
     ministries: [
       { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null },
       { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 70, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
@@ -42,6 +43,7 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     media: [],
     events: [],
     consecutiveLowApprovalMonths: 0,
+    longRunningDecisions: [],
     ...overrides,
   };
 }

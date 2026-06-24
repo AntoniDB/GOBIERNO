@@ -84,6 +84,8 @@ function crearEstadoMinimo(): GameState {
     },
     media: [],
     events: [],
+    lifeExpectancy: 68,
+    longRunningDecisions: [],
     consecutiveLowApprovalMonths: 0,
   };
 }

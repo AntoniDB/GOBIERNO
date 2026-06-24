@@ -95,7 +95,10 @@ describe("buildEventPrompt integración", () => {
         politicalPluralism: 0, civilLiberties: 0, transparency: 0,
         militarySubordination: 0,
       },
-      media: [], events: [], consecutiveLowApprovalMonths: 0,
+      media: [], events: [],
+      lifeExpectancy: 68,
+      longRunningDecisions: [],
+      consecutiveLowApprovalMonths: 0,
     };
     const { system, user } = buildEventPrompt(event, state);
     expect(system.length).toBeGreaterThan(10);

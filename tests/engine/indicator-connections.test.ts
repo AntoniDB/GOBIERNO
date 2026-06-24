@@ -22,11 +22,13 @@ function estado(claves: string[], eficiencia: Record<string, number>): GameState
     treasury: 1000000, population: 10000000, seed: "verify",
     gdp: 50000000, povertyRate: 25, unemploymentRate: 8, sickRate: 5,
     crimeRate: 15, foodSecurity: 60, educationLevel: 50, inflation: 5,
+    lifeExpectancy: 68,
     ministries, officials: [], parties: [], senators: [],
     activeLaws: [], judicialCases: [], organisms: [], socialClasses: [],
     regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 60,
       politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 60 },
     media: [], events: [],
+    longRunningDecisions: [],
     consecutiveLowApprovalMonths: 0,
   };
 }

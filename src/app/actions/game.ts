@@ -45,6 +45,7 @@ async function fetchGameData(gameId: string) {
       socialClasses: true,
       media: true,
       events: true,
+      longRunningDecisions: true,
     },
   });
 }
@@ -185,6 +186,21 @@ function buildGameState(
       description: e.description as string,
       effectsApplied: (e.effectsApplied ?? {}) as Record<string, unknown>,
       resolvedAt: e.resolvedAt ? (e.resolvedAt as Date).toISOString() : null,
+    })),
+    longRunningDecisions: (game.longRunningDecisions ?? []).map((lrd: Record<string, unknown>) => ({
+      id: lrd.id as string,
+      type: lrd.type as string,
+      name: lrd.name as string,
+      monthsRemaining: lrd.monthsRemaining as number,
+      totalMonths: lrd.totalMonths as number,
+      monthlyCost: lrd.monthlyCost as number,
+      parameters: (lrd.parameters ?? {}) as Record<string, unknown>,
+      status: (lrd.status as string) as "IN_PROGRESS" | "COMPLETED" | "CANCELLED",
+      startedAt: (lrd.startedAt as Date).toISOString(),
+      completedAt: lrd.completedAt ? (lrd.completedAt as Date).toISOString() : null,
+      cancelledAt: lrd.cancelledAt ? (lrd.cancelledAt as Date).toISOString() : null,
+      progressLog: (lrd.progressLog as string[]) ?? [],
+      effectOnCompletion: (lrd.effectOnCompletion ?? {}) as Record<string, unknown>,
     })),
   };
 }

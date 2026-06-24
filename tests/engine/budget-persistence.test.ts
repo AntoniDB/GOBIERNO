@@ -22,6 +22,7 @@ function crearEstado(): GameState {
     foodSecurity: 60,
     educationLevel: 50,
     inflation: 5,
+    lifeExpectancy: 68,
     ministries: [
       { id: "m-salud", key: "HEALTH", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
       { id: "m-economia", key: "ECONOMY", budgetPercent: 15, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
@@ -36,6 +37,7 @@ function crearEstado(): GameState {
     regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 60, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 60 },
     media: [],
     events: [],
+    longRunningDecisions: [],
     consecutiveLowApprovalMonths: 0,
   };
 }

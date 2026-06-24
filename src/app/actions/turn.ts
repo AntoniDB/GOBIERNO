@@ -179,6 +179,21 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       effectsApplied: (e.effectsApplied ?? {}) as Record<string, unknown>,
       resolvedAt: e.resolvedAt ? (e.resolvedAt as Date).toISOString() : null,
     })),
+    longRunningDecisions: (game.longRunningDecisions ?? []).map((lrd: Record<string, unknown>) => ({
+      id: lrd.id as string,
+      type: lrd.type as string,
+      name: lrd.name as string,
+      monthsRemaining: lrd.monthsRemaining as number,
+      totalMonths: lrd.totalMonths as number,
+      monthlyCost: lrd.monthlyCost as number,
+      parameters: (lrd.parameters ?? {}) as Record<string, unknown>,
+      status: (lrd.status as string) as "IN_PROGRESS" | "COMPLETED" | "CANCELLED",
+      startedAt: (lrd.startedAt as Date).toISOString(),
+      completedAt: lrd.completedAt ? (lrd.completedAt as Date).toISOString() : null,
+      cancelledAt: lrd.cancelledAt ? (lrd.cancelledAt as Date).toISOString() : null,
+      progressLog: (lrd.progressLog as string[]) ?? [],
+      effectOnCompletion: (lrd.effectOnCompletion ?? {}) as Record<string, unknown>,
+    })),
   };
 }
 
@@ -198,6 +213,7 @@ async function fetchGameData(gameId: string) {
       socialClasses: true,
       media: true,
       events: true,
+      longRunningDecisions: true,
     },
   });
 }
@@ -441,6 +457,10 @@ export async function advanceMonth(
         regimeType: monthSnapshot.regimeType,
         regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
         lifeExpectancy: monthSnapshot.lifeExpectancy,
+        activeLrdCount: monthSnapshot.activeLrdCount,
+        lrdMonthlyCost: monthSnapshot.lrdMonthlyCost,
+        lrdCompletedThisMonth: monthSnapshot.lrdCompletedThisMonth,
+        lrdCancelledThisMonth: monthSnapshot.lrdCancelledThisMonth,
       },
       update: {
         treasury: monthSnapshot.treasury,
@@ -459,10 +479,47 @@ export async function advanceMonth(
         regimeType: monthSnapshot.regimeType,
         regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
         lifeExpectancy: monthSnapshot.lifeExpectancy,
+        activeLrdCount: monthSnapshot.activeLrdCount,
+        lrdMonthlyCost: monthSnapshot.lrdMonthlyCost,
+        lrdCompletedThisMonth: monthSnapshot.lrdCompletedThisMonth,
+        lrdCancelledThisMonth: monthSnapshot.lrdCancelledThisMonth,
       },
     });
 
-    // g. JudicialCases — con verificacion anti-duplicados a nivel DB
+    // g. LongRunningDecisions: upsert cada LRD
+    for (const lrd of newState.longRunningDecisions) {
+      await tx.longRunningDecision.upsert({
+        where: { id: lrd.id },
+        create: {
+          id: lrd.id,
+          game: { connect: { id: gameId } },
+          type: lrd.type as string,
+          name: lrd.name,
+          monthsRemaining: lrd.monthsRemaining,
+          totalMonths: lrd.totalMonths,
+          monthlyCost: lrd.monthlyCost,
+          parameters: lrd.parameters as Record<string, unknown>,
+          status: lrd.status as string,
+          startedAt: new Date(lrd.startedAt),
+          completedAt: lrd.completedAt ? new Date(lrd.completedAt) : null,
+          cancelledAt: lrd.cancelledAt ? new Date(lrd.cancelledAt) : null,
+          progressLog: lrd.progressLog ?? [],
+          effectOnCompletion: lrd.effectOnCompletion as Record<string, unknown>,
+        },
+        update: {
+          monthsRemaining: lrd.monthsRemaining,
+          monthlyCost: lrd.monthlyCost,
+          parameters: lrd.parameters as Record<string, unknown>,
+          status: lrd.status as string,
+          completedAt: lrd.completedAt ? new Date(lrd.completedAt) : null,
+          cancelledAt: lrd.cancelledAt ? new Date(lrd.cancelledAt) : null,
+          progressLog: lrd.progressLog ?? [],
+          effectOnCompletion: lrd.effectOnCompletion as Record<string, unknown>,
+        },
+      });
+    }
+
+    // h. JudicialCases — con verificacion anti-duplicados a nivel DB
     for (const jc of newState.judicialCases) {
       // Para casos nuevos de corrupcion, verificar que no exista ya uno activo
       // del mismo tipo para el mismo funcionario. Esto es la ultima linea de defensa:

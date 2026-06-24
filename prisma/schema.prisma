@@ -130,6 +130,16 @@ enum InfrastructureType {
   HOUSING
 }
 
+enum LRDecisionStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum LRDecisionType {
+  OBRA_DE_PRUEBA
+}
+
 // ─── Modelos ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -172,6 +182,7 @@ model Game {
   mediaCoverages MediaCoverage[]
   countries      Country[]
   treaties      Treaty[]
+  longRunningDecisions LongRunningDecision[]
   diseases      Disease[]
   infrastructures Infrastructure[]
   regions       Region[]
@@ -203,6 +214,10 @@ model MonthSnapshot {
   aiEventNarratives     Json?
   aiCoverageNarratives  Json?
   lifeExpectancy    Float      @default(68)
+  activeLrdCount    Int        @default(0)
+  lrdMonthlyCost    Float      @default(0)
+  lrdCompletedThisMonth Int   @default(0)
+  lrdCancelledThisMonth Int   @default(0)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -489,6 +504,28 @@ model Event {
 
   @@index([gameId])
   @@index([gameId, year, month])
+}
+
+model LongRunningDecision {
+  id               String          @id @default(uuid())
+  gameId           String
+  type             LRDecisionType
+  name             String
+  monthsRemaining  Int
+  totalMonths      Int
+  monthlyCost      Float           @default(0)
+  parameters       Json            @default("{}")
+  status           LRDecisionStatus @default(IN_PROGRESS)
+  startedAt        DateTime        @default(now())
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  progressLog      Json            @default("[]")
+  effectOnCompletion Json          @default("{}")
+
+  game             Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([gameId, status])
 }
 
 // ─── Fase 2: solo esquema, lógica como stub ──────────────────────────────────

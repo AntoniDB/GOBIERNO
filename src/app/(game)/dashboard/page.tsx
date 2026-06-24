@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { getGameState, getSnapshots } from "@/app/actions/game";
 import { getDemoGameId } from "@/app/actions/demo";
+import { LongRunningDecisionsPanel } from "@/components/game/long-running-decisions-panel";
 import Link from "next/link";
 
 /* ── Colores de ministerios ─────────────────────────────────────────────────── */
@@ -551,6 +552,9 @@ export default function DashboardPage() {
       </Card>
 
       <div style={{ marginTop: 18 }}>
+        {/* ─── Decisiones en curso ─── */}
+        <LongRunningDecisionsPanel />
+
         {/* ─── Mini-grid ministerios ─── */}
         <Card>
           <SectionTitle label="ESTADO MINISTERIOS" />

@@ -201,6 +201,8 @@ async function loadGameStateWithSnapshot(gameId: string): Promise<GameState | nu
     media,
     events,
     consecutiveLowApprovalMonths: game.consecutiveLowApprovalMonths ?? 0,
+    lifeExpectancy: 68,
+    longRunningDecisions: [],
   };
 }
 

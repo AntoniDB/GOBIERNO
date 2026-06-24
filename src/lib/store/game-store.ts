@@ -30,6 +30,8 @@ export interface GameStore {
   hireCandidate: (officialId: string) => void;
   assignOrganismHead: (organismId: string, officialId: string) => void;
   dissolveOrganism: (organismId: string) => void;
+  startLongRunningDecision: (type: string, name: string, totalMonths: number, monthlyCost: number, parameters?: Record<string, unknown>, effectOnCompletion?: Record<string, unknown>) => void;
+  cancelLongRunningDecision: (lrdId: string) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -206,6 +208,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
         dissolveOrganismIds: [
           ...(prev.pendingInput.dissolveOrganismIds ?? []),
           organismId,
+        ],
+      },
+    }));
+  },
+
+  startLongRunningDecision: (
+    type: string,
+    name: string,
+    totalMonths: number,
+    monthlyCost: number,
+    parameters?: Record<string, unknown>,
+    effectOnCompletion?: Record<string, unknown>,
+  ) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        newLongRunningDecisions: [
+          ...(prev.pendingInput.newLongRunningDecisions ?? []),
+          { type, name, totalMonths, monthlyCost, parameters, effectOnCompletion },
+        ],
+      },
+    }));
+  },
+
+  cancelLongRunningDecision: (lrdId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        cancelDecisionIds: [
+          ...(prev.pendingInput.cancelDecisionIds ?? []),
+          lrdId,
         ],
       },
     }));

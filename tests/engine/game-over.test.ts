@@ -18,6 +18,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     foodSecurity: 85,
     educationLevel: 60,
     inflation: 3,
+    lifeExpectancy: 68,
     ministries: [
       { id: "m-def", key: "DEFENSE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: "off-1" },
       { id: "m-soc", key: "SOCIAL_DEVELOPMENT", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
@@ -45,6 +46,7 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     },
     media: [],
     events: [],
+    longRunningDecisions: [],
     consecutiveLowApprovalMonths: 0,
     ...overrides,
   };
