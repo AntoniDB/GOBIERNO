@@ -11,6 +11,8 @@
 import type { GameState, ActiveLawState } from "./types";
 import { BALANCE } from "../balance";
 import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
+import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDiseaseMortality } from "./diseases";
+import type { DiseaseState } from "./diseases";
 
 /**
  * Busca el impacto efectivo de un ministerio (eficiencia × factor de presupuesto).
@@ -332,6 +334,9 @@ export function calculateLifeExpectancy(
   // Mortalidad por saturacion hospitalaria (regional)
   const saturationMortality = calculateNationalSaturationMortality(state);
 
+  // Mortalidad por enfermedades (si hay catalogo activo)
+  const diseaseMortality = state.diseaseMortality as number | undefined;
+
   const raw =
     BALANCE.LE_BASE
     - BALANCE.LE_SICK_FACTOR * sickRate
@@ -339,7 +344,8 @@ export function calculateLifeExpectancy(
     - BALANCE.LE_POVERTY_FACTOR * povertyRate
     + BALANCE.LE_FOOD_FACTOR * foodSecurity
     + BALANCE.LE_GDP_FACTOR * (perCapita / 1000)
-    - BALANCE.LE_SATURATION_FACTOR * saturationMortality;
+    - BALANCE.LE_SATURATION_FACTOR * saturationMortality
+    - (diseaseMortality ? BALANCE.LE_DISEASE_FACTOR * diseaseMortality * 100 : 0);
 
   return Math.max(
     BALANCE.LE_CLAMP_MIN,
@@ -357,6 +363,24 @@ export function calculateLifeExpectancy(
  * Si no hay regiones definidas, usa el calculo global con calculateHealth.
  */
 export function calculateHealthRegional(state: GameState): number {
+  // Si hay enfermedades en el estado, usar Π-fórmula
+  if (state.diseases && state.diseases.length > 0) {
+    const prevalences = calculateDiseasePrevalence(
+      state,
+      state.diseases as unknown as DiseaseState[]
+    );
+    const sickFromDiseases = calculateSickRateFromDiseases(prevalences);
+    if (sickFromDiseases !== null) {
+      state.diseasePrevalences = prevalences;
+      state.diseaseMortality = calculateDiseaseMortality(
+        prevalences,
+        state.diseases as unknown as DiseaseState[]
+      );
+      return sickFromDiseases;
+    }
+  }
+
+  // Fallback: calculo regional
   const regions = state.regions ?? [];
   if (regions.length === 0) return calculateHealth(state);
 

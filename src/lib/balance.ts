@@ -450,6 +450,17 @@ export const BALANCE = {
 
   /** Factor de saturacion en el calculo de LE: cada punto de mortalidad extra quita estos anios */
   LE_SATURATION_FACTOR: 0.10,
+
+  // ─── Enfermedades ───────────────────────────────────────────────────────
+  // Cada enfermedad tiene prevalencia que evoluciona segun el sistema sanitario.
+  // sickRate = 1 - Π(1 - prev_i)  (probabilidad de union, para display)
+  // diseaseMortality = Σ(prev_i * mortalityRate_i)  (aditiva, para el motor)
+
+  /** Factor de diseaseMortality en LE: 0.04 anos por punto de mortalidad por enfermedad */
+  LE_DISEASE_FACTOR: 0.04,
+
+  /** Umbrales de cobertura sanitaria para reducir prevalencia: 100 = maxima cobertura */
+  DISEASE_COVERAGE_MAX: 100,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

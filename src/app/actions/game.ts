@@ -49,6 +49,8 @@ async function fetchGameData(gameId: string) {
       longRunningDecisions: true,
       resourceStocks: true,
       regions: true,
+      diseases: true,
+      diseasePrevalences: true,
     },
   });
 }
@@ -229,6 +231,25 @@ function buildGameState(
         tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
       }) as RegionState["healthCoverage"],
     })),
+    diseases: (game.diseases ?? []).map((d: Record<string, unknown>) => ({
+      id: d.id as string,
+      name: d.name as string,
+      category: d.category as string,
+      contagionRate: d.contagionRate as number,
+      mortalityRate: d.mortalityRate as number,
+      prevalence: d.prevalence as number,
+      prevalenceBase: d.prevalenceBase as number,
+      hasVaccine: d.hasVaccine as boolean,
+      preventionSensitivity: d.preventionSensitivity as number,
+      monthlyCostPerPatient: d.monthlyCostPerPatient as number,
+      classAffinity: (d.classAffinity ?? {}) as Record<string, number>,
+    })),
+    diseasePrevalences: (game.diseasePrevalences ?? []).map((dp: Record<string, unknown>) => ({
+      id: dp.id as string,
+      diseaseId: dp.diseaseId as string,
+      currentPrevalence: dp.currentPrevalence as number,
+    })),
+    diseaseMortality: 0,
   };
 }
 

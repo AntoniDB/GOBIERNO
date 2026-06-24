@@ -185,6 +185,7 @@ model Game {
   treaties      Treaty[]
   longRunningDecisions LongRunningDecision[]
   resourceStocks ResourceStock[]
+  diseasePrevalences DiseasePrevalence[]
   diseases      Disease[]
   infrastructures Infrastructure[]
   regions       Region[]
@@ -577,17 +578,40 @@ model Treaty {
 }
 
 model Disease {
-  id            String  @id @default(uuid())
-  gameId        String
-  name          String
-  contagionRate Float   @default(0.1)
-  mortalityRate Float   @default(0.01)
-  prevalence    Float   @default(0)
-  hasVaccine    Boolean @default(false)
+  id                   String  @id @default(uuid())
+  gameId               String
+  name                 String
+  category             String  @default("TRANSMISSIBLE")
+  contagionRate        Float   @default(0.1)
+  mortalityRate        Float   @default(0.01)
+  prevalence           Float   @default(0)
+  prevalenceBase       Float   @default(5)
+  hasVaccine           Boolean @default(false)
+  preventionSensitivity Float  @default(0.5)
+  monthlyCostPerPatient Float  @default(500)
+  classAffinity        Json    @default("{ \"EXTREME_POVERTY\": 1.5, \"POVERTY\": 1.2, \"MIDDLE\": 0.8, \"ELITE\": 0.5 }")
 
   game          Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  prevalences   DiseasePrevalence[]
 
   @@index([gameId])
+  @@index([category])
+}
+
+model DiseasePrevalence {
+  id            String   @id @default(uuid())
+  gameId        String
+  diseaseId     String
+  currentPrevalence Float @default(0)
+  regionId      String?
+  updatedAt     DateTime @updatedAt
+
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  disease       Disease  @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, diseaseId])
+  @@index([gameId])
+  @@index([diseaseId])
 }
 
 model Infrastructure {

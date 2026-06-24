@@ -214,6 +214,25 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       povertyModifier: r.povertyModifier as number,
       healthCoverage: (r.healthCoverage ?? {}) as GameState["regions"][0]["healthCoverage"],
     })),
+    diseases: (game.diseases ?? []).map((d: Record<string, unknown>) => ({
+      id: d.id as string,
+      name: d.name as string,
+      category: d.category as string,
+      contagionRate: d.contagionRate as number,
+      mortalityRate: d.mortalityRate as number,
+      prevalence: d.prevalence as number,
+      prevalenceBase: d.prevalenceBase as number,
+      hasVaccine: d.hasVaccine as boolean,
+      preventionSensitivity: d.preventionSensitivity as number,
+      monthlyCostPerPatient: d.monthlyCostPerPatient as number,
+      classAffinity: (d.classAffinity ?? {}) as Record<string, number>,
+    })),
+    diseasePrevalences: (game.diseasePrevalences ?? []).map((dp: Record<string, unknown>) => ({
+      id: dp.id as string,
+      diseaseId: dp.diseaseId as string,
+      currentPrevalence: dp.currentPrevalence as number,
+    })),
+    diseaseMortality: 0,
   };
 }
 
@@ -236,6 +255,8 @@ async function fetchGameData(gameId: string) {
       longRunningDecisions: true,
       resourceStocks: true,
       regions: true,
+      diseases: true,
+      diseasePrevalences: true,
     },
   });
 }
@@ -575,6 +596,22 @@ export async function advanceMonth(
           povertyRate: region.povertyRate,
           infrastructureLevel: region.infrastructureLevel,
           healthCoverage: region.healthCoverage as Record<string, unknown>,
+        },
+      });
+    }
+
+    // k. DiseasePrevalence: upsert por diseaseId
+    for (const dp of newState.diseasePrevalences) {
+      await tx.diseasePrevalence.upsert({
+        where: { gameId_diseaseId: { gameId, diseaseId: dp.diseaseId } },
+        create: {
+          id: dp.id,
+          game: { connect: { id: gameId } },
+          disease: { connect: { id: dp.diseaseId } },
+          currentPrevalence: dp.currentPrevalence,
+        },
+        update: {
+          currentPrevalence: dp.currentPrevalence,
         },
       });
     }

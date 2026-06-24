@@ -32,6 +32,9 @@ export interface GameState {
   longRunningDecisions: LongRunningDecisionState[];
   resourceStocks: ResourceStockState[];
   regions: RegionState[];
+  diseases: DiseaseStateInput[];
+  diseasePrevalences: DiseasePrevalenceStateInput[];
+  diseaseMortality: number;
   consecutiveLowApprovalMonths: number;
 }
 
@@ -200,6 +203,26 @@ export interface LongRunningDecisionState {
   cancelledAt: string | null;
   progressLog: string[];
   effectOnCompletion: Record<string, unknown>;
+}
+
+export interface DiseaseStateInput {
+  id: string;
+  name: string;
+  category: string;
+  contagionRate: number;
+  mortalityRate: number;
+  prevalence: number;
+  prevalenceBase: number;
+  hasVaccine: boolean;
+  preventionSensitivity: number;
+  monthlyCostPerPatient: number;
+  classAffinity: Record<string, number>;
+}
+
+export interface DiseasePrevalenceStateInput {
+  id: string;
+  diseaseId: string;
+  currentPrevalence: number;
 }
 
 export interface LawCatalogEntry {
