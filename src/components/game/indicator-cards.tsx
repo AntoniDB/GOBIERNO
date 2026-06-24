@@ -3,6 +3,7 @@
 import { useGameStore } from "@/lib/store/game-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   TrendingDown,
   Briefcase,
@@ -27,6 +28,7 @@ interface IndicatorDef {
   maxValue: number;
   thresholds: { green: number; yellow: number };
   formatValue: (v: number) => string;
+  tooltip?: string;
 }
 
 const INDICATORS: IndicatorDef[] = [
@@ -59,9 +61,11 @@ const INDICATORS: IndicatorDef[] = [
     unit: "%",
     kind: "lower-better",
     getValue: (s) => s.sickRate,
-    maxValue: 20,
-    thresholds: { green: 5, yellow: 10 },
+    maxValue: 55,
+    thresholds: { green: 25, yellow: 45 },
     formatValue: (v) => `${v.toFixed(1)}%`,
+    /** Incluye cronicas, agudas y salud mental. Rango tipico: 30-50% en pais en desarrollo. */
+    tooltip: "Porcentaje de poblacion con al menos 1 condicion de salud. Incluye cronicas (diabetes, hipertension), transmisibles (gripe, dengue) y salud mental (depresion, ansiedad). Rango tipico: 30-50% en pais en desarrollo.",
   },
   {
     key: "crime",
@@ -188,7 +192,20 @@ export function IndicatorCards() {
             <CardContent className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <ind.icon className={`size-4 ${colorClass.replace("bg-", "text-")}`} />
-                <span className="text-xs font-medium text-muted-foreground">{ind.label}</span>
+                {ind.tooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-xs font-medium text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/50">
+                        {ind.label}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
+                      {ind.tooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <span className="text-xs font-medium text-muted-foreground">{ind.label}</span>
+                )}
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-bold text-foreground">

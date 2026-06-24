@@ -24,12 +24,22 @@ desempleo = UNEMPLOYMENT_ECONOMY_FACTOR * eficienciaEconomia + UNEMPLOYMENT_BASE
 ```
 - `UNEMPLOYMENT_ECONOMY_FACTOR` (-0.4): mas eficiencia economica → menos desempleo
 
-### Salud / Enfermos (`indicators.ts:calculateHealth`)
+### Salud / Enfermos (`indicators.ts:calculateHealthRegional`)
 ```
+// Modo con catalogo de enfermedades (Sesion Salud-2):
+sickRate = 1 − Π(1 − prevalence_i)   // probabilidad de union sobre 14 enfermedades
+diseaseMortality = Σ(prevalence_i × mortalityRate_i)  // aditiva, para el motor
+
+// Fallback sin enfermedades (modo anterior):
 enfermos = SICK_HEALTH_FACTOR * eficienciaSalud + SICK_BASE
            (clamped a [0, 50])
 ```
-- `SICK_HEALTH_FACTOR` (-0.3): mas eficiencia en salud → menos enfermos
+- **Cambio en Salud-2**: el sickRate paso de ~20% (modelo antiguo, solo agudos) a ~40% (modelo Π con 14 enfermedades incluyendo cronicas y salud mental). Esto es epidemiológicamente correcto: ~40-50% de la poblacion tiene al menos 1 condicion de salud en cualquier pais. Los thresholds del dashboard se recalibraron: verde ≤25%, amarillo 25-45%, rojo >45%.
+- `SICK_HEALTH_FACTOR` (-0.34): mas eficiencia en salud → menos enfermos (solo modo fallback)
+- `LE_DISEASE_FACTOR` (0.04): impacto de mortalidad por enfermedades en esperanza de vida (nuevo en Salud-2)
+- `LE_SATURATION_FACTOR` (0.10): impacto de saturacion hospitalaria en esperanza de vida (nuevo en Salud-2)
+- La esperanza de vida usa `diseaseMortality` (aditivo, evita doble conteo), no `sickRate` (Π, para display).
+- Ver `diseases.ts` para el calculo completo de prevalencia por enfermedad.
 
 ### Seguridad alimentaria (`indicators.ts:calculateFoodSecurity`)
 ```
