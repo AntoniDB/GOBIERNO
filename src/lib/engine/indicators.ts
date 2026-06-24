@@ -329,16 +329,139 @@ export function calculateLifeExpectancy(
   const gdpAnnual = state.gdp; // PIB anual (ya calculado en paso 8)
   const perCapita = gdpPerCapita ?? (state.population > 0 ? gdpAnnual / state.population : 3000);
 
+  // Mortalidad por saturacion hospitalaria (regional)
+  const saturationMortality = calculateNationalSaturationMortality(state);
+
   const raw =
     BALANCE.LE_BASE
     - BALANCE.LE_SICK_FACTOR * sickRate
     - BALANCE.LE_CRIME_FACTOR * crimeRate
     - BALANCE.LE_POVERTY_FACTOR * povertyRate
     + BALANCE.LE_FOOD_FACTOR * foodSecurity
-    + BALANCE.LE_GDP_FACTOR * (perCapita / 1000);
+    + BALANCE.LE_GDP_FACTOR * (perCapita / 1000)
+    - BALANCE.LE_SATURATION_FACTOR * saturationMortality;
 
   return Math.max(
     BALANCE.LE_CLAMP_MIN,
     Math.min(BALANCE.LE_CLAMP_MAX, Math.round(raw * 10) / 10)
   );
 }
+
+// ─── Salud regional ──────────────────────────────────────────────────────────
+// Calculos de cobertura, saturacion y sickRate basados en regiones.
+
+/**
+ * Calcula el sickRate nacional como promedio ponderado por region.
+ * Cada region aporta su propio sickRate afectado por la cobertura sanitaria.
+ *
+ * Si no hay regiones definidas, usa el calculo global con calculateHealth.
+ */
+export function calculateHealthRegional(state: GameState): number {
+  const regions = state.regions ?? [];
+  if (regions.length === 0) return calculateHealth(state);
+
+  const healthMinistry = state.ministries.find((m) => m.key === "HEALTH" || m.key === "salud");
+  const healthEfficiency = healthMinistry?.efficiency ?? 50;
+
+  let weightedSickRate = 0;
+  let totalWeight = 0;
+
+  for (const region of regions) {
+    const weight = region.populationPercent / 100;
+    totalWeight += weight;
+
+    // Cobertura efectiva por nivel (ajustada por accessModifier)
+    const budgetSplit = healthMinistry?.healthBudgetSplit ?? { primary: 50, secondary: 30, tertiary: 20 };
+
+    const primaryCoverage = calculateRegionalCoverage(region, "primary", budgetSplit.primary ?? 50, healthEfficiency);
+    const secondaryCoverage = calculateRegionalCoverage(region, "secondary", budgetSplit.secondary ?? 30, healthEfficiency);
+    const tertiaryCoverage = calculateRegionalCoverage(region, "tertiary", budgetSplit.tertiary ?? 20, healthEfficiency);
+
+    // Cobertura compuesta ponderada
+    const compositeCoverage =
+      primaryCoverage * BALANCE.HEALTH_PRIMARY_WEIGHT +
+      secondaryCoverage * BALANCE.HEALTH_SECONDARY_WEIGHT +
+      tertiaryCoverage * BALANCE.HEALTH_TERTIARY_WEIGHT;
+
+    // sickRate regional: base afectada por pobreza, reducida por cobertura
+    const regionSickRate = calculateRegionSickRate(region, compositeCoverage);
+    weightedSickRate += regionSickRate * weight;
+  }
+
+  return Math.max(0, Math.min(100, weightedSickRate));
+}
+
+/**
+ * Calcula la cobertura efectiva de un nivel de atencion en una region.
+ * coverage = min(1.0, (beds * bedCoveragePerPerson) * (1 - accessModifier) * efficiencyBonus)
+ * La eficiencia del ministerio escala la cobertura (mejor gestion = mejor uso de recursos).
+ */
+function calculateRegionalCoverage(
+  region: RegionState,
+  level: "primary" | "secondary" | "tertiary",
+  budgetShare: number,
+  efficiency: number
+): number {
+  const hc = region.healthCoverage?.[level];
+  if (!hc) return 0;
+
+  const beds = hc.beds ?? 0;
+  const accessPenalty = 1 - (region.accessModifier ?? 0.5);
+  const efficiencyBonus = 0.5 + (efficiency / 100) * 0.5; // [0.5, 1.0]
+  const budgetFactor = budgetShare / 100;
+
+  const raw = beds * BALANCE.HEALTH_BED_COVERAGE_PER_PERSON * accessPenalty * efficiencyBonus * budgetFactor;
+  return Math.min(1.0, raw);
+}
+
+/**
+ * Calcula el sickRate de una region especifica.
+ * sickRate base = povertyRate * povertyModifier + SICK_BASE.
+ * Reducido por la cobertura compuesta.
+ */
+function calculateRegionSickRate(region: RegionState, coverage: number): number {
+  const rawSickRate =
+    (region.povertyRate ?? 25) * (region.povertyModifier ?? 1.0) * 0.35 + BALANCE.SICK_BASE;
+  const reduction = coverage * 20; // cobertura perfecta reduce ~20 puntos de sickRate
+  return Math.max(2, rawSickRate - reduction);
+}
+
+/**
+ * Calcula la mortalidad extra por saturacion hospitalaria a nivel nacional.
+ * Para cada region: si sickPopulation > totalBeds, el multiplicador sube.
+ * Devuelve un valor promedio ponderado por poblacion.
+ */
+export function calculateNationalSaturationMortality(state: GameState): number {
+  const regions = state.regions ?? [];
+  if (regions.length === 0) return 0;
+
+  const sickRate = state.sickRate;
+  let totalMortality = 0;
+
+  for (const region of regions) {
+    const weight = region.populationPercent / 100;
+
+    const regionalPopulation = state.population * weight;
+    const sickPopulation = Math.round(regionalPopulation * (sickRate / 100));
+    // Solo ~8% de los enfermos necesitan hospitalizacion (camas)
+    const sickNeedingBeds = Math.round(sickPopulation * 0.08);
+
+    let totalBeds = 0;
+    const levels: Array<"primary" | "secondary" | "tertiary"> = ["primary", "secondary", "tertiary"];
+    for (const level of levels) {
+      totalBeds += region.healthCoverage?.[level]?.beds ?? 0;
+    }
+
+    if (totalBeds > 0 && sickNeedingBeds > totalBeds) {
+      const saturationRatio = (sickNeedingBeds - totalBeds) / totalBeds;
+      // mortalityMultiplier = 1 + min(2.0, saturation/3), cap final x3.0
+      const limited = Math.min(2.0, saturationRatio / 3);
+      const multiplier = 1 + limited;
+      totalMortality += (multiplier - 1) * weight;
+    }
+    // Si camas >= enfermos: no hay mortalidad extra
+  }
+
+  return totalMortality;
+}
+

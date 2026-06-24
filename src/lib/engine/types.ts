@@ -31,6 +31,7 @@ export interface GameState {
   events: EventState[];
   longRunningDecisions: LongRunningDecisionState[];
   resourceStocks: ResourceStockState[];
+  regions: RegionState[];
   consecutiveLowApprovalMonths: number;
 }
 
@@ -38,6 +39,28 @@ export interface ResourceStockState {
   id: string;
   resourceType: string;
   quantity: number;
+}
+
+export interface HealthCoveragePerLevel {
+  facilities: number;
+  beds: number;
+  operationalCost: number;
+}
+
+export interface RegionState {
+  id: string;
+  name: string;
+  type: string;
+  populationPercent: number;
+  povertyRate: number;
+  infrastructureLevel: number;
+  accessModifier: number;
+  povertyModifier: number;
+  healthCoverage: {
+    primary: HealthCoveragePerLevel;
+    secondary: HealthCoveragePerLevel;
+    tertiary: HealthCoveragePerLevel;
+  };
 }
 
 export interface MinistryState {
@@ -50,6 +73,7 @@ export interface MinistryState {
   ministerOfficialId: string | null;
   producedResources: Record<string, number>;
   consumedResources: Record<string, number>;
+  healthBudgetSplit: Record<string, number>;
 }
 
 export interface OfficialState {

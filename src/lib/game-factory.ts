@@ -309,7 +309,7 @@ export interface MinistryData {
 
 export function generateMinistries(): MinistryData[] {
   return [
-    { key: "HEALTH", budgetPercent: 14, subDecisions: { hospitalesPublicos: 60, vacunacion: true, saludMental: false } },
+    { key: "HEALTH", budgetPercent: 14, subDecisions: { vacunacion: true, saludMental: false } },
     { key: "EDUCATION", budgetPercent: 16, subDecisions: { primaria: 40, secundaria: 35, superior: 25, enfoqueSTEM: 60, becas: true } },
     { key: "ECONOMY", budgetPercent: 18, subDecisions: { tasaInteres: 4.5, salarioMinimo: 350, politicaIndustrial: 50 } },
     { key: "DEFENSE", budgetPercent: 10, subDecisions: { tropasActivas: 50000, gastoEquipamiento: 40, servicioMilitar: false } },
@@ -331,6 +331,193 @@ export function generateMinistryResources(): Record<string, { produced: Record<s
   // TODO Defensa-3: DEFENSE consume soldiers, produce infrastructure_capacity
   // TODO Economia-3: ECONOMY produce industrial_output
   return {};
+}
+
+export interface RegionData {
+  name: string;
+  type: string;
+  populationPercent: number;
+  povertyRate: number;
+  infrastructureLevel: number;
+  accessModifier: number;
+  povertyModifier: number;
+  healthCoverage: {
+    primary: { facilities: number; beds: number; operationalCost: number };
+    secondary: { facilities: number; beds: number; operationalCost: number };
+    tertiary: { facilities: number; beds: number; operationalCost: number };
+  };
+}
+
+/**
+ * Genera 4-5 regiones segun el preset del pais.
+ * La capital siempre esta presente. Las demas varian por preset.
+ */
+export function generateRegions(preset: PresetKey): RegionData[] {
+  const presets: Record<PresetKey, RegionData[]> = {
+    estable_democratico: [
+      {
+        name: "Capital Federal", type: "CAPITAL", populationPercent: 25,
+        povertyRate: 5, infrastructureLevel: 85, accessModifier: 0.1, povertyModifier: 0.5,
+        healthCoverage: {
+          primary: { facilities: 15, beds: 800, operationalCost: 2_000_000 },
+          secondary: { facilities: 8, beds: 500, operationalCost: 1_500_000 },
+          tertiary: { facilities: 4, beds: 300, operationalCost: 3_000_000 },
+        },
+      },
+      {
+        name: "Zona Metropolitana Norte", type: "URBAN", populationPercent: 30,
+        povertyRate: 8, infrastructureLevel: 75, accessModifier: 0.2, povertyModifier: 0.7,
+        healthCoverage: {
+          primary: { facilities: 12, beds: 600, operationalCost: 1_500_000 },
+          secondary: { facilities: 5, beds: 300, operationalCost: 1_000_000 },
+          tertiary: { facilities: 2, beds: 150, operationalCost: 2_000_000 },
+        },
+      },
+      {
+        name: "Region Costera Sur", type: "COASTAL", populationPercent: 20,
+        povertyRate: 7, infrastructureLevel: 70, accessModifier: 0.3, povertyModifier: 0.6,
+        healthCoverage: {
+          primary: { facilities: 8, beds: 400, operationalCost: 1_200_000 },
+          secondary: { facilities: 4, beds: 200, operationalCost: 800_000 },
+          tertiary: { facilities: 1, beds: 80, operationalCost: 1_500_000 },
+        },
+      },
+      {
+        name: "Interior Rural", type: "RURAL", populationPercent: 15,
+        povertyRate: 12, infrastructureLevel: 55, accessModifier: 0.5, povertyModifier: 0.9,
+        healthCoverage: {
+          primary: { facilities: 5, beds: 200, operationalCost: 500_000 },
+          secondary: { facilities: 2, beds: 100, operationalCost: 300_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+      {
+        name: "Altiplano Minero", type: "RURAL", populationPercent: 10,
+        povertyRate: 10, infrastructureLevel: 50, accessModifier: 0.6, povertyModifier: 0.8,
+        healthCoverage: {
+          primary: { facilities: 3, beds: 120, operationalCost: 300_000 },
+          secondary: { facilities: 1, beds: 50, operationalCost: 150_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+    ],
+    pobre_con_potencial: [
+      {
+        name: "Capital Nacional", type: "CAPITAL", populationPercent: 20,
+        povertyRate: 20, infrastructureLevel: 60, accessModifier: 0.2, povertyModifier: 1.0,
+        healthCoverage: {
+          primary: { facilities: 10, beds: 500, operationalCost: 1_000_000 },
+          secondary: { facilities: 5, beds: 250, operationalCost: 800_000 },
+          tertiary: { facilities: 3, beds: 200, operationalCost: 2_000_000 },
+        },
+      },
+      {
+        name: "Zona Urbana Industrial", type: "URBAN", populationPercent: 25,
+        povertyRate: 30, infrastructureLevel: 50, accessModifier: 0.3, povertyModifier: 1.1,
+        healthCoverage: {
+          primary: { facilities: 8, beds: 350, operationalCost: 800_000 },
+          secondary: { facilities: 3, beds: 150, operationalCost: 500_000 },
+          tertiary: { facilities: 1, beds: 60, operationalCost: 1_200_000 },
+        },
+      },
+      {
+        name: "Llanura Agricola", type: "RURAL", populationPercent: 30,
+        povertyRate: 45, infrastructureLevel: 30, accessModifier: 0.7, povertyModifier: 1.3,
+        healthCoverage: {
+          primary: { facilities: 4, beds: 150, operationalCost: 300_000 },
+          secondary: { facilities: 1, beds: 40, operationalCost: 100_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+      {
+        name: "Costa Pacifica", type: "COASTAL", populationPercent: 25,
+        povertyRate: 35, infrastructureLevel: 40, accessModifier: 0.5, povertyModifier: 1.2,
+        healthCoverage: {
+          primary: { facilities: 5, beds: 200, operationalCost: 500_000 },
+          secondary: { facilities: 2, beds: 80, operationalCost: 250_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+    ],
+    crisis_economica: [
+      {
+        name: "Distrito Capital", type: "CAPITAL", populationPercent: 30,
+        povertyRate: 15, infrastructureLevel: 65, accessModifier: 0.2, povertyModifier: 0.8,
+        healthCoverage: {
+          primary: { facilities: 12, beds: 600, operationalCost: 1_200_000 },
+          secondary: { facilities: 6, beds: 300, operationalCost: 900_000 },
+          tertiary: { facilities: 3, beds: 200, operationalCost: 2_500_000 },
+        },
+      },
+      {
+        name: "Cordones Suburbanos", type: "URBAN", populationPercent: 28,
+        povertyRate: 25, infrastructureLevel: 45, accessModifier: 0.4, povertyModifier: 1.0,
+        healthCoverage: {
+          primary: { facilities: 6, beds: 250, operationalCost: 600_000 },
+          secondary: { facilities: 3, beds: 120, operationalCost: 400_000 },
+          tertiary: { facilities: 1, beds: 50, operationalCost: 1_000_000 },
+        },
+      },
+      {
+        name: "Region Agricola Central", type: "RURAL", populationPercent: 22,
+        povertyRate: 40, infrastructureLevel: 35, accessModifier: 0.6, povertyModifier: 1.2,
+        healthCoverage: {
+          primary: { facilities: 4, beds: 150, operationalCost: 350_000 },
+          secondary: { facilities: 1, beds: 50, operationalCost: 150_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+      {
+        name: "Zona Portuaria", type: "COASTAL", populationPercent: 20,
+        povertyRate: 30, infrastructureLevel: 40, accessModifier: 0.5, povertyModifier: 1.1,
+        healthCoverage: {
+          primary: { facilities: 5, beds: 200, operationalCost: 450_000 },
+          secondary: { facilities: 2, beds: 80, operationalCost: 250_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+    ],
+    post_conflicto: [
+      {
+        name: "Capital (Zona Segura)", type: "CAPITAL", populationPercent: 22,
+        povertyRate: 30, infrastructureLevel: 40, accessModifier: 0.3, povertyModifier: 1.0,
+        healthCoverage: {
+          primary: { facilities: 8, beds: 400, operationalCost: 800_000 },
+          secondary: { facilities: 4, beds: 200, operationalCost: 600_000 },
+          tertiary: { facilities: 2, beds: 100, operationalCost: 1_500_000 },
+        },
+      },
+      {
+        name: "Campos de Desplazados Norte", type: "RURAL", populationPercent: 28,
+        povertyRate: 60, infrastructureLevel: 15, accessModifier: 0.8, povertyModifier: 1.6,
+        healthCoverage: {
+          primary: { facilities: 3, beds: 80, operationalCost: 150_000 },
+          secondary: { facilities: 0, beds: 0, operationalCost: 0 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+      {
+        name: "Region Fronteriza Este", type: "RURAL", populationPercent: 25,
+        povertyRate: 55, infrastructureLevel: 20, accessModifier: 0.9, povertyModifier: 1.5,
+        healthCoverage: {
+          primary: { facilities: 2, beds: 50, operationalCost: 100_000 },
+          secondary: { facilities: 0, beds: 0, operationalCost: 0 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+      {
+        name: "Zona Costera Reconstruida", type: "COASTAL", populationPercent: 25,
+        povertyRate: 45, infrastructureLevel: 30, accessModifier: 0.6, povertyModifier: 1.3,
+        healthCoverage: {
+          primary: { facilities: 4, beds: 150, operationalCost: 300_000 },
+          secondary: { facilities: 1, beds: 40, operationalCost: 100_000 },
+          tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+        },
+      },
+    ],
+  };
+
+  return presets[preset] ?? presets.estable_democratico;
 }
 
 export interface SocialClassData {

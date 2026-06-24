@@ -239,6 +239,7 @@ model Ministry {
   ministerOfficialId String?
   producedResources Json        @default("{}")
   consumedResources Json        @default("{}")
+  healthBudgetSplit Json        @default("{ \"primary\": 50, \"secondary\": 30, \"tertiary\": 20 }")
 
   game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
   minister         Official?      @relation("MinisterMinistry", fields: [ministerOfficialId], references: [id])
@@ -606,9 +607,13 @@ model Region {
   id                  String @id @default(uuid())
   gameId              String
   name                String
+  type                String @default("URBAN")
   populationPercent   Float  @default(25)
   povertyRate         Float  @default(30)
   infrastructureLevel Float  @default(50)
+  accessModifier      Float  @default(0.5)
+  povertyModifier     Float  @default(1.0)
+  healthCoverage      Json   @default("{\"primary\":{\"facilities\":5,\"beds\":200,\"operationalCost\":500000},\"secondary\":{\"facilities\":2,\"beds\":100,\"operationalCost\":300000},\"tertiary\":{\"facilities\":1,\"beds\":50,\"operationalCost\":700000}}")
 
   game                Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 

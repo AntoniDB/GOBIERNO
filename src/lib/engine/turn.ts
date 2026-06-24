@@ -29,6 +29,7 @@ import {
   calculatePoverty,
   calculateUnemployment,
   calculateHealth,
+  calculateHealthRegional,
   calculateFoodSecurity,
   calculateCrime,
   calculateEducation,
@@ -634,7 +635,7 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   newState.povertyRate = calculatePoverty(newState);
   newState.unemploymentRate = calculateUnemployment(newState);
-  newState.sickRate = calculateHealth(newState);
+  newState.sickRate = calculateHealthRegional(newState);
   newState.foodSecurity = calculateFoodSecurity(newState);
   newState.crimeRate = calculateCrime(newState);
   newState.educationLevel = calculateEducation(newState);

@@ -11,6 +11,7 @@ import {
   generateMinistries,
   generateSocialClasses,
   generateMedia,
+  generateRegions,
   nombreAleatorio,
   LAW_CATALOG,
 } from "@/lib/game-factory";
@@ -118,6 +119,24 @@ export async function createInitialGame(
         });
       }
     }
+  }
+
+  // ── Regiones ──────────────────────────────────────────────────────────
+  const regionData = generateRegions(preset);
+  for (const r of regionData) {
+    await prismaClient.region.create({
+      data: {
+        gameId,
+        name: r.name,
+        type: r.type,
+        populationPercent: r.populationPercent,
+        povertyRate: r.povertyRate,
+        infrastructureLevel: r.infrastructureLevel,
+        accessModifier: r.accessModifier,
+        povertyModifier: r.povertyModifier,
+        healthCoverage: r.healthCoverage as Record<string, unknown>,
+      },
+    });
   }
 
   // ── Contraloria General ───────────────────────────────────────────────

@@ -81,6 +81,9 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       internalCorruption: m.internalCorruption as number,
       subDecisions: (m.subDecisions ?? {}) as Record<string, number | boolean>,
       ministerOfficialId: m.ministerOfficialId as string | null,
+      producedResources: (m.producedResources ?? {}) as Record<string, number>,
+      consumedResources: (m.consumedResources ?? {}) as Record<string, number>,
+      healthBudgetSplit: (m.healthBudgetSplit ?? { primary: 50, secondary: 30, tertiary: 20 }) as Record<string, number>,
     })),
     officials: game.officials.map((o: Record<string, unknown>) => ({
       id: o.id as string,
@@ -200,6 +203,17 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       resourceType: rs.resourceType as string,
       quantity: rs.quantity as number,
     })),
+    regions: (game.regions ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      type: r.type as string,
+      populationPercent: r.populationPercent as number,
+      povertyRate: r.povertyRate as number,
+      infrastructureLevel: r.infrastructureLevel as number,
+      accessModifier: r.accessModifier as number,
+      povertyModifier: r.povertyModifier as number,
+      healthCoverage: (r.healthCoverage ?? {}) as GameState["regions"][0]["healthCoverage"],
+    })),
   };
 }
 
@@ -221,6 +235,7 @@ async function fetchGameData(gameId: string) {
       events: true,
       longRunningDecisions: true,
       resourceStocks: true,
+      regions: true,
     },
   });
 }
@@ -365,6 +380,9 @@ export async function advanceMonth(
           subDecisions: m.subDecisions as Record<string, unknown>,
           budgetPercent: m.budgetPercent,
           ministerOfficialId: m.ministerOfficialId,
+          producedResources: m.producedResources as Record<string, unknown>,
+          consumedResources: m.consumedResources as Record<string, unknown>,
+          healthBudgetSplit: m.healthBudgetSplit as Record<string, unknown>,
         },
       });
     }
@@ -545,6 +563,18 @@ export async function advanceMonth(
         },
         update: {
           quantity: rs.quantity,
+        },
+      });
+    }
+
+    // j. Regions: update healthCoverage y otros campos
+    for (const region of newState.regions) {
+      await tx.region.update({
+        where: { id: region.id },
+        data: {
+          povertyRate: region.povertyRate,
+          infrastructureLevel: region.infrastructureLevel,
+          healthCoverage: region.healthCoverage as Record<string, unknown>,
         },
       });
     }

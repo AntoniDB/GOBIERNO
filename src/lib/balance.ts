@@ -427,6 +427,29 @@ export const BALANCE = {
 
   /** Floor de eficiencia por recursos: la eficiencia nunca cae por debajo de esto */
   RESOURCE_EFFICIENCY_FLOOR: 0.3,
+
+  // ─── Salud regional ─────────────────────────────────────────────────────
+  // Cobertura: coverage_i = min(1.0, (beds / (population * sickRate * 0.01)) * (1 - accessModifier))
+  // Saturación: cuando sickPopulation > totalBeds, mortalidad se multiplica hasta x3.0
+  // mortalityMultiplier = 1 + min(2.0, saturationRatio / 3)
+
+  /** Base de cobertura por instalacion: cuantas personas cubre 1 bed */
+  HEALTH_BED_COVERAGE_PER_PERSON: 0.002,
+
+  /** Peso de la cobertura primaria en la reduccion de sickRate */
+  HEALTH_PRIMARY_WEIGHT: 0.5,
+
+  /** Peso de la cobertura secundaria en la reduccion de sickRate */
+  HEALTH_SECONDARY_WEIGHT: 0.3,
+
+  /** Peso de la cobertura terciaria en la reduccion de sickRate */
+  HEALTH_TERTIARY_WEIGHT: 0.2,
+
+  /** Cap maximo del multiplicador de mortalidad por saturacion */
+  HEALTH_SATURATION_MORTALITY_CAP: 3.0,
+
+  /** Factor de saturacion en el calculo de LE: cada punto de mortalidad extra quita estos anios */
+  LE_SATURATION_FACTOR: 0.10,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

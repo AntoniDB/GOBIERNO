@@ -10,6 +10,7 @@ import type {
   MonthSnapshotData,
   LawCatalogEntry,
   Ideology,
+  RegionState,
 } from "@/lib/engine/types";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ async function fetchGameData(gameId: string) {
       events: true,
       longRunningDecisions: true,
       resourceStocks: true,
+      regions: true,
     },
   });
 }
@@ -85,6 +87,9 @@ function buildGameState(
       internalCorruption: m.internalCorruption as number,
       subDecisions: (m.subDecisions ?? {}) as Record<string, number | boolean>,
       ministerOfficialId: m.ministerOfficialId as string | null,
+      producedResources: (m.producedResources ?? {}) as Record<string, number>,
+      consumedResources: (m.consumedResources ?? {}) as Record<string, number>,
+      healthBudgetSplit: (m.healthBudgetSplit ?? { primary: 50, secondary: 30, tertiary: 20 }) as Record<string, number>,
     })),
     officials: game.officials.map((o: Record<string, unknown>) => ({
       id: o.id as string,
@@ -208,6 +213,21 @@ function buildGameState(
       id: rs.id as string,
       resourceType: rs.resourceType as string,
       quantity: rs.quantity as number,
+    })),
+    regions: (game.regions ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      type: r.type as string,
+      populationPercent: r.populationPercent as number,
+      povertyRate: r.povertyRate as number,
+      infrastructureLevel: r.infrastructureLevel as number,
+      accessModifier: r.accessModifier as number,
+      povertyModifier: r.povertyModifier as number,
+      healthCoverage: (r.healthCoverage ?? {
+        primary: { facilities: 0, beds: 0, operationalCost: 0 },
+        secondary: { facilities: 0, beds: 0, operationalCost: 0 },
+        tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+      }) as RegionState["healthCoverage"],
     })),
   };
 }
