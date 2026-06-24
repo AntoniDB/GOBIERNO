@@ -21,7 +21,74 @@ export function LongRunningDecisionsPanel() {
     (d) => d.status === "COMPLETED"
   );
 
-  if (activeLrds.length === 0 && completedThisMonth.length === 0) return null;
+  if (activeLrds.length === 0 && completedThisMonth.length === 0) {
+    return (
+      <div
+        style={{
+          background: "#FAFAFA",
+          border: "2px dashed #CCC",
+          padding: 16,
+          marginBottom: 16,
+          opacity: 0.85,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Clock size={13} color="#888" />
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#888",
+                letterSpacing: 1.5,
+                fontFamily: FF,
+              }}
+            >
+              DECISIONES EN CURSO
+            </span>
+          </div>
+          <div style={{ fontSize: 9, color: "#AAA", fontWeight: 600, fontFamily: FF }}>
+            SIN ACTIVIDAD
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "12px 0 8px",
+            borderTop: "1px dashed #DDD",
+            borderBottom: "1px dashed #DDD",
+            marginBottom: 8,
+          }}
+        >
+          <p style={{ fontSize: 11, color: "#999", fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+            No hay proyectos, obras ni misiones en curso. Aqui apareceran construcciones,
+            programas de largo plazo y misiones cuando las inicies desde los ministerios.
+          </p>
+        </div>
+
+        <Link
+          href="/decisiones-en-curso"
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#00C2B8",
+            textDecoration: "none",
+            letterSpacing: 1,
+            fontFamily: FF,
+          }}
+        >
+          EXPLORAR GESTION DE PROYECTOS →
+        </Link>
+      </div>
+    );
+  }
 
   const totalCost = activeLrds.reduce((s, d) => s + d.monthlyCost, 0);
   const costLabel =
