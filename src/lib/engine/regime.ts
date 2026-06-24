@@ -47,6 +47,7 @@ export function calculateRegimeMetrics(
     estadoEmergencia?: boolean;
     comprarVotos?: boolean;
     restoreMedia?: boolean;
+    directoresAfines?: boolean;
   },
   activeLaws: ActiveLawState[] = [],
   organisms: OrganismState[] = [],
@@ -71,6 +72,12 @@ export function calculateRegimeMetrics(
     result.judicialIndependence += BALANCE.REGIME_NOMBRAR_JUECES_AFINES.judicial;
     result.powerConcentration +=
       BALANCE.REGIME_NOMBRAR_JUECES_AFINES.powerConcentration;
+  }
+
+  // ── Nombrar directores afines en bloque: reduce transparencia ──────────
+  if (actions.directoresAfines) {
+    result.transparency += BALANCE.REGIME_DIRECTORES_AFINES.transparency;
+    result.judicialIndependence += BALANCE.REGIME_DIRECTORES_AFINES.judicialIndependence;
   }
 
   // ── Disolver congreso: reduce pluralismo, concentra poder ──────────────

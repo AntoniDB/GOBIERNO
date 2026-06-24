@@ -65,6 +65,7 @@ export async function createInitialGame(
         loyalty: o.loyalty, ambition: o.ambition, wealth: o.wealth,
         corruption: o.corruption, skill: o.skill, reputation: o.reputation,
         partyId: o.partyId !== undefined ? parties[o.partyId]?.id : null,
+        specialty: (o as Record<string, unknown>).specialty as string ?? null,
       },
     });
     officials.push(off);
@@ -102,6 +103,21 @@ export async function createInitialGame(
         efficiency: 55, internalCorruption: Math.round(cfg.initialCorruption * 0.8),
       },
     });
+  }
+
+  // Vincular directores del Ministerio de Salud (MINISTRY_DIRECTOR, indices 15-17)
+  const healthMinistry = await prismaClient.ministry.findFirst({
+    where: { gameId, key: "HEALTH" },
+  });
+  if (healthMinistry) {
+    for (let d = 15; d <= 17; d++) {
+      if (officials[d]) {
+        await prismaClient.official.update({
+          where: { id: officials[d].id },
+          data: { ministryId: healthMinistry.id },
+        });
+      }
+    }
   }
 
   // ── Contraloria General ───────────────────────────────────────────────

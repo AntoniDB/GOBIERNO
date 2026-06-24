@@ -22,7 +22,7 @@ import { calculateIncome } from "./economy";
 import { calculateExpenses } from "./economy";
 import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
-import { calculateMinistryEfficiency } from "./ministries";
+import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
 import { calculateGlobalCorruption } from "./corruption";
 import {
@@ -589,7 +589,10 @@ export function processTurn(
     const minister = ministry.ministerOfficialId
       ? newState.officials.find((o) => o.id === ministry.ministerOfficialId)
       : undefined;
-    ministry.efficiency = calculateMinistryEfficiency(ministry, minister);
+    const directors = newState.officials.filter(
+      (o) => o.role === "MINISTRY_DIRECTOR" && o.ministryId === ministry.id && o.status === "ACTIVE"
+    );
+    ministry.efficiency = calculateMinistryEfficiency(ministry, minister, directors.length > 0 ? directors : undefined);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -607,18 +610,15 @@ export function processTurn(
     official.corruption = updateOfficialCorruption(official, newState);
   }
 
-  // Sincronizar internalCorruption de cada ministerio con la corrupcion
-  // real de su ministro. La nueva formula de eficiencia lee minister.corruption
-  // directamente, pero persistimos internalCorruption para UI y proximo turno.
+  // Sincronizar internalCorruption de cada ministerio con promedio
+  // ponderado de sus officials (ministro + directores subordinados).
+  // La nueva formula de eficiencia lee la corrupcion del ministro
+  // directamente, pero persistimos internalCorruption para UI.
   for (const ministry of newState.ministries) {
-    if (ministry.ministerOfficialId) {
-      const minister = newState.officials.find(
-        (o) => o.id === ministry.ministerOfficialId
-      );
-      if (minister) {
-        ministry.internalCorruption = minister.corruption;
-      }
-    }
+    ministry.internalCorruption = calculateMinistryInternalCorruption(
+      ministry,
+      newState.officials
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -730,6 +730,22 @@ export function processTurn(
     comprarVotos:
       input.voteBuyingPartyIds !== undefined &&
       input.voteBuyingPartyIds.length > 0,
+    directoresAfines: (() => {
+      // Detecta si algun ministerio tiene todos sus directores + ministro con authority > 0
+      for (const ministry of newState.ministries) {
+        const directors = newState.officials.filter(
+          (o) => o.role === "MINISTRY_DIRECTOR" && o.ministryId === ministry.id && o.status === "ACTIVE"
+        );
+        if (directors.length < 3) continue;
+        const minister = newState.officials.find(
+          (o) => o.id === ministry.ministerOfficialId && o.status === "ACTIVE"
+        );
+        const allDirectorsAfines = directors.every((d) => d.ideology.authority > 0);
+        const ministerAfin = minister ? minister.ideology.authority > 0 : false;
+        if (allDirectorsAfines && ministerAfin) return true;
+      }
+      return false;
+    })(),
   };
 
   const metricsBefore = { ...newState.regimeMetrics };

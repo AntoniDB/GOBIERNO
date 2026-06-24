@@ -56,6 +56,7 @@ export interface OfficialState {
   id: string;
   name: string;
   role: string;
+  specialty: string | null;
   ministryId: string | null;
   partyId: string | null;
   loyalty: number;

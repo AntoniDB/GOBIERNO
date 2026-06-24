@@ -165,6 +165,9 @@ export const BALANCE = {
   REGIME_SUBORDINAR_GENERALES: { militarySubordination: 10 },
   REGIME_MILITARES_COMO_MINISTROS: { militarySubordination: -10 },
 
+  /** Nombrar todos los directores de un ministerio sin proceso transparente */
+  REGIME_DIRECTORES_AFINES: { transparency: -3, judicialIndependence: -3 },
+
   // ─── Eventos ─────────────────────────────────────────────────────────────
 
   /** Probabilidades base mensuales (se multiplican por severity ratio) */

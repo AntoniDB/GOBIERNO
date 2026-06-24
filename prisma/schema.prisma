@@ -36,6 +36,7 @@ enum OfficialRole {
   OMBUDSMAN
   CENTRAL_BANK_PRESIDENT
   POLITICAL_LEADER
+  MINISTRY_DIRECTOR
 }
 
 enum OfficialStatus {
@@ -264,6 +265,7 @@ model Official {
   gameId       String
   name         String
   role         OfficialRole
+  specialty    String?
   ministryId   String?
   partyId      String?
   loyalty      Float          @default(50)

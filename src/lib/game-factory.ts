@@ -261,6 +261,43 @@ export function generateOfficials(baseCorruption: number): OfficialData[] {
       skill: 60 + Math.floor(Math.random() * 25),
       reputation: 40 + Math.floor(Math.random() * 25),
     },
+    // Directores del Ministerio de Salud (3)
+    {
+      name: nombreAleatorio(17),
+      role: "MINISTRY_DIRECTOR",
+      specialty: "health_hospitals",
+      ideology: { economic: -10, social: 20, authority: 10 },
+      loyalty: 50 + Math.round(Math.random() * 20),
+      ambition: 20 + Math.round(Math.random() * 25),
+      wealth: 50000 + Math.floor(Math.random() * 80000),
+      corruption: Math.min(100, Math.max(1, Math.round(5 * mult))),
+      skill: 55 + Math.floor(Math.random() * 25),
+      reputation: 45 + Math.floor(Math.random() * 30),
+    },
+    {
+      name: nombreAleatorio(18),
+      role: "MINISTRY_DIRECTOR",
+      specialty: "health_public",
+      ideology: { economic: -20, social: 40, authority: -20 },
+      loyalty: 50 + Math.round(Math.random() * 20),
+      ambition: 20 + Math.round(Math.random() * 25),
+      wealth: 45000 + Math.floor(Math.random() * 75000),
+      corruption: Math.min(100, Math.max(1, Math.round(5 * mult))),
+      skill: 55 + Math.floor(Math.random() * 25),
+      reputation: 50 + Math.floor(Math.random() * 30),
+    },
+    {
+      name: nombreAleatorio(19),
+      role: "MINISTRY_DIRECTOR",
+      specialty: "health_epidemiology",
+      ideology: { economic: 0, social: 30, authority: 5 },
+      loyalty: 50 + Math.round(Math.random() * 20),
+      ambition: 25 + Math.round(Math.random() * 25),
+      wealth: 55000 + Math.floor(Math.random() * 85000),
+      corruption: Math.min(100, Math.max(1, Math.round(5 * mult))),
+      skill: 60 + Math.floor(Math.random() * 25),
+      reputation: 50 + Math.floor(Math.random() * 30),
+    },
   ];
 }
 

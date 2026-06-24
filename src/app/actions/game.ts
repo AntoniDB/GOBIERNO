@@ -90,6 +90,7 @@ function buildGameState(
       id: o.id as string,
       name: o.name as string,
       role: o.role as string,
+      specialty: o.specialty as string | null,
       ministryId: o.ministryId as string | null,
       partyId: o.partyId as string | null,
       loyalty: o.loyalty as number,
