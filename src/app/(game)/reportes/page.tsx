@@ -58,6 +58,7 @@ export default function ReportesPage() {
       gini:       Number(s.gini)           || 0,
       aprobacion: Number(s.approval)       || 0,
       corrupcion: Number(s.corruption)     || 0,
+      esperanzaVida: Number(s.lifeExpectancy) ?? 68,
       tipoRegimen: s.regimeType ?? "",
     }));
   }, [snapshots]);
@@ -181,6 +182,12 @@ export default function ReportesPage() {
               <div style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px solid #0A0A0A" }}>EDUCACIÓN</div>
               <ReportChart title="" data={chartData} series={[{ dataKey: "educacion", name: "Nivel Educativo", color: "#2468CC" }]} chartType="line" valueFormatter={(v) => `${v.toFixed(1)}`} domain={[0,100]} />
             </ChartCard>
+            <ChartCard>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px solid #0A0A0A" }}>ESPERANZA DE VIDA</div>
+              <ReportChart title="" data={chartData} series={[{ dataKey: "esperanzaVida", name: "Años", color: "#00C87E" }]} chartType="area" valueFormatter={(v) => `${v.toFixed(1)}`} domain={[48,85]} />
+            </ChartCard>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <ChartCard>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px solid #0A0A0A" }}>DESIGUALDAD — GINI</div>
               <ReportChart title="" data={chartData} series={[{ dataKey: "gini", name: "Gini", color: "#8844CC" }]} chartType="line" valueFormatter={(v) => `${v.toFixed(1)}`} domain={[0,100]} />

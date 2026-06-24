@@ -79,8 +79,9 @@ export function createMonthSnapshot(
     foodSecurity,
     educationLevel,
     inflation,
-    gini,
-    regimeType,
-    regimeMetrics: { ...state.regimeMetrics },
+  gini,
+  regimeType,
+  regimeMetrics: { ...state.regimeMetrics },
+  lifeExpectancy: state.lifeExpectancy,
   };
 }

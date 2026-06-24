@@ -35,6 +35,7 @@ import {
   calculateGini,
   calculateInflationSimple,
   calculateSocialMobility,
+  calculateLifeExpectancy,
 } from "./indicators";
 // ── Funciones escritas en este módulo ────────────────────────────────────
 import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "./approval";
@@ -587,6 +588,9 @@ export function processTurn(
   newState.educationLevel = calculateEducation(newState);
   newState.inflation = calculateInflationSimple(newState);
   newState.gdp = calculateGDP(newState);
+
+  // Esperanza de vida: se calcula a partir de los indicadores ya frescos
+  newState.lifeExpectancy = calculateLifeExpectancy(newState);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 9: Avanzar casos judiciales + abrir casos automáticos

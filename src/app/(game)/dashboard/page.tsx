@@ -390,11 +390,14 @@ export default function DashboardPage() {
           <MiniIndicatorCard label="ENFERMOS" value={gameState.sickRate} color={valueColor(gameState.sickRate, true)} />
           <MiniIndicatorCard label="SEG. ALIMENTARIA" value={gameState.foodSecurity} color={valueColor(gameState.foodSecurity)} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
           <MiniIndicatorCard label="EDUCACIÓN" value={gameState.educationLevel} color={valueColor(gameState.educationLevel)} />
           <MiniIndicatorCard label="DESIGUALDAD (GINI)" value={giniVal} color={valueColor(giniVal, true)} suffix="" />
           <MiniIndicatorCard label="INFLACIÓN" value={gameState.inflation} color={valueColor(gameState.inflation, true)} />
           <MiniIndicatorCard label="DESEMPLEO" value={gameState.unemploymentRate} color={valueColor(gameState.unemploymentRate, true)} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+          <MiniIndicatorCard label="ESP. DE VIDA" value={gameState.lifeExpectancy ?? 68} color={valueColor(gameState.lifeExpectancy ?? 68)} suffix="a" />
         </div>
       </div>
 

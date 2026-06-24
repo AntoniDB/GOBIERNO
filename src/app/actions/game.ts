@@ -72,6 +72,7 @@ function buildGameState(
     foodSecurity: latestSnapshot?.foodSecurity ?? 0,
     educationLevel: latestSnapshot?.educationLevel ?? 0,
     inflation: latestSnapshot?.inflation ?? 0,
+    lifeExpectancy: latestSnapshot?.lifeExpectancy ?? 68,
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
@@ -278,6 +279,7 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
     educationLevel: Number(s.educationLevel) || 0,
     inflation: Number(s.inflation) || 0,
     gini: Number(s.gini) || 0,
+    lifeExpectancy: Number(s.lifeExpectancy) || 68,
     regimeType: s.regimeType as string,
     regimeMetrics: (s.regimeMetrics ?? {
       powerConcentration: 0, pressFreedom: 0, judicialIndependence: 0,

@@ -202,6 +202,7 @@ model MonthSnapshot {
   regimeMetrics     Json
   aiEventNarratives     Json?
   aiCoverageNarratives  Json?
+  lifeExpectancy    Float      @default(68)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)

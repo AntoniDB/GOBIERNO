@@ -440,6 +440,7 @@ export async function advanceMonth(
         gini: monthSnapshot.gini,
         regimeType: monthSnapshot.regimeType,
         regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
+        lifeExpectancy: monthSnapshot.lifeExpectancy,
       },
       update: {
         treasury: monthSnapshot.treasury,
@@ -457,6 +458,7 @@ export async function advanceMonth(
         gini: monthSnapshot.gini,
         regimeType: monthSnapshot.regimeType,
         regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
+        lifeExpectancy: monthSnapshot.lifeExpectancy,
       },
     });
 

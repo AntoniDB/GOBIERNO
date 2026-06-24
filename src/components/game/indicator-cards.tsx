@@ -12,6 +12,7 @@ import {
   Wheat,
   DollarSign,
   TrendingUp,
+  Heart,
 } from "lucide-react";
 
 type IndicatorKind = "lower-better" | "higher-better";
@@ -119,6 +120,17 @@ const INDICATORS: IndicatorDef[] = [
     maxValue: 20,
     thresholds: { green: 3, yellow: 10 },
     formatValue: (v) => `${v.toFixed(1)}%`,
+  },
+  {
+    key: "lifeExpectancy",
+    label: "Esp. de Vida",
+    icon: Heart,
+    unit: "años",
+    kind: "higher-better",
+    getValue: (s) => s.lifeExpectancy,
+    maxValue: 85,
+    thresholds: { green: 75, yellow: 65 },
+    formatValue: (v) => `${v.toFixed(1)}`,
   },
 ];
 

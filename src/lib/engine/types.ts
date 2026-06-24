@@ -17,6 +17,7 @@ export interface GameState {
   foodSecurity: number;
   educationLevel: number;
   inflation: number;
+  lifeExpectancy: number;
   ministries: MinistryState[];
   officials: OfficialState[];
   parties: PartyState[];
@@ -242,6 +243,7 @@ export interface MonthSnapshotData {
   gini: number;
   regimeType: string;
   regimeMetrics: RegimeMetricsState;
+  lifeExpectancy: number;
 }
 
 export interface TurnNotification {

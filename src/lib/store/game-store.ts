@@ -73,6 +73,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           foodSecurity: result.monthSnapshot.foodSecurity,
           educationLevel: result.monthSnapshot.educationLevel,
           inflation: result.monthSnapshot.inflation,
+          lifeExpectancy: result.monthSnapshot.lifeExpectancy,
         },
         lastTurnResult: result,
         notifications: [...get().notifications, ...result.notifications],

@@ -379,6 +379,40 @@ export const BALANCE = {
 
   /** Peso de inteligencia: intelEffectiveness * peso (resta del riesgo) */
   COUP_INTELLIGENCE_WEIGHT: 0.10,
+
+  // ─── Esperanza de Vida ───────────────────────────────────────────────────
+  // lifeExpectancy = LE_BASE
+  //   − LE_SICK_FACTOR × sickRate
+  //   − LE_CRIME_FACTOR × crimeRate
+  //   − LE_POVERTY_FACTOR × povertyRate
+  //   + LE_FOOD_FACTOR × foodSecurity
+  //   + LE_GDP_FACTOR × (gdpPerCapita / 1000)
+  // Rangos calibrados: colapsado ~53, default ~68, desarrollado ~84.
+  // Ver tabla de calibracion en AGENTS.md o commit de la Sesion Salud-1.
+
+  /** Base asintotica de esperanza de vida con todo perfecto */
+  LE_BASE: 78,
+
+  /** Factor de sickRate: cada 1% extra de enfermos quita 0.28 anios */
+  LE_SICK_FACTOR: 0.28,
+
+  /** Factor de crimeRate: cada 1% extra de crimen quita 0.14 anios */
+  LE_CRIME_FACTOR: 0.14,
+
+  /** Factor de povertyRate: cada 1% extra de pobreza quita 0.12 anios */
+  LE_POVERTY_FACTOR: 0.12,
+
+  /** Factor de foodSecurity: cada 1% extra de seg. alimentaria suma 0.09 anios */
+  LE_FOOD_FACTOR: 0.09,
+
+  /** Factor de gdpPerCapita: cada $1000 extra de PIB per capita anual suma 0.40 anios */
+  LE_GDP_FACTOR: 0.40,
+
+  /** Minimo absoluto de esperanza de vida (estado fallido extremo) */
+  LE_CLAMP_MIN: 48,
+
+  /** Maximo absoluto de esperanza de vida (pais desarrollado optimo) */
+  LE_CLAMP_MAX: 85,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

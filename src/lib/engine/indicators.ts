@@ -290,3 +290,55 @@ export function calculateSocialMobility(
 
   return newPercents;
 }
+
+// ─── Esperanza de Vida ────────────────────────────────────────────────────────
+//
+// Formula basada en indicadores sociales existentes:
+//   lifeExpectancy = LE_BASE
+//     − LE_SICK_FACTOR × sickRate
+//     − LE_CRIME_FACTOR × crimeRate
+//     − LE_POVERTY_FACTOR × povertyRate
+//     + LE_FOOD_FACTOR × foodSecurity
+//     + LE_GDP_FACTOR × (gdpPerCapita / 1000)
+//
+// Calibrada con 4 escenarios (ver tabla de calibracion en el commit).
+// Clamp final [48, 85].
+//
+// TODO Salud-3: extender con mortalidad ponderada por enfermedad.
+// Cuando el catalogo de enfermedades este implementado, reemplazar
+// sickRate por Σ(disease.prevalence × disease.mortalityRate) y
+// usar pesos especificos por tipo de enfermedad.
+
+/**
+ * Calcula la esperanza de vida nacional a partir de los indicadores
+ * sociales del estado actual.
+ *
+ * @param state - Estado completo del juego con indicadores ya calculados
+ * @returns Esperanza de vida en anios, en rango [LE_CLAMP_MIN, LE_CLAMP_MAX]
+ */
+export function calculateLifeExpectancy(
+  state: GameState,
+  gdpPerCapita?: number
+): number {
+  const sickRate = state.sickRate;
+  const crimeRate = state.crimeRate;
+  const povertyRate = state.povertyRate;
+  const foodSecurity = state.foodSecurity;
+
+  // gdpPerCapita = PIB anual / población
+  const gdpAnnual = state.gdp; // PIB anual (ya calculado en paso 8)
+  const perCapita = gdpPerCapita ?? (state.population > 0 ? gdpAnnual / state.population : 3000);
+
+  const raw =
+    BALANCE.LE_BASE
+    - BALANCE.LE_SICK_FACTOR * sickRate
+    - BALANCE.LE_CRIME_FACTOR * crimeRate
+    - BALANCE.LE_POVERTY_FACTOR * povertyRate
+    + BALANCE.LE_FOOD_FACTOR * foodSecurity
+    + BALANCE.LE_GDP_FACTOR * (perCapita / 1000);
+
+  return Math.max(
+    BALANCE.LE_CLAMP_MIN,
+    Math.min(BALANCE.LE_CLAMP_MAX, Math.round(raw * 10) / 10)
+  );
+}
