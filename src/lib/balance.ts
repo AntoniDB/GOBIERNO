@@ -413,6 +413,17 @@ export const BALANCE = {
 
   /** Maximo absoluto de esperanza de vida (pais desarrollado optimo) */
   LE_CLAMP_MAX: 85,
+
+  // ─── Balance de recursos entre ministerios ─────────────────────────────────
+
+  /** Tasa mensual de decaimiento del excedente (1.5%) */
+  RESOURCE_DECAY_RATE: 0.015,
+
+  /** Cap maximo del bonus por excedente de recursos (multiplicador) */
+  RESOURCE_SURPLUS_BONUS_CAP: 0.2,
+
+  /** Floor de eficiencia por recursos: la eficiencia nunca cae por debajo de esto */
+  RESOURCE_EFFICIENCY_FLOOR: 0.3,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

@@ -52,6 +52,7 @@ import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates } from "./candidates";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
+import { processResourceBalance } from "./resource-balance";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -590,6 +591,14 @@ export function processTurn(
       : undefined;
     ministry.efficiency = calculateMinistryEfficiency(ministry, minister);
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 5b: Balance de recursos entre ministerios
+  // - Calcula produccion y consumo nacional por tipo de recurso
+  // - Actualiza stocks con floor 0 y decaimiento de excedente
+  // - Ajusta eficiencia de ministerios con deficit/bonus de recursos
+  // ═══════════════════════════════════════════════════════════════════════
+  processResourceBalance(newState);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 6: Actualizar corrupción individual de cada funcionario

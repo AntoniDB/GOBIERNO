@@ -30,7 +30,14 @@ export interface GameState {
   media: MediaState[];
   events: EventState[];
   longRunningDecisions: LongRunningDecisionState[];
+  resourceStocks: ResourceStockState[];
   consecutiveLowApprovalMonths: number;
+}
+
+export interface ResourceStockState {
+  id: string;
+  resourceType: string;
+  quantity: number;
 }
 
 export interface MinistryState {
@@ -41,6 +48,8 @@ export interface MinistryState {
   internalCorruption: number;
   subDecisions: Record<string, number | boolean>;
   ministerOfficialId: string | null;
+  producedResources: Record<string, number>;
+  consumedResources: Record<string, number>;
 }
 
 export interface OfficialState {

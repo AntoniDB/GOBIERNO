@@ -194,6 +194,11 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       progressLog: (lrd.progressLog as string[]) ?? [],
       effectOnCompletion: (lrd.effectOnCompletion ?? {}) as Record<string, unknown>,
     })),
+    resourceStocks: (game.resourceStocks ?? []).map((rs: Record<string, unknown>) => ({
+      id: rs.id as string,
+      resourceType: rs.resourceType as string,
+      quantity: rs.quantity as number,
+    })),
   };
 }
 
@@ -214,6 +219,7 @@ async function fetchGameData(gameId: string) {
       media: true,
       events: true,
       longRunningDecisions: true,
+      resourceStocks: true,
     },
   });
 }
@@ -515,6 +521,27 @@ export async function advanceMonth(
           cancelledAt: lrd.cancelledAt ? new Date(lrd.cancelledAt) : null,
           progressLog: lrd.progressLog ?? [],
           effectOnCompletion: lrd.effectOnCompletion as Record<string, unknown>,
+        },
+      });
+    }
+
+    // i. ResourceStocks: upsert por gameId + resourceType
+    for (const rs of newState.resourceStocks) {
+      await tx.resourceStock.upsert({
+        where: {
+          gameId_resourceType: {
+            gameId,
+            resourceType: rs.resourceType,
+          },
+        },
+        create: {
+          id: rs.id,
+          game: { connect: { id: gameId } },
+          resourceType: rs.resourceType,
+          quantity: rs.quantity,
+        },
+        update: {
+          quantity: rs.quantity,
         },
       });
     }

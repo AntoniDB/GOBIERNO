@@ -283,6 +283,19 @@ export function generateMinistries(): MinistryData[] {
   ];
 }
 
+/**
+ * Recursos producidos y consumidos por cada ministerio.
+ * Por ahora todos vacios ({}). Se poblaran en las sesiones de profundizacion
+ * de cada ministerio (ej: Salud-3 producira medical_professionals).
+ */
+export function generateMinistryResources(): Record<string, { produced: Record<string, number>; consumed: Record<string, number> }> {
+  // TODO Salud-3: HEALTH produce medical_professionals
+  // TODO Educacion-3: EDUCATION produce teachers, engineers
+  // TODO Defensa-3: DEFENSE consume soldiers, produce infrastructure_capacity
+  // TODO Economia-3: ECONOMY produce industrial_output
+  return {};
+}
+
 export interface SocialClassData {
   key: string;
   populationPercent: number;

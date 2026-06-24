@@ -183,6 +183,7 @@ model Game {
   countries      Country[]
   treaties      Treaty[]
   longRunningDecisions LongRunningDecision[]
+  resourceStocks ResourceStock[]
   diseases      Disease[]
   infrastructures Infrastructure[]
   regions       Region[]
@@ -235,6 +236,8 @@ model Ministry {
   internalCorruption Float     @default(10)
   subDecisions     Json        @default("{}")
   ministerOfficialId String?
+  producedResources Json        @default("{}")
+  consumedResources Json        @default("{}")
 
   game             Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
   minister         Official?      @relation("MinisterMinistry", fields: [ministerOfficialId], references: [id])
@@ -526,6 +529,19 @@ model LongRunningDecision {
 
   @@index([gameId])
   @@index([gameId, status])
+}
+
+model ResourceStock {
+  id           String   @id @default(uuid())
+  gameId       String
+  resourceType String
+  quantity     Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, resourceType])
+  @@index([gameId])
 }
 
 // ─── Fase 2: solo esquema, lógica como stub ──────────────────────────────────

@@ -46,6 +46,7 @@ async function fetchGameData(gameId: string) {
       media: true,
       events: true,
       longRunningDecisions: true,
+      resourceStocks: true,
     },
   });
 }
@@ -201,6 +202,11 @@ function buildGameState(
       cancelledAt: lrd.cancelledAt ? (lrd.cancelledAt as Date).toISOString() : null,
       progressLog: (lrd.progressLog as string[]) ?? [],
       effectOnCompletion: (lrd.effectOnCompletion ?? {}) as Record<string, unknown>,
+    })),
+    resourceStocks: (game.resourceStocks ?? []).map((rs: Record<string, unknown>) => ({
+      id: rs.id as string,
+      resourceType: rs.resourceType as string,
+      quantity: rs.quantity as number,
     })),
   };
 }
