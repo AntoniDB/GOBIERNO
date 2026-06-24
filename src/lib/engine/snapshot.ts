@@ -9,7 +9,7 @@ import { classifyRegime } from "./regime";
 import {
   calculatePoverty,
   calculateUnemployment,
-  calculateHealth,
+  calculateHealthRegional,
   calculateFoodSecurity,
   calculateCrime,
   calculateEducation,
@@ -42,7 +42,7 @@ export function createMonthSnapshot(
   // ── Indicadores sociales (desde indicators.ts) ─────────────────────────
   const povertyRate = calculatePoverty(state);
   const unemploymentRate = calculateUnemployment(state);
-  const sickRate = calculateHealth(state);
+  const sickRate = calculateHealthRegional(state);
   const foodSecurity = calculateFoodSecurity(state);
   const crimeRate = calculateCrime(state);
   const educationLevel = calculateEducation(state);

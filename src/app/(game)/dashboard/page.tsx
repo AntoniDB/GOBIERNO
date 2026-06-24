@@ -93,11 +93,13 @@ function MiniIndicatorCard({
   value,
   color,
   suffix = "%",
+  titleHint,
 }: {
   label: string;
   value: number;
   color: string;
   suffix?: string;
+  titleHint?: string;
 }) {
   return (
     <div
@@ -120,6 +122,7 @@ function MiniIndicatorCard({
         }}
       />
       <div
+        title={titleHint}
         style={{
           fontSize: 9,
           fontWeight: 700,
@@ -128,6 +131,7 @@ function MiniIndicatorCard({
           marginBottom: 8,
           marginTop: 2,
           fontFamily: FF,
+          ...(titleHint ? { cursor: "help", borderBottom: "1px dotted #AAA", display: "inline-block" } : {}),
         }}
       >
         {label}
@@ -388,7 +392,11 @@ export default function DashboardPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
           <MiniIndicatorCard label="POBREZA" value={gameState.povertyRate} color={valueColor(gameState.povertyRate, true)} />
           <MiniIndicatorCard label="CRIMINALIDAD" value={gameState.crimeRate} color={valueColor(gameState.crimeRate, true)} />
-          <MiniIndicatorCard label="ENFERMOS" value={gameState.sickRate} color={valueColor(gameState.sickRate, true)} />
+          <MiniIndicatorCard label="ENFERMOS" value={gameState.sickRate} color={valueColor(gameState.sickRate, true)}
+            titleHint={`Porcentaje de poblacion con al menos 1 condicion de salud.
+Incluye cronicas (diabetes, hipertension), transmisibles (gripe, dengue)
+y salud mental (depresion, ansiedad).
+Rango tipico: 30-50% en pais en desarrollo.`} />
           <MiniIndicatorCard label="SEG. ALIMENTARIA" value={gameState.foodSecurity} color={valueColor(gameState.foodSecurity)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
