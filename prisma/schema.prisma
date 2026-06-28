@@ -116,6 +116,16 @@ enum EventType {
   OTHER
 }
 
+enum TradeGoodCategory {
+  MEDICAMENTS_GENERIC
+  MEDICAMENTS_BRAND
+}
+
+enum TradeFlowDirection {
+  IMPORT
+  EXPORT
+}
+
 enum GameStatus {
   ACTIVE
   PAUSED
@@ -139,6 +149,20 @@ enum LRDecisionStatus {
 
 enum LRDecisionType {
   OBRA_DE_PRUEBA
+  HOSPITAL_CONSTRUCTION
+  MEDICAL_RESEARCH
+}
+
+enum ProgramType {
+  VACCINATION_CAMPAIGN
+  PREVENTION_EDUCATION
+  MENTAL_HEALTH_PROGRAM
+}
+
+enum ProgramStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
 // ─── Modelos ──────────────────────────────────────────────────────────────────
@@ -164,6 +188,7 @@ model Game {
   treasury      Float     @default(1000000)
   population    Int       @default(10000000)
   consecutiveLowApprovalMonths Int @default(0)
+  sanctionsMultiplier Float  @default(1.0)
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -189,6 +214,9 @@ model Game {
   diseases      Disease[]
   infrastructures Infrastructure[]
   regions       Region[]
+  programs      MinistryProgram[]
+  tradeGoods    TradeGood[]
+  tradeFlows    TradeFlow[]
 
   @@index([userId])
   @@index([status])
@@ -221,6 +249,12 @@ model MonthSnapshot {
   lrdMonthlyCost    Float      @default(0)
   lrdCompletedThisMonth Int   @default(0)
   lrdCancelledThisMonth Int   @default(0)
+  activeProgramsCount  Int   @default(0)
+  programMonthlyCost   Float @default(0)
+  diseasePrevalences   Json?
+  tradeBalance      Float      @default(0)
+  totalImports      Float      @default(0)
+  totalExports      Float      @default(0)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -642,4 +676,67 @@ model Region {
   game                Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@index([gameId])
+}
+
+// ─── Programas operativos de ministerios (Salud-3A Capa D) ───────────────────
+// Programas lanzables por el Ministro (sin aprobacion del Senado).
+// Costo mensual descontado del tesoro automaticamente.
+// Tipos 1-3 son persistentes (on/off); tipos 4-5 usan el sistema LRD.
+
+model MinistryProgram {
+  id             String          @id @default(uuid())
+  gameId          String
+  type           ProgramType
+  parameters     Json            @default("{}")
+  monthlyCost    Float           @default(0)
+  status          ProgramStatus  @default(ACTIVE)
+  startedAt      DateTime        @default(now())
+  deactivatedAt  DateTime?
+
+  game           Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([gameId, status])
+  @@index([type])
+}
+
+// ─── Comercio Exterior (Salud-3B-i) ──────────────────────────────────────────
+// Catálogo de bienes comerciables y flujos de importación/exportación.
+// Genérico: reutilizable para Defensa-3, Economía-3, etc.
+
+model TradeGood {
+  id              String            @id @default(uuid())
+  gameId          String
+  key             String
+  category        TradeGoodCategory
+  name            String
+  description     String?
+  baseCostPerUnit Float
+  unitDescription String
+  demandPerCapita Float
+
+  game            Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  flows           TradeFlow[]
+
+  @@unique([gameId, key])
+  @@index([gameId])
+}
+
+model TradeFlow {
+  id                   String             @id @default(uuid())
+  gameId               String
+  tradeGoodId          String
+  direction            TradeFlowDirection
+  monthlyVolume        Float
+  targetVolume         Float
+  unitCost             Float
+  sanctionsMultiplier  Float              @default(1.0)
+  monthlyCost          Float
+  isActive             Boolean            @default(true)
+
+  game                 Game               @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  tradeGood            TradeGood          @relation(fields: [tradeGoodId], references: [id])
+
+  @@index([gameId])
+  @@index([gameId, direction])
 }

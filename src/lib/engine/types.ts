@@ -30,12 +30,19 @@ export interface GameState {
   media: MediaState[];
   events: EventState[];
   longRunningDecisions: LongRunningDecisionState[];
+  programs: MinistryProgramState[];
   resourceStocks: ResourceStockState[];
   regions: RegionState[];
   diseases: DiseaseStateInput[];
   diseasePrevalences: DiseasePrevalenceStateInput[];
   diseaseMortality: number;
   consecutiveLowApprovalMonths: number;
+  sanctionsMultiplier: number;
+  tradeGoods: TradeGoodState[];
+  tradeFlows: TradeFlowState[];
+  tradeBalance: number;
+  totalImports: number;
+  totalExports: number;
 }
 
 export interface ResourceStockState {
@@ -205,109 +212,54 @@ export interface LongRunningDecisionState {
   effectOnCompletion: Record<string, unknown>;
 }
 
-export interface DiseaseStateInput {
+// ─── Programas operativos de ministerios (Salud-3A Capa D) ──────────────────
+// Programas persistentes (no requieren Senado): campañas de vacunación,
+// prevención sanitaria, salud mental. El Ministro los activa/desactiva.
+// Costo mensual descontado del tesoro.
+
+export interface MinistryProgramState {
   id: string;
-  name: string;
-  category: string;
-  contagionRate: number;
-  mortalityRate: number;
-  prevalence: number;
-  prevalenceBase: number;
-  hasVaccine: boolean;
-  preventionSensitivity: number;
-  monthlyCostPerPatient: number;
-  classAffinity: Record<string, number>;
+  type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM";
+  /** diseaseId (vacunación), null para los demás tipos */
+  parameters: Record<string, unknown>;
+  monthlyCost: number;
+  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  startedAt: string;
+  deactivatedAt: string | null;
 }
 
-export interface DiseasePrevalenceStateInput {
-  id: string;
-  diseaseId: string;
-  currentPrevalence: number;
-}
+// ─── Comercio Exterior (Salud-3B-i) ───────────────────────────────────────────
+// Sistema genérico de bienes comerciables y flujos de importación/exportación.
 
-export interface LawCatalogEntry {
+export type TradeGoodCategory =
+  | "MEDICAMENTS_GENERIC"
+  | "MEDICAMENTS_BRAND";
+
+export type TradeFlowDirection = "IMPORT" | "EXPORT";
+
+export interface TradeGoodState {
+  id: string;
+  gameId: string;
   key: string;
+  category: TradeGoodCategory;
   name: string;
-  description: string;
-  effectsJson: Record<string, unknown>;
-  idealIdeology: Ideology;
-  cost: number;
+  description: string | null;
+  baseCostPerUnit: number;
+  unitDescription: string;
+  demandPerCapita: number;
 }
 
-export interface Ideology {
-  economic: number;
-  social: number;
-  authority: number;
-}
-
-/** Entrada del jugador al avanzar el mes */
-export interface TurnInput {
-  /** Ajustes de presupuesto por ministerio key → nuevo % */
-  budgetAdjustments?: Record<string, number>;
-  /** Sub-decisiones modificadas por ministerio key → { key: value } */
-  subDecisionChanges?: Record<string, Record<string, number | boolean>>;
-  /** Leyes propuestas este mes (keys del catálogo) */
-  proposedLaws?: string[];
-  /** Nombramientos: role → officialId */
-  appointments?: Record<string, string>;
-  /** Organismos creados: type → { name, budget, headOfficialId } */
-  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
-  /** Acciones sobre medios: mediaId → acción */
-  mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none">;
-  /** ¿El jugador ordenó investigar a alguien? officialId[] */
-  investigations?: string[];
-  /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */
-  voteBuyingPartyIds?: string[];
-  /** IDs de candidatos a contratar (status CANDIDATE → ACTIVE) */
-  hireCandidateIds?: string[];
-  /** Cambios de titular de organismos existentes: organismId → officialId */
-  organismHeadChanges?: Record<string, string>;
-  /** IDs de organismos a disolver este mes */
-  dissolveOrganismIds?: string[];
-  /** IDs de LRD a cancelar este mes */
-  cancelDecisionIds?: string[];
-  /** Nuevas LRD a iniciar este mes */
-  newLongRunningDecisions?: Array<{
-    type: string;
-    name: string;
-    totalMonths: number;
-    monthlyCost: number;
-    parameters?: Record<string, unknown>;
-    effectOnCompletion?: Record<string, unknown>;
-  }>;
-}
-
-/** Configuracion de fin de partida */
-export interface GameOverConfig {
-  electionIntervalYears: number;
-  termLimit: number;
-  consecutiveLowApprovalMonths: number;
-}
-
-/** Resultado de evaluar condiciones de fin de partida */
-export interface GameOverResult {
-  reason: "golpe_estado" | "juicio_politico" | "renuncia_forzada" | "perdida_electoral" | "fin_mandato" | "asesinato" | "estado_fallido" | "reeleccion";
-  description: string;
-  regimeType: string;
-  approval: number;
-  corruption: number;
-  treasury: number;
-  gdp: number;
-  /** % de votos obtenidos (solo para perdida_electoral y reeleccion) */
-  votePercent?: number;
-  /** Desglose de votos por clase social (solo elecciones) */
-  perClassVotes?: Record<string, number>;
-}
-
-/** Resultado de procesar un turno */
-export interface TurnOutput {
-  newState: GameState;
-  monthSnapshot: MonthSnapshotData;
-  notifications: TurnNotification[];
-  newEvents: EventState[];
-  mediaCoverages: MediaCoverageData[];
-  mediaPolls: MediaPollData[];
-  gameOver: GameOverResult | null;
+export interface TradeFlowState {
+  id: string;
+  gameId: string;
+  tradeGoodId: string;
+  direction: TradeFlowDirection;
+  monthlyVolume: number;
+  targetVolume: number;
+  unitCost: number;
+  sanctionsMultiplier: number;
+  monthlyCost: number;
+  isActive: boolean;
 }
 
 export interface MonthSnapshotData {
@@ -333,6 +285,13 @@ export interface MonthSnapshotData {
   lrdMonthlyCost: number;
   lrdCompletedThisMonth: number;
   lrdCancelledThisMonth: number;
+  activeProgramsCount: number;
+  programMonthlyCost: number;
+  /** Historico de prevalencias por enfermedad (Salud-3A): [{diseaseId, name, category, prevalence}] */
+  diseasePrevalences?: Array<{ diseaseId: string; name: string; category: string; prevalence: number }>;
+  tradeBalance: number;
+  totalImports: number;
+  totalExports: number;
 }
 
 export interface TurnNotification {
@@ -357,4 +316,51 @@ export interface MediaPollData {
   corruptionPoll: number;
   credibility: number;
   governmentAffinity: number;
+}
+
+// ─── Turn Input / Output ─────────────────────────────────────────────────────
+
+export interface TurnInput {
+  budgetAdjustments?: Record<string, number>;
+  subDecisionChanges?: Record<string, Record<string, number | boolean>>;
+  proposedLaws?: string[];
+  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
+  mediaActions?: Record<string, string>;
+  appointments?: Record<string, string>;
+  hireCandidateIds?: string[];
+  organismHeadChanges?: Record<string, string>;
+  dissolveOrganismIds?: string[];
+  newLongRunningDecisions?: Array<{
+    type: string;
+    name: string;
+    totalMonths: number;
+    monthlyCost: number;
+    parameters?: Record<string, unknown>;
+    effectOnCompletion?: Record<string, unknown>;
+  }>;
+  cancelDecisionIds?: string[];
+  newPrograms?: Array<{
+    type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM";
+    parameters?: Record<string, unknown>;
+    monthlyCost?: number;
+  }>;
+  cancelProgramIds?: string[];
+  /** Decisiones de comercio exterior: tradeFlowId → targetVolume */
+  tradeFlowDecisions?: Record<string, { targetVolume: number }>;
+}
+
+export interface TurnOutput {
+  newState: GameState;
+  monthSnapshot: MonthSnapshotData;
+  notifications: TurnNotification[];
+  gameOver: GameOverResult | null;
+  newEvents: EventState[];
+  mediaCoverages: MediaCoverageData[];
+  mediaPolls: MediaPollData[];
+}
+
+export interface GameOverResult {
+  reason: string;
+  finalApproval: number;
+  totalTurns: number;
 }

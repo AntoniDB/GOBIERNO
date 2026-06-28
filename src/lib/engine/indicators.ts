@@ -8,10 +8,11 @@
 // La eficiencia (0-100) representa calidad pura de gestion.
 // El budgetImpactFactor (0-1) escala el impacto segun presupuesto asignado.
 
-import type { GameState, ActiveLawState } from "./types";
+import type { GameState, ActiveLawState, RegionState } from "./types";
 import { BALANCE } from "../balance";
 import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
 import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDiseaseMortality } from "./diseases";
+import { calculateHospitalOperationalFactor } from "./medical-professionals";
 import type { DiseaseState } from "./diseases";
 
 /**
@@ -363,12 +364,18 @@ export function calculateLifeExpectancy(
  * Si no hay regiones definidas, usa el calculo global con calculateHealth.
  */
 export function calculateHealthRegional(state: GameState): number {
-  // Si hay enfermedades en el estado, usar Π-fórmula
+  // Si hay enfermedades en el estado, usar Π-fórmula.
+  // Las diseasePrevalences ya estan pobladas (inicializadas en el seed o
+  // modificadas por los programas en el paso 4c). Solo recalculamos desde
+  // prevalenceBase si estan vacias (primera vez en una partida sin seed).
   if (state.diseases && state.diseases.length > 0) {
-    const prevalences = calculateDiseasePrevalence(
-      state,
-      state.diseases as unknown as DiseaseState[]
-    );
+    let prevalences = state.diseasePrevalences;
+    if (!prevalences || prevalences.length === 0) {
+      prevalences = calculateDiseasePrevalence(
+        state,
+        state.diseases as unknown as DiseaseState[]
+      );
+    }
     const sickFromDiseases = calculateSickRateFromDiseases(prevalences);
     if (sickFromDiseases !== null) {
       state.diseasePrevalences = prevalences;
@@ -380,12 +387,18 @@ export function calculateHealthRegional(state: GameState): number {
     }
   }
 
-  // Fallback: calculo regional
+  // Fallback: calculo regional (sin enfermedades)
   const regions = state.regions ?? [];
   if (regions.length === 0) return calculateHealth(state);
 
   const healthMinistry = state.ministries.find((m) => m.key === "HEALTH" || m.key === "salud");
   const healthEfficiency = healthMinistry?.efficiency ?? 50;
+
+  // Factor operativo de hospitales (Capa E): si hay déficit de médicos,
+  // la cobertura efectiva cae. → calcularResourceEfficiency del ministerio HEALTH.
+  // La efficiency de gestion del ministerio queda intacta; solo la cobertura
+  // hospitalaria operativa se ve afectada por el stock de medical_professionals.
+  const operationalFactor = calculateHospitalOperationalFactor(state);
 
   let weightedSickRate = 0;
   let totalWeight = 0;
@@ -394,20 +407,17 @@ export function calculateHealthRegional(state: GameState): number {
     const weight = region.populationPercent / 100;
     totalWeight += weight;
 
-    // Cobertura efectiva por nivel (ajustada por accessModifier)
     const budgetSplit = healthMinistry?.healthBudgetSplit ?? { primary: 50, secondary: 30, tertiary: 20 };
 
-    const primaryCoverage = calculateRegionalCoverage(region, "primary", budgetSplit.primary ?? 50, healthEfficiency);
-    const secondaryCoverage = calculateRegionalCoverage(region, "secondary", budgetSplit.secondary ?? 30, healthEfficiency);
-    const tertiaryCoverage = calculateRegionalCoverage(region, "tertiary", budgetSplit.tertiary ?? 20, healthEfficiency);
+    const primaryCoverage = calculateRegionalCoverage(region, "primary", budgetSplit.primary ?? 50, healthEfficiency, operationalFactor);
+    const secondaryCoverage = calculateRegionalCoverage(region, "secondary", budgetSplit.secondary ?? 30, healthEfficiency, operationalFactor);
+    const tertiaryCoverage = calculateRegionalCoverage(region, "tertiary", budgetSplit.tertiary ?? 20, healthEfficiency, operationalFactor);
 
-    // Cobertura compuesta ponderada
     const compositeCoverage =
       primaryCoverage * BALANCE.HEALTH_PRIMARY_WEIGHT +
       secondaryCoverage * BALANCE.HEALTH_SECONDARY_WEIGHT +
       tertiaryCoverage * BALANCE.HEALTH_TERTIARY_WEIGHT;
 
-    // sickRate regional: base afectada por pobreza, reducida por cobertura
     const regionSickRate = calculateRegionSickRate(region, compositeCoverage);
     weightedSickRate += regionSickRate * weight;
   }
@@ -417,14 +427,17 @@ export function calculateHealthRegional(state: GameState): number {
 
 /**
  * Calcula la cobertura efectiva de un nivel de atencion en una region.
- * coverage = min(1.0, (beds * bedCoveragePerPerson) * (1 - accessModifier) * efficiencyBonus)
+ * coverage = min(1.0, (beds * bedCoveragePerPerson) * (1 - accessModifier) * efficiencyBonus) * operationalFactor
  * La eficiencia del ministerio escala la cobertura (mejor gestion = mejor uso de recursos).
+ * El operationalFactor (Capa E) reduce la cobertura si hay déficit de médicos;
+ * es distinto de la efficiency de gestión del ministerio.
  */
 function calculateRegionalCoverage(
   region: RegionState,
   level: "primary" | "secondary" | "tertiary",
   budgetShare: number,
-  efficiency: number
+  efficiency: number,
+  operationalFactor: number = 1.0,
 ): number {
   const hc = region.healthCoverage?.[level];
   if (!hc) return 0;
@@ -434,7 +447,7 @@ function calculateRegionalCoverage(
   const efficiencyBonus = 0.5 + (efficiency / 100) * 0.5; // [0.5, 1.0]
   const budgetFactor = budgetShare / 100;
 
-  const raw = beds * BALANCE.HEALTH_BED_COVERAGE_PER_PERSON * accessPenalty * efficiencyBonus * budgetFactor;
+  const raw = beds * BALANCE.HEALTH_BED_COVERAGE_PER_PERSON * accessPenalty * efficiencyBonus * budgetFactor * operationalFactor;
   return Math.min(1.0, raw);
 }
 

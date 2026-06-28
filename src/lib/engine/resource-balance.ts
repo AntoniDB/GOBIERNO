@@ -19,6 +19,7 @@
 
 import type { GameState, MinistryState, ResourceStockState } from "./types";
 import { BALANCE } from "../balance";
+import { calculateMedicalProduction, calculateMedicalDemand } from "./medical-professionals";
 
 export interface ResourceType {
   key: string;
@@ -35,6 +36,57 @@ export const RESOURCE_TYPES: ResourceType[] = [
   { key: "infrastructure_capacity", label: "Capacidad de infraestructura", bonusX: 100 },
   { key: "industrial_output", label: "Produccion industrial", bonusX: 80 },
 ];
+
+/**
+ * Perfil de produccion/consumo de un recurso por un ministerio.
+ * El motor central (calculateResourceFlows) itera sobre este registro sin
+ * conocer detalles especificos de cada par ministerio→recurso. Reutilizable
+ * para futuras dependencias (Defensa-3, Economia-3, etc.) sin tocar el motor.
+ *
+ *  - productionMode="fixed": usa el valor declarado en producedResources del
+ *    ministerio (seed o ajustes del jugador). Util para outputs constantes.
+ *  - productionMode="computed": llama a computeProduction(ministry, state) que
+ *    calcula el output dinamicamente en runtime. Util para fórmulas que
+ *    dependen de population, budget u otros datos variables.
+ *  - consumptionMode: analogo para inputs.
+ */
+export interface ResourceProfile {
+  key: string;
+  productionMode: "fixed" | "computed";
+  consumptionMode: "fixed" | "computed";
+  computeProduction?: (ministry: MinistryState, state: GameState) => number;
+  computeConsumption?: (ministry: MinistryState, state: GameState) => number;
+}
+
+/**
+ * Registro tipado de perfiles de recursos por ministerio.
+ * Cada entrada declara los perfiles que el ministerio produce/consume.
+ * El motor los itera sin conocer detalles especificos — añadir dependencias
+ * nuevas es añadir entradas aqui, no reescribir calculateResourceFlows.
+ *
+ * TODO Defensa-3: DEFENSE consume soldiers, produce infrastructure_capacity
+ * TODO Economia-3: ECONOMY produce industrial_output
+ */
+export const MINISTRY_RESOURCE_PROFILES: Record<string, ResourceProfile[]> = {
+  EDUCATION: [
+    {
+      key: "medical_professionals",
+      productionMode: "computed",
+      // output = (budget/100) × (efficiency/100) × population × FACTOR_CONVERSION
+      computeProduction: (_min, state) => calculateMedicalProduction(state),
+      consumptionMode: "fixed",
+    },
+  ],
+  HEALTH: [
+    {
+      key: "medical_professionals",
+      productionMode: "fixed",
+      consumptionMode: "computed",
+      // demanda = Σ regional beds × MEDICS_PER_BED
+      computeConsumption: (_min, state) => calculateMedicalDemand(state),
+    },
+  ],
+};
 
 function getBonusX(resourceType: string): number {
   const rt = RESOURCE_TYPES.find((r) => r.key === resourceType);
@@ -84,22 +136,62 @@ export function calculateResourceEfficiency(
 
 /**
  * Calcula produccion y consumo nacional de cada tipo de recurso
- * a partir de las declaraciones de los ministerios.
+ * a partir de los perfiles declarados por cada ministerio.
+ *
+ * Para cada ministerio, recorre sus perfiles en MINISTRY_RESOURCE_PROFILES:
+ *  - si productionMode="computed", usa computeProduction(ministry, state)
+ *  - si productionMode="fixed", usa el valor de producedResources del ministerio
+ *    escalado por su efficiency / 100 (legacy: outputs fijos del seed escalan
+ *    por la eficiencia de gestion).
+ *
+ * Analogamente para consumption. Un ministerio puede declarar solo production,
+ * solo consumption, o ambas (en cuyo caso produce el neto para él o los dos
+ * se acumulan por separado).
  */
 export function calculateResourceFlows(
-  ministries: MinistryState[]
+  ministries: MinistryState[],
+  state?: GameState,
 ): { production: Record<string, number>; consumption: Record<string, number> } {
   const production: Record<string, number> = {};
   const consumption: Record<string, number> = {};
 
   for (const ministry of ministries) {
-    // Produccion: output del ministerio escalado por su eficiencia
+    const profiles = MINISTRY_RESOURCE_PROFILES[ministry.key] ?? [];
+
+    // Si hay perfiles declarados, usarlos como fuente de verdad
+    if (profiles.length > 0) {
+      for (const profile of profiles) {
+        // Produccion
+        let prodAmount = 0;
+        if (profile.productionMode === "computed" && profile.computeProduction && state) {
+          prodAmount = profile.computeProduction(ministry, state);
+        } else if (profile.productionMode === "fixed") {
+          prodAmount = ((ministry.producedResources ?? {})[profile.key] ?? 0) * (ministry.efficiency / 100);
+        }
+        if (prodAmount !== 0) {
+          production[profile.key] = (production[profile.key] ?? 0) + prodAmount;
+        }
+
+        // Consumo
+        let consAmount = 0;
+        if (profile.consumptionMode === "computed" && profile.computeConsumption && state) {
+          consAmount = profile.computeConsumption(ministry, state);
+        } else if (profile.consumptionMode === "fixed") {
+          consAmount = (ministry.consumedResources ?? {})[profile.key] ?? 0;
+        }
+        if (consAmount !== 0) {
+          consumption[profile.key] = (consumption[profile.key] ?? 0) + consAmount;
+        }
+      }
+      continue;
+    }
+
+    // Fallback: ministerio sin perfil declarado — usar producedResources/
+    // consumedResources del seed (legacy, antes de MINISTRY_RESOURCE_PROFILES).
     for (const [resourceType, amount] of Object.entries(ministry.producedResources ?? {})) {
       const effectiveAmount = amount * (ministry.efficiency / 100);
       production[resourceType] = (production[resourceType] ?? 0) + effectiveAmount;
     }
-
-    // Consumo: input requerido por el ministerio
     for (const [resourceType, amount] of Object.entries(ministry.consumedResources ?? {})) {
       consumption[resourceType] = (consumption[resourceType] ?? 0) + amount;
     }
@@ -181,8 +273,8 @@ export function updateResourceStocks(
  * @param state - Estado completo del juego (mutado in-place)
  */
 export function processResourceBalance(state: GameState): void {
-  // 1. Calcular produccion y consumo nacional
-  const { production, consumption } = calculateResourceFlows(state.ministries);
+  // 1. Calcular produccion y consumo nacional (usando perfiles dinamicos)
+  const { production, consumption } = calculateResourceFlows(state.ministries, state);
 
   // 2. Actualizar stocks con produccion y consumo
   state.resourceStocks = updateResourceStocks(

@@ -53,7 +53,9 @@ import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates } from "./candidates";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
+import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
 import { processResourceBalance } from "./resource-balance";
+import { processTradeFlows } from "./trade";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -148,7 +150,17 @@ export function processTurn(
     }
   }
 
-  // 1c. Nombramientos: asignar funcionarios a ministerios
+  // 1c. Decisiones de comercio exterior: targetVolume de cada TradeFlow
+  if (input.tradeFlowDecisions) {
+    for (const [flowId, cfg] of Object.entries(input.tradeFlowDecisions)) {
+      const flow = newState.tradeFlows.find((f) => f.id === flowId);
+      if (flow) {
+        flow.targetVolume = Math.max(0, cfg.targetVolume);
+      }
+    }
+  }
+
+  // 1d. Nombramientos: asignar funcionarios a ministerios
   if (input.appointments) {
     for (const [ministryKey, officialId] of Object.entries(input.appointments)) {
       const official = newState.officials.find(
@@ -584,6 +596,41 @@ export function processTurn(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // PASO 4c: Avanzar programas operativos del Ministerio de Salud
+  // (Salud-3A Capa D). Programas persistentes (campañas de vacunacion,
+  // prevencion, salud mental) que el Ministro activa sin Senado.
+  // - Crea nuevos programas desde el input del jugador
+  // - Descuenta monthlyCost del tesoro por cada programa activo
+  // - Aplica efectos sobre diseasePrevalences (reduccion o recuperacion)
+  // - Cancela los indicados por el jugador
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Crear nuevos programas (antes de avanzar, para que no se avancen el mismo mes)
+  const newPrograms = createNewPrograms(newState, input);
+
+  // Avanzar programas existentes
+  const progResult = advancePrograms(newState, input);
+  newState.treasury -= progResult.totalCost;
+
+  // Agregar nuevos programas al estado
+  newState.programs = [
+    ...progResult.updatedPrograms,
+    ...newPrograms,
+  ];
+
+  // Notificaciones de programas cancelados este mes
+  allNotifications.push(...programNotifications(progResult.cancelled));
+
+  // Notificacion de programas nuevos
+  for (const np of newPrograms) {
+    allNotifications.push({
+      type: "info",
+      title: "Programa iniciado",
+      description: `Se ha iniciado un nuevo programa operativo.`,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // PASO 5: Calcular eficiencia de cada ministerio
   // ═══════════════════════════════════════════════════════════════════════
   for (const ministry of newState.ministries) {
@@ -603,6 +650,18 @@ export function processTurn(
   // - Ajusta eficiencia de ministerios con deficit/bonus de recursos
   // ═══════════════════════════════════════════════════════════════════════
   processResourceBalance(newState);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 5c: Procesar flujos de comercio exterior (Salud-3B-i)
+  // - Calcula volumen de importaciones por bien
+  // - Aplica restricción por tesorería (curva continua)
+  // - Aplica sanctionsMultiplier (reduce volumen, no costo)
+  // - Descuenta costo total del tesoro
+  // ═══════════════════════════════════════════════════════════════════════
+  const tradeFlowsSnapshot = processTradeFlows(newState);
+  newState.tradeBalance = tradeFlowsSnapshot.tradeBalance;
+  newState.totalImports = tradeFlowsSnapshot.totalImports;
+  newState.totalExports = tradeFlowsSnapshot.totalExports;
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 6: Actualizar corrupción individual de cada funcionario

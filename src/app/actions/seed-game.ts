@@ -122,7 +122,7 @@ export async function createInitialGame(
   }
 
   // ── Regiones ──────────────────────────────────────────────────────────
-  const regionData = generateRegions(preset);
+  const regionData = generateRegions(params.preset);
   for (const r of regionData) {
     await prismaClient.region.create({
       data: {
@@ -279,6 +279,64 @@ export async function createInitialGame(
       gini: cfg.gini,
       regimeType: cfg.regimeMetrics.pressFreedom > 70 && cfg.regimeMetrics.judicialIndependence > 60 ? "Democracia plena" : cfg.regimeMetrics.powerConcentration > 50 ? "Autoritarismo electoral" : "Democracia defectuosa",
       regimeMetrics: cfg.regimeMetrics,
+    },
+  });
+
+  // ── Bienes comerciables y flujos iniciales (Salud-3B-i) ──────────────
+  const demandBase = Math.ceil(cfg.population * 0.00001); // demandPerCapita = 0.00001
+
+  const genericGood = await prismaClient.tradeGood.create({
+    data: {
+      gameId,
+      key: "medicamentos_genericos",
+      category: "MEDICAMENTS_GENERIC",
+      name: "Medicamentos genéricos",
+      description: "Medicamentos esenciales de bajo costo para cobertura basica",
+      baseCostPerUnit: 50,
+      unitDescription: "Tratamiento mensual para 100 personas",
+      demandPerCapita: 0.00001,
+    },
+  });
+
+  const brandGood = await prismaClient.tradeGood.create({
+    data: {
+      gameId,
+      key: "medicamentos_marca",
+      category: "MEDICAMENTS_BRAND",
+      name: "Medicamentos de marca",
+      description: "Farmacos de patente con mayor efectividad y menor mortalidad",
+      baseCostPerUnit: 200,
+      unitDescription: "Tratamiento mensual para 100 personas",
+      demandPerCapita: 0.00001,
+    },
+  });
+
+  // Flujo por defecto: 70% genéricos, 30% marca (mix default del jugador)
+  await prismaClient.tradeFlow.create({
+    data: {
+      gameId,
+      tradeGoodId: genericGood.id,
+      direction: "IMPORT",
+      monthlyVolume: Math.ceil(demandBase * 0.7),
+      targetVolume: Math.ceil(demandBase * 0.7),
+      unitCost: 50,
+      sanctionsMultiplier: 1.0,
+      monthlyCost: Math.ceil(demandBase * 0.7) * 50,
+      isActive: true,
+    },
+  });
+
+  await prismaClient.tradeFlow.create({
+    data: {
+      gameId,
+      tradeGoodId: brandGood.id,
+      direction: "IMPORT",
+      monthlyVolume: Math.ceil(demandBase * 0.3),
+      targetVolume: Math.ceil(demandBase * 0.3),
+      unitCost: 200,
+      sanctionsMultiplier: 1.0,
+      monthlyCost: Math.ceil(demandBase * 0.3) * 200,
+      isActive: true,
     },
   });
 

@@ -32,6 +32,9 @@ export interface GameStore {
   dissolveOrganism: (organismId: string) => void;
   startLongRunningDecision: (type: string, name: string, totalMonths: number, monthlyCost: number, parameters?: Record<string, unknown>, effectOnCompletion?: Record<string, unknown>) => void;
   cancelLongRunningDecision: (lrdId: string) => void;
+  startProgram: (type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM", parameters?: Record<string, unknown>, monthlyCost?: number) => void;
+  cancelProgram: (programId: string) => void;
+  updateTradeFlowTarget: (tradeFlowId: string, targetVolume: number) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -240,6 +243,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ...(prev.pendingInput.cancelDecisionIds ?? []),
           lrdId,
         ],
+      },
+    }));
+  },
+
+  startProgram: (type, parameters, monthlyCost) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        newPrograms: [
+          ...(prev.pendingInput.newPrograms ?? []),
+          { type, parameters, monthlyCost },
+        ],
+      },
+    }));
+  },
+
+  cancelProgram: (programId: string) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        cancelProgramIds: [
+          ...(prev.pendingInput.cancelProgramIds ?? []),
+          programId,
+        ],
+      },
+    }));
+  },
+
+  updateTradeFlowTarget: (tradeFlowId: string, targetVolume: number) => {
+    set((prev) => ({
+      pendingInput: {
+        ...prev.pendingInput,
+        tradeFlowDecisions: {
+          ...prev.pendingInput.tradeFlowDecisions,
+          [tradeFlowId]: { targetVolume },
+        },
       },
     }));
   },

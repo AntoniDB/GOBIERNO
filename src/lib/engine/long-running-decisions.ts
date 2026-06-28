@@ -120,20 +120,95 @@ export function createNewDecisions(
 
 /**
  * Aplica los efectos de LRD que se completaron este mes.
- * Por ahora OBRA_DE_PRUEBA no tiene efecto (no-op).
- * En el futuro cada type tendra su propio handler.
+ * Cada tipo de decision tiene su propio handler.
  */
 export function applyDecisionEffects(
   completed: LongRunningDecisionState[],
   state: GameState
 ): void {
   for (const lrd of completed) {
-    // TODO Salud-3, Defensa-3, etc.: handler por type
-    // Por ahora todos los tipos son no-op.
-    // Cuando se implementen tipos reales, agregar switch aquí.
-    if (lrd.type === "OBRA_DE_PRUEBA") {
-      // No-op: solo verifica el flujo completo
-      continue;
+    switch (lrd.type) {
+      case "OBRA_DE_PRUEBA":
+        // No-op: solo verifica el flujo completo
+        continue;
+      case "HOSPITAL_CONSTRUCTION": {
+        // Suma beds + facilities a la region elegida en parameters
+        const regionId = lrd.parameters.regionId as string;
+        const level = lrd.parameters.level as "primary" | "secondary" | "tertiary";
+        if (!regionId || !level) continue;
+        const region = state.regions.find((r) => r.id === regionId);
+        if (!region) continue;
+        const hc = region.healthCoverage?.[level] ?? { facilities: 0, beds: 0, operationalCost: 0 };
+        hc.beds = (hc.beds ?? 0) + (BALANCE.HOSPITAL_BEDS_ADDED[level] ?? 0);
+        hc.facilities = (hc.facilities ?? 0) + (BALANCE.HOSPITAL_FACILITIES_ADDED[level] ?? 0);
+        // operationalCost se mantiene (el LRD ya pago la construccion)
+        if (!region.healthCoverage) region.healthCoverage = {} as GameState["regions"][0]["healthCoverage"];
+        region.healthCoverage[level] = hc;
+        break;
+      }
+      case "MEDICAL_RESEARCH": {
+        // 1-2 enfermedades elegidas en parameters.diseaseIds
+        const diseaseIds = (lrd.parameters.diseaseIds as string[] | undefined) ?? [];
+        if (diseaseIds.length === 0) continue;
+        for (const diseaseId of diseaseIds) {
+          const disease = state.diseases.find((d) => d.id === diseaseId);
+          if (!disease) continue;
+          if (disease.hasVaccine) {
+            // Ya tenia vacuna: reducir mortalityRate permanentemente a la mitad
+            disease.mortalityRate = disease.mortalityRate * BALANCE.MEDICAL_RESEARCH_MORTALITY_REDUCTION;
+          } else {
+            // No tenia vacuna: desbloquear vacuna (habilita campañas)
+            disease.hasVaccine = true;
+          }
+        }
+        break;
+      }
     }
   }
+}
+
+/**
+ * Construye una configuracion de LRD de hospital para el input del jugador.
+ * Helper para la UI: dada region + nivel, retorna el payload del LRD.
+ */
+export function buildHospitalConstructionInput(
+  regionId: string,
+  level: "primary" | "secondary" | "tertiary",
+  regionName: string,
+): {
+  type: string;
+  name: string;
+  totalMonths: number;
+  monthlyCost: number;
+  parameters: Record<string, unknown>;
+} {
+  return {
+    type: "HOSPITAL_CONSTRUCTION",
+    name: `Construcción hospital ${level} — ${regionName}`,
+    totalMonths: BALANCE.HOSPITAL_DURATIONS[level],
+    monthlyCost: BALANCE.HOSPITAL_COSTS[level],
+    parameters: { regionId, level },
+  };
+}
+
+/**
+ * Construye una configuracion de LRD de investigacion medica.
+ */
+export function buildMedicalResearchInput(
+  diseaseIds: string[],
+  diseaseNames: string[],
+): {
+  type: string;
+  name: string;
+  totalMonths: number;
+  monthlyCost: number;
+  parameters: Record<string, unknown>;
+} {
+  return {
+    type: "MEDICAL_RESEARCH",
+    name: `Investigación médica — ${diseaseNames.join(", ")}`,
+    totalMonths: BALANCE.MEDICAL_RESEARCH_DURATION,
+    monthlyCost: BALANCE.MEDICAL_RESEARCH_COST,
+    parameters: { diseaseIds },
+  };
 }

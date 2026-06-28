@@ -36,6 +36,12 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     events: [],
     consecutiveLowApprovalMonths: 0,
     longRunningDecisions: [],
+    sanctionsMultiplier: 1,
+    tradeGoods: [],
+    tradeFlows: [],
+    tradeBalance: 0,
+    totalImports: 0,
+    totalExports: 0,
     ...overrides,
   };
 }

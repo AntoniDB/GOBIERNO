@@ -461,6 +461,125 @@ export const BALANCE = {
 
   /** Umbrales de cobertura sanitaria para reducir prevalencia: 100 = maxima cobertura */
   DISEASE_COVERAGE_MAX: 100,
+
+  // ─── Programas operativos (Salud-3A Capa D) ──────────────────────────────
+  // Programas persistentes lanzables por el Ministro (sin aprobacion del Senado).
+  // Costo mensual descontado del tesoro automaticamente.
+  // Costos calibrados contra pais default 10M (presupuesto Salud 63M/mes):
+  // 3 programas simultaneos ≈ 12% del presupuesto Salud; + terciario ≈ 25%.
+  // NOTA: costos fijos en USD no escalan con poblacion — ver KNOWN_ISSUES.md.
+
+  /** Costo mensual: campaña de vacunacion por enfermedad especifica */
+  PROGRAM_VACCINATION_COST: 2_000_000,
+
+  /** Costo mensual: programa de prevencion / educacion sanitaria */
+  PROGRAM_PREVENTION_COST: 3_000_000,
+
+  /** Costo mensual: programa de salud mental */
+  PROGRAM_MENTAL_HEALTH_COST: 2_500_000,
+
+  /** Reduccion de prevalencia por mes (puntos-porcentaje) */
+  VACCINATION_PREVALENCE_DECAY: 0.8,
+  PREVENTION_PREVALENCE_DECAY: 0.15,
+  MENTAL_HEALTH_PREVALENCE_DECAY: 0.5,
+
+  /** Minimo alcanzable como fraccion de prevalenceBase mientras el programa está activo */
+  VACCINATION_MIN_RATIO: 0.10,
+  PREVENTION_MIN_RATIO: 0.90,
+  MENTAL_HEALTH_MIN_RATIO: 0.20,
+
+  /** Recuperacion hacia prevalenceBase al desactivar (pp/mes) */
+  VACCINATION_RECOVERY_RATE: 0.4,
+  PREVENTION_RECOVERY_RATE: 0.2,
+  MENTAL_HEALTH_RECOVERY_RATE: 0.3,
+
+  /** Bonus mensual de aprobacion del programa de salud mental (mientras activo) */
+  MENTAL_HEALTH_APPROVAL_BONUS: {
+    EXTREME_POVERTY: 0,
+    POVERTY: 3,
+    MIDDLE: 2,
+    ELITE: 0,
+  } as const,
+
+  // ─── construccion de hospitales (LRD) y investigacion ────────────────────
+
+  /** Costo mensual de construccion por nivel de hospital */
+  HOSPITAL_COSTS: {
+    primary: 3_000_000,
+    secondary: 6_000_000,
+    tertiary: 8_000_000,
+  } as const,
+
+  /** Duracion en meses de construccion por nivel de hospital */
+  HOSPITAL_DURATIONS: {
+    primary: 12,
+    secondary: 18,
+    tertiary: 24,
+  } as const,
+
+  /** Camas y facilities anadidas al completar construccion por nivel */
+  HOSPITAL_BEDS_ADDED: {
+    primary: 150,
+    secondary: 200,
+    tertiary: 300,
+  } as const,
+
+  HOSPITAL_FACILITIES_ADDED: {
+    primary: 1,
+    secondary: 1,
+    tertiary: 1,
+  } as const,
+
+  /** Costo mensual de la investigacion en enfermedades locales (LRD) */
+  MEDICAL_RESEARCH_COST: 6_000_000,
+
+  /** Duracion de la investigacion en meses */
+  MEDICAL_RESEARCH_DURATION: 48,
+
+  /** Reduccion de mortalityRate al completar investigacion si ya tenia vacuna */
+  MEDICAL_RESEARCH_MORTALITY_REDUCTION: 0.5,
+
+  // ─── Produccion de profesionales medicos (Salud-3A Capa E) ────────────────
+  // output_mensual = (edu.budget/100) × (edu.efficiency/100) × population × FACTOR
+  // Calibrado: pais promedio (16% / 60% eff / red 3.800 beds) → +20% superavit.
+  // demanda_mensual = totalBeds_nacional × MEDICS_PER_BED
+
+  /** Factor de conversion: convierte presupuesto+eficiencia+poblacion en mdcs/mes */
+  MEDICAL_PROFESSIONALS_FACTOR: 0.00095,
+
+  /** Medicos necesarios por cama hospitalaria (1 medico / 5 camas) */
+  MEDICS_PER_BED: 0.2,
+
+  /** Cap maximo del bonus por superavit de medicos (factor operativo multiplicador) */
+  MEDICS_SURPLUS_BONUS_CAP: 0.2,
+
+  /** Floor del factor operativo de hospitales (nunca 0 — siempre algo funcional) */
+  MEDICS_OPERATIONAL_FLOOR: 0.05,
+
+  // ─── Comercio Exterior (Salud-3B-i) ─────────────────────────────────────────
+  // Sistema genérico de importación/exportación de bienes.
+  // Ver tablas de calibración aprobadas en SPEC.md → Salud-3B-i.
+
+  /** Umbral de tesorería para factor de importación = 1.0 (M$50) */
+  TRADE_TREASURY_CRITICAL_THRESHOLD: 50_000_000,
+
+  /** Piso mínimo del factor de importación por tesorería (35%) */
+  TRADE_IMPORT_MIN_FACTOR: 0.35,
+
+  /** Multiplicador de sanciones default (1.0 = sin efecto). TODO geopolítica */
+  TRADE_SANCTIONS_MULTIPLIER: 1.0,
+
+  /** Umbral de cobertura de importación para activar penalización de escasez */
+  TRADE_SHORTAGE_COVERAGE_THRESHOLD: 0.5,
+
+  /** Multiplicador de mortalidad por escasez: crónicas dependen de tratamiento continuo */
+  TRADE_SHORTAGE_MORTALITY_MULTIPLIER_CHRONIC: 1.5,
+
+  /** Multiplicador de mortalidad por escasez: transmisibles afectadas parcialmente */
+  TRADE_SHORTAGE_MORTALITY_MULTIPLIER_TRANSMISSIBLE: 1.2,
+
+  /** Multiplicador de mortalidad por escasez: salud mental afectada marginalmente */
+  TRADE_SHORTAGE_MORTALITY_MULTIPLIER_MENTAL: 1.1,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

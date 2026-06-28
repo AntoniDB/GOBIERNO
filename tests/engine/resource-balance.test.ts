@@ -63,47 +63,53 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     longRunningDecisions: [],
     resourceStocks: [],
     consecutiveLowApprovalMonths: 0,
+    sanctionsMultiplier: 1,
+    tradeGoods: [],
+    tradeFlows: [],
+    tradeBalance: 0,
+    totalImports: 0,
+    totalExports: 0,
     ...overrides,
   };
 }
 
 describe("calculateResourceFlows", () => {
-  it("calcula produccion desde los ministerios con eficiencia", () => {
+  it("calcula produccion desde los ministerios con eficiencia (fallback sin perfil)", () => {
     const ministries: MinistryState[] = [
       crearMinisterio({
-        key: "HEALTH",
+        key: "ECONOMY",
         efficiency: 80,
-        producedResources: { medical_professionals: 10 },
+        producedResources: { industrial_output: 10 },
       }),
     ];
     const { production } = calculateResourceFlows(ministries);
     // 10 * (80/100) = 8
-    expect(production["medical_professionals"]).toBeCloseTo(8, 0);
+    expect(production["industrial_output"]).toBeCloseTo(8, 0);
   });
 
-  it("calcula consumo desde los ministerios", () => {
+  it("calcula consumo desde los ministerios (fallback sin perfil)", () => {
     const ministries: MinistryState[] = [
       crearMinisterio({
-        key: "HEALTH",
-        consumedResources: { medical_professionals: 15, infrastructure_capacity: 5 },
+        key: "ECONOMY",
+        consumedResources: { industrial_output: 15, infrastructure_capacity: 5 },
       }),
     ];
     const { consumption } = calculateResourceFlows(ministries);
-    expect(consumption["medical_professionals"]).toBe(15);
+    expect(consumption["industrial_output"]).toBe(15);
     expect(consumption["infrastructure_capacity"]).toBe(5);
   });
 
-  it("suma produccion de multiples ministerios", () => {
+  it("suma produccion de multiples ministerios (fallback sin perfil)", () => {
     const ministries: MinistryState[] = [
       crearMinisterio({
-        id: "min-edu",
-        key: "EDUCATION",
+        id: "min-econ1",
+        key: "ECONOMY",
         efficiency: 100,
         producedResources: { teachers: 20 },
       }),
       crearMinisterio({
-        id: "min-hea",
-        key: "HEALTH",
+        id: "min-econ2",
+        key: "ECONOMY",
         efficiency: 50,
         producedResources: { medical_professionals: 10 },
       }),
@@ -111,6 +117,48 @@ describe("calculateResourceFlows", () => {
     const { production } = calculateResourceFlows(ministries);
     expect(production["teachers"]).toBeCloseTo(20, 0);
     expect(production["medical_professionals"]).toBeCloseTo(5, 0);
+  });
+
+  it("usa perfiles dinamicos cuando el ministerio los declara (HEALTH/EDUCATION)", () => {
+    // Con state, HEALTH consume medical_professionals via computeConsumption
+    // y EDUCATION los produce via computeProduction.
+    const state = crearEstadoBase({
+      population: 10_000_000,
+      regions: [
+        {
+          id: "r1",
+          name: "Capital",
+          type: "URBAN",
+          populationPercent: 100,
+          povertyRate: 20,
+          infrastructureLevel: 70,
+          accessModifier: 0.2,
+          povertyModifier: 1,
+          healthCoverage: {
+            primary: { facilities: 5, beds: 500, operationalCost: 1_000_000 },
+            secondary: { facilities: 2, beds: 200, operationalCost: 500_000 },
+            tertiary: { facilities: 1, beds: 100, operationalCost: 1_000_000 },
+          },
+        },
+      ],
+      ministries: [
+        crearMinisterio({
+          id: "min-edu",
+          key: "EDUCATION",
+          budgetPercent: 16,
+          efficiency: 60,
+        }),
+        crearMinisterio({
+          id: "min-hea",
+          key: "HEALTH",
+        }),
+      ],
+    });
+    const { production, consumption } = calculateResourceFlows(state.ministries, state);
+// Produccion: 0.16 * 0.60 * 10M * 0.00095 = 912
+    expect(production["medical_professionals"]).toBeCloseTo(912, 0);
+    // Demanda: (500+200+100) * 0.2 = 160
+    expect(consumption["medical_professionals"]).toBeCloseTo(160, 0);
   });
 });
 
@@ -224,18 +272,18 @@ describe("applyResourceDecay", () => {
 });
 
 describe("processResourceBalance", () => {
-  it("orquesta el flujo completo: produce → consume → actualiza stock → ajusta eficiencia", () => {
+  it("orquesta el flujo completo: produce → consume → actualiza stock → ajusta eficiencia (fallback sin perfil)", () => {
     const state = crearEstadoBase({
       ministries: [
         crearMinisterio({
-          id: "min-edu",
-          key: "EDUCATION",
+          id: "min-econ-prod",
+          key: "ECONOMY",
           efficiency: 100,
           producedResources: { teachers: 50 },
         }),
         crearMinisterio({
-          id: "min-hea",
-          key: "HEALTH",
+          id: "min-econ-cons",
+          key: "DEFENSE",
           efficiency: 50,
           consumedResources: { teachers: 30 },
         }),
@@ -249,10 +297,10 @@ describe("processResourceBalance", () => {
     const teacherStock = state.resourceStocks.find((s) => s.resourceType === "teachers");
     expect(teacherStock?.quantity).toBeGreaterThanOrEqual(19); // con decaimiento
 
-    // Eficiencia de HEALTH ajustada: consume 30 teachers, stock 20 → deficit 0.667
+    // Eficiencia de DEFENSE ajustada: consume 30 teachers, stock 20 → deficit 0.667
     // eff = 50 * 0.667 = 33.3
-    const healthMin = state.ministries.find((m) => m.key === "HEALTH");
-    expect(healthMin?.efficiency).toBeCloseTo(33.3, 0);
+    const consMin = state.ministries.find((m) => m.key === "DEFENSE");
+    expect(consMin?.efficiency).toBeCloseTo(33.3, 0);
   });
 
   it("ministerio sin dependencias no se ve afectado", () => {

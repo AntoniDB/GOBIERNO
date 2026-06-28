@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/lib/store/game-store";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ export function AdvanceButton() {
   const isLoading = useGameStore((s) => s.isLoading);
   const advanceMonth = useGameStore((s) => s.advanceMonth);
   const [showNotifications, setShowNotifications] = useState(false);
+  const advancingRef = useRef(false);
 
   useEffect(() => {
     if (gameOver) {
@@ -35,11 +36,15 @@ export function AdvanceButton() {
   }
 
   async function handleAdvance() {
+    if (advancingRef.current) return;
+    advancingRef.current = true;
     try {
       await advanceMonth();
       setShowNotifications(true);
     } catch {
       // El store ya maneja el error internamente
+    } finally {
+      advancingRef.current = false;
     }
   }
 

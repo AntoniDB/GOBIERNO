@@ -97,5 +97,21 @@ export function createMonthSnapshot(
       const date = new Date(d.cancelledAt);
       return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month;
     }).length,
+    activeProgramsCount: (state.programs ?? []).filter((p) => p.status === "ACTIVE").length,
+    programMonthlyCost: (state.programs ?? [])
+      .filter((p) => p.status === "ACTIVE")
+      .reduce((sum, p) => sum + p.monthlyCost, 0),
+    diseasePrevalences: (state.diseases ?? []).map((d) => {
+      const prev = state.diseasePrevalences.find((p) => p.diseaseId === d.id);
+      return {
+        diseaseId: d.id,
+        name: d.name,
+        category: d.category,
+        prevalence: prev?.currentPrevalence ?? d.prevalenceBase,
+      };
+    }),
+    tradeBalance: state.tradeBalance,
+    totalImports: state.totalImports,
+    totalExports: state.totalExports,
   };
 }

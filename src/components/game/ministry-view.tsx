@@ -6,6 +6,10 @@ import { BudgetSlider } from "@/components/game/budget-slider";
 import { SubDecisions } from "@/components/game/sub-decisions";
 import { MinisterCard } from "@/components/game/minister-card";
 import { EfficiencyChart } from "@/components/game/efficiency-chart";
+import { ProgramsPanel } from "@/components/game/health/programs-panel";
+import { ResourcePanel } from "@/components/game/health/resource-panel";
+import { DiseasePrevalencesPanel } from "@/components/game/health/disease-prevalences-panel";
+import { TradePanel } from "@/components/game/trade-panel";
 
 const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
 const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
@@ -131,6 +135,16 @@ export function MinistryView({ ministry }: { ministry: MinistryState }) {
             subDecisions={ministry.subDecisions}
             onSubDecisionChange={updateSubDecision}
           />
+
+          {/* Paneles especificos del Ministerio de Salud (Sesion Salud-3A) */}
+          {ministry.key === "HEALTH" && (
+            <>
+              <TradePanel ministryKey="HEALTH" />
+              <ResourcePanel />
+              <DiseasePrevalencesPanel />
+              <ProgramsPanel />
+            </>
+          )}
         </div>
         <div style={{ width: 300, flexShrink: 0, display: "flex", flexDirection: "column", gap: 18 }}>
           <MinisterCard minister={minister} ministry={ministry} />

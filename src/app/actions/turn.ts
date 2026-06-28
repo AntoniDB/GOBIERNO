@@ -9,26 +9,8 @@ import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
-  GameState,
-  TurnInput,
-  TurnOutput,
-  MinistryState,
-  OfficialState,
-  PartyState,
-  SenatorState,
-  ActiveLawState,
-  JudicialCaseState,
-  OrganismState,
-  SocialClassState,
-  RegimeMetricsState,
-  MediaState,
-  EventState,
-  Ideology,
-  MonthSnapshotData,
-  TurnNotification,
-  MediaCoverageData,
-  MediaPollData,
-  LawCatalogEntry,
+  GameState, MinistryProgramState, MonthSnapshotData, RegimeMetricsState, LawCatalogEntry,
+  TradeGoodCategory, TradeFlowDirection,
 } from "@/lib/engine/types";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -233,6 +215,39 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       currentPrevalence: dp.currentPrevalence as number,
     })),
     diseaseMortality: 0,
+    programs: (game.programs ?? []).map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      type: p.type as MinistryProgramState["type"],
+      parameters: (p.parameters ?? {}) as Record<string, unknown>,
+      monthlyCost: p.monthlyCost as number,
+      status: p.status as MinistryProgramState["status"],
+      startedAt: (p.startedAt as Date).toISOString(),
+      deactivatedAt: p.deactivatedAt ? (p.deactivatedAt as Date).toISOString() : null,
+    })),
+    sanctionsMultiplier: (game.sanctionsMultiplier as number) ?? 1.0,
+    tradeGoods: (game.tradeGoods ?? []).map((tg: Record<string, unknown>) => ({
+      id: tg.id as string,
+      gameId: tg.gameId as string,
+      key: tg.key as string,
+      category: tg.category as TradeGoodCategory,
+      name: tg.name as string,
+      description: tg.description as string | null,
+      baseCostPerUnit: tg.baseCostPerUnit as number,
+      unitDescription: tg.unitDescription as string,
+      demandPerCapita: tg.demandPerCapita as number,
+    })),
+    tradeFlows: (game.tradeFlows ?? []).map((tf: Record<string, unknown>) => ({
+      id: tf.id as string,
+      gameId: tf.gameId as string,
+      tradeGoodId: tf.tradeGoodId as string,
+      direction: tf.direction as TradeFlowDirection,
+      monthlyVolume: tf.monthlyVolume as number,
+      targetVolume: tf.targetVolume as number,
+      unitCost: tf.unitCost as number,
+      sanctionsMultiplier: (tf.sanctionsMultiplier as number) ?? 1.0,
+      monthlyCost: tf.monthlyCost as number,
+      isActive: tf.isActive as boolean,
+    })),
   };
 }
 
@@ -257,6 +272,9 @@ async function fetchGameData(gameId: string) {
       regions: true,
       diseases: true,
       diseasePrevalences: true,
+      programs: true,
+      tradeGoods: true,
+      tradeFlows: true,
     },
   });
 }
@@ -302,6 +320,34 @@ export async function advanceMonth(
       idealIdeology: asIdeology(l.idealIdeology),
       cost: l.cost,
     });
+  }
+
+  // ─── Idempotencia: si el mes actual ya tiene snapshot, es un duplicado ──
+  // Compara igualdad exacta de año/mes. Si ya existe un snapshot para el
+  // mes actual, otro request ya lo procesó → devolver estado sin reprocesar.
+  if (latestSnapshot) {
+    const alreadyProcessed =
+      game.currentYear === latestSnapshot.year &&
+      game.currentMonth === latestSnapshot.month;
+    if (alreadyProcessed) {
+      const existingState = buildGameState(
+        game,
+        latestMetrics as RegimeMetricsState | null,
+        latestSnapshot as MonthSnapshotData | null,
+        lawCatalogMap,
+      );
+      return {
+        newState: existingState,
+        monthSnapshot: latestSnapshot as MonthSnapshotData,
+        notifications: [],
+        gameOver: game.status === "FINISHED"
+          ? { reason: "Juego terminado", finalApproval: latestSnapshot.approval, totalTurns: game.currentYear * 12 + game.currentMonth }
+          : null,
+        newEvents: [],
+        mediaCoverages: [],
+        mediaPolls: [],
+      };
+    }
   }
 
   // Construir GameState plano
@@ -378,18 +424,66 @@ export async function advanceMonth(
 
   // Persistir en transacción atómica
   await prisma.$transaction(async (tx) => {
-    // a. Actualizar Game
-    await tx.game.update({
-      where: { id: gameId },
-      data: {
-        currentYear: newYear,
-        currentMonth: newMonth,
-        treasury: newState.treasury,
-        population: newState.population,
-        consecutiveLowApprovalMonths: newState.consecutiveLowApprovalMonths ?? 0,
-        status: gameOver ? ("FINISHED" as const) : undefined,
-      },
-    });
+    // a. MonthSnapshot: INSERT ON CONFLICT (atómico, nunca P2002/25P02)
+    const snapYear = game.currentYear;
+    const snapMonth = game.currentMonth;
+    const snapId = crypto.randomUUID();
+    const regimeMetricsJson = JSON.stringify(monthSnapshot.regimeMetrics);
+    const diseasePrevalencesJson = JSON.stringify(monthSnapshot.diseasePrevalences);
+    await tx.$executeRaw`
+      INSERT INTO "MonthSnapshot" (
+        "id", "gameId", "year", "month",
+        "treasury", "gdp", "population", "approval", "corruption",
+        "povertyRate", "unemploymentRate", "sickRate", "crimeRate",
+        "foodSecurity", "educationLevel", "inflation", "gini",
+        "regimeType", "regimeMetrics", "lifeExpectancy",
+        "activeLrdCount", "lrdMonthlyCost", "lrdCompletedThisMonth", "lrdCancelledThisMonth",
+        "activeProgramsCount", "programMonthlyCost",
+        "diseasePrevalences", "tradeBalance", "totalImports", "totalExports"
+      ) VALUES (
+        ${snapId}::uuid, ${gameId}::uuid, ${snapYear}, ${snapMonth},
+        ${monthSnapshot.treasury}, ${monthSnapshot.gdp}, ${monthSnapshot.population},
+        ${monthSnapshot.approval}, ${monthSnapshot.corruption},
+        ${monthSnapshot.povertyRate}, ${monthSnapshot.unemploymentRate},
+        ${monthSnapshot.sickRate}, ${monthSnapshot.crimeRate},
+        ${monthSnapshot.foodSecurity}, ${monthSnapshot.educationLevel},
+        ${monthSnapshot.inflation}, ${monthSnapshot.gini},
+        ${monthSnapshot.regimeType}, ${regimeMetricsJson}::jsonb, ${monthSnapshot.lifeExpectancy},
+        ${monthSnapshot.activeLrdCount}, ${monthSnapshot.lrdMonthlyCost},
+        ${monthSnapshot.lrdCompletedThisMonth}, ${monthSnapshot.lrdCancelledThisMonth},
+        ${monthSnapshot.activeProgramsCount}, ${monthSnapshot.programMonthlyCost},
+        ${diseasePrevalencesJson}::jsonb, ${monthSnapshot.tradeBalance},
+        ${monthSnapshot.totalImports}, ${monthSnapshot.totalExports}
+      )
+      ON CONFLICT ("gameId", "year", "month")
+      DO UPDATE SET
+        "treasury" = ${monthSnapshot.treasury},
+        "gdp" = ${monthSnapshot.gdp},
+        "population" = ${monthSnapshot.population},
+        "approval" = ${monthSnapshot.approval},
+        "corruption" = ${monthSnapshot.corruption},
+        "povertyRate" = ${monthSnapshot.povertyRate},
+        "unemploymentRate" = ${monthSnapshot.unemploymentRate},
+        "sickRate" = ${monthSnapshot.sickRate},
+        "crimeRate" = ${monthSnapshot.crimeRate},
+        "foodSecurity" = ${monthSnapshot.foodSecurity},
+        "educationLevel" = ${monthSnapshot.educationLevel},
+        "inflation" = ${monthSnapshot.inflation},
+        "gini" = ${monthSnapshot.gini},
+        "regimeType" = ${monthSnapshot.regimeType},
+        "regimeMetrics" = ${regimeMetricsJson}::jsonb,
+        "lifeExpectancy" = ${monthSnapshot.lifeExpectancy},
+        "activeLrdCount" = ${monthSnapshot.activeLrdCount},
+        "lrdMonthlyCost" = ${monthSnapshot.lrdMonthlyCost},
+        "lrdCompletedThisMonth" = ${monthSnapshot.lrdCompletedThisMonth},
+        "lrdCancelledThisMonth" = ${monthSnapshot.lrdCancelledThisMonth},
+        "activeProgramsCount" = ${monthSnapshot.activeProgramsCount},
+        "programMonthlyCost" = ${monthSnapshot.programMonthlyCost},
+        "diseasePrevalences" = ${diseasePrevalencesJson}::jsonb,
+        "tradeBalance" = ${monthSnapshot.tradeBalance},
+        "totalImports" = ${monthSnapshot.totalImports},
+        "totalExports" = ${monthSnapshot.totalExports}
+    `;
 
     // b. Ministerios
     for (const m of newState.ministries) {
@@ -475,64 +569,19 @@ export async function advanceMonth(
       },
     });
 
-    // f. MonthSnapshot
-    await tx.monthSnapshot.upsert({
-      where: {
-        gameId_year_month: {
-          gameId,
-          year: game.currentYear,
-          month: game.currentMonth,
+    // f. Actualizar Game (después del snapshot para cerrar ventana de doble-click)
+      await tx.game.update({
+        where: { id: gameId },
+        data: {
+          currentYear: newYear,
+          currentMonth: newMonth,
+          treasury: newState.treasury,
+          population: newState.population,
+          consecutiveLowApprovalMonths: newState.consecutiveLowApprovalMonths ?? 0,
+          status: gameOver ? ("FINISHED" as const) : undefined,
+          sanctionsMultiplier: newState.sanctionsMultiplier ?? 1.0,
         },
-      },
-      create: {
-        id: crypto.randomUUID(),
-        game: { connect: { id: gameId } },
-        year: game.currentYear,
-        month: game.currentMonth,
-        treasury: monthSnapshot.treasury,
-        gdp: monthSnapshot.gdp,
-        population: monthSnapshot.population,
-        approval: monthSnapshot.approval,
-        corruption: monthSnapshot.corruption,
-        povertyRate: monthSnapshot.povertyRate,
-        unemploymentRate: monthSnapshot.unemploymentRate,
-        sickRate: monthSnapshot.sickRate,
-        crimeRate: monthSnapshot.crimeRate,
-        foodSecurity: monthSnapshot.foodSecurity,
-        educationLevel: monthSnapshot.educationLevel,
-        inflation: monthSnapshot.inflation,
-        gini: monthSnapshot.gini,
-        regimeType: monthSnapshot.regimeType,
-        regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
-        lifeExpectancy: monthSnapshot.lifeExpectancy,
-        activeLrdCount: monthSnapshot.activeLrdCount,
-        lrdMonthlyCost: monthSnapshot.lrdMonthlyCost,
-        lrdCompletedThisMonth: monthSnapshot.lrdCompletedThisMonth,
-        lrdCancelledThisMonth: monthSnapshot.lrdCancelledThisMonth,
-      },
-      update: {
-        treasury: monthSnapshot.treasury,
-        gdp: monthSnapshot.gdp,
-        population: monthSnapshot.population,
-        approval: monthSnapshot.approval,
-        corruption: monthSnapshot.corruption,
-        povertyRate: monthSnapshot.povertyRate,
-        unemploymentRate: monthSnapshot.unemploymentRate,
-        sickRate: monthSnapshot.sickRate,
-        crimeRate: monthSnapshot.crimeRate,
-        foodSecurity: monthSnapshot.foodSecurity,
-        educationLevel: monthSnapshot.educationLevel,
-        inflation: monthSnapshot.inflation,
-        gini: monthSnapshot.gini,
-        regimeType: monthSnapshot.regimeType,
-        regimeMetrics: monthSnapshot.regimeMetrics as Record<string, unknown>,
-        lifeExpectancy: monthSnapshot.lifeExpectancy,
-        activeLrdCount: monthSnapshot.activeLrdCount,
-        lrdMonthlyCost: monthSnapshot.lrdMonthlyCost,
-        lrdCompletedThisMonth: monthSnapshot.lrdCompletedThisMonth,
-        lrdCancelledThisMonth: monthSnapshot.lrdCancelledThisMonth,
-      },
-    });
+      });
 
     // g. LongRunningDecisions: upsert cada LRD
     for (const lrd of newState.longRunningDecisions) {
@@ -567,23 +616,39 @@ export async function advanceMonth(
       });
     }
 
-    // i. ResourceStocks: upsert por gameId + resourceType
+    // i. ResourceStocks: INSERT ON CONFLICT (atómico, nunca P2002/25P02)
     for (const rs of newState.resourceStocks) {
-      await tx.resourceStock.upsert({
-        where: {
-          gameId_resourceType: {
-            gameId,
-            resourceType: rs.resourceType,
-          },
-        },
+      await tx.$executeRaw`
+        INSERT INTO "ResourceStock" ("id", "gameId", "resourceType", "quantity", "updatedAt")
+        VALUES (${crypto.randomUUID()}::uuid, ${gameId}::uuid, ${rs.resourceType}, ${rs.quantity}, NOW())
+        ON CONFLICT ("gameId", "resourceType")
+        DO UPDATE SET "quantity" = ${rs.quantity}, "updatedAt" = NOW()
+      `;
+    }
+
+    // i.2 TradeFlows: upsert por gameId + tradeGoodId + direction
+    for (const tf of newState.tradeFlows ?? []) {
+      await tx.tradeFlow.upsert({
+        where: { id: tf.id },
         create: {
-          id: rs.id,
+          id: tf.id,
           game: { connect: { id: gameId } },
-          resourceType: rs.resourceType,
-          quantity: rs.quantity,
+          tradeGood: { connect: { id: tf.tradeGoodId } },
+          direction: tf.direction as string,
+          monthlyVolume: tf.monthlyVolume,
+          targetVolume: tf.targetVolume,
+          unitCost: tf.unitCost,
+          sanctionsMultiplier: tf.sanctionsMultiplier,
+          monthlyCost: tf.monthlyCost,
+          isActive: tf.isActive,
         },
         update: {
-          quantity: rs.quantity,
+          monthlyVolume: tf.monthlyVolume,
+          targetVolume: tf.targetVolume,
+          unitCost: tf.unitCost,
+          sanctionsMultiplier: tf.sanctionsMultiplier,
+          monthlyCost: tf.monthlyCost,
+          isActive: tf.isActive,
         },
       });
     }
@@ -600,18 +665,45 @@ export async function advanceMonth(
       });
     }
 
-    // k. DiseasePrevalence: upsert por diseaseId
+    // k. DiseasePrevalence: INSERT ON CONFLICT (atómico, nunca P2002/25P02)
     for (const dp of newState.diseasePrevalences) {
-      await tx.diseasePrevalence.upsert({
-        where: { gameId_diseaseId: { gameId, diseaseId: dp.diseaseId } },
+      await tx.$executeRaw`
+        INSERT INTO "DiseasePrevalence" ("id", "gameId", "diseaseId", "currentPrevalence", "updatedAt")
+        VALUES (${crypto.randomUUID()}::uuid, ${gameId}::uuid, ${dp.diseaseId}::uuid, ${dp.currentPrevalence}, NOW())
+        ON CONFLICT ("gameId", "diseaseId")
+        DO UPDATE SET "currentPrevalence" = ${dp.currentPrevalence}, "updatedAt" = NOW()
+      `;
+    }
+
+    // k.2 Diseases: persistir cambios de hasVaccine/mortalityRate (Salud-3A investigacion)
+    for (const d of newState.diseases ?? []) {
+      await tx.disease.update({
+        where: { id: d.id },
+        data: {
+          hasVaccine: d.hasVaccine,
+          mortalityRate: d.mortalityRate,
+        },
+      });
+    }
+
+    // l. Programas operativos (Salud-3A Capa D): upsert
+    for (const prog of newState.programs ?? []) {
+      await tx.ministryProgram.upsert({
+        where: { id: prog.id },
         create: {
-          id: dp.id,
+          id: prog.id,
           game: { connect: { id: gameId } },
-          disease: { connect: { id: dp.diseaseId } },
-          currentPrevalence: dp.currentPrevalence,
+          type: prog.type as string,
+          parameters: prog.parameters as Record<string, unknown>,
+          monthlyCost: prog.monthlyCost,
+          status: prog.status as string,
+          startedAt: new Date(prog.startedAt),
+          deactivatedAt: prog.deactivatedAt ? new Date(prog.deactivatedAt) : null,
         },
         update: {
-          currentPrevalence: dp.currentPrevalence,
+          parameters: prog.parameters as Record<string, unknown>,
+          status: prog.status as string,
+          deactivatedAt: prog.deactivatedAt ? new Date(prog.deactivatedAt) : null,
         },
       });
     }
@@ -705,7 +797,6 @@ export async function advanceMonth(
     for (const evt of newEvents) {
       await tx.event.create({
         data: {
-          id: evt.id,
           gameId,
           type: evt.type as string,
           severity: evt.severity,

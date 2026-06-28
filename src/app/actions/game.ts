@@ -51,6 +51,7 @@ async function fetchGameData(gameId: string) {
       regions: true,
       diseases: true,
       diseasePrevalences: true,
+      programs: true,
     },
   });
 }
@@ -250,6 +251,15 @@ function buildGameState(
       currentPrevalence: dp.currentPrevalence as number,
     })),
     diseaseMortality: 0,
+    programs: (game.programs ?? []).map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      type: p.type as string,
+      parameters: (p.parameters ?? {}) as Record<string, unknown>,
+      monthlyCost: p.monthlyCost as number,
+      status: p.status as string,
+      startedAt: (p.startedAt as Date).toISOString(),
+      deactivatedAt: p.deactivatedAt ? (p.deactivatedAt as Date).toISOString() : null,
+    })),
   };
 }
 
@@ -349,6 +359,7 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
       powerConcentration: 0, pressFreedom: 0, judicialIndependence: 0,
       politicalPluralism: 0, civilLiberties: 0, transparency: 0, militarySubordination: 0,
     }) as MonthSnapshotData["regimeMetrics"],
+    diseasePrevalences: (s.diseasePrevalences as Array<{ diseaseId: string; name: string; category: string; prevalence: number }> | undefined) ?? undefined,
   }));
 }
 

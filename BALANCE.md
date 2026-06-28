@@ -159,3 +159,84 @@ Para rebalancear la simulacion:
 3. **Aprobacion reactiva**: `APPROVAL_*` en balance.ts
 4. **Eventos frecuentes**: umbrales en `events.ts:triggerRandomEvents`
 5. **Regimen fragil/resistente**: velocidad de regeneracion en `regime.ts:regenerateRegimeMetrics`
+6. **Programas de Salud y medicos**: `PROGRAM_*`, `HOSPITAL_*`, `MEDICAL_*`, `MEDICS_*` en balance.ts
+
+---
+
+## Programas operativos de Salud (Sesion Salud-3A Capa D)
+
+Los programas persistentes los activa el Ministro de Salud sin aprobacion del
+Senado. El descuento mensual del tesoro es automatico (igual que las leyes
+activas y las LRD). Ver `programs.ts` para el ciclo completo.
+
+Para ajustar:
+- **Costos**: `PROGRAM_VACCINATION_COST`, `PROGRAM_PREVENTION_COST`, `PROGRAM_MENTAL_HEALTH_COST`
+- **Efectividad por mes** (puntos-porcentaje de prevalencia que baja):
+  `VACCINATION_PREVALENCE_DECAY` (0.8), `PREVENTION_PREVALENCE_DECAY` (0.15),
+  `MENTAL_HEALTH_PREVALENCE_DECAY` (0.5)
+- **Minimo alcanzable** como fraccion de prevalenceBase:
+  `VACCINATION_MIN_RATIO` (0.10), `PREVENTION_MIN_RATIO` (0.90),
+  `MENTAL_HEALTH_MIN_RATIO` (0.20)
+- **Recuperacion al desactivar** (pp/mes hacia prevalenceBase):
+  `VACCINATION_RECOVERY_RATE` (0.4), `PREVENTION_RECOVERY_RATE` (0.2),
+  `MENTAL_HEALTH_RECOVERY_RATE` (0.3)
+- **Bonus de aprobacion salud mental**: `MENTAL_HEALTH_APPROVAL_BONUS` — POVERTY +3/mes, MIDDLE +2/mes
+
+### Sub-decisiones legacy
+
+Las sub-decisiones booleanas `vacunacion` y `saludMental` del seed se mantienen
+por compatibilidad con partidas existentes, pero los programas reales reemplazan
+su rol. En el futuro deben deprecarse o migrarse a programas reales generados
+en el seed.
+
+### Tipos 4 y 5 (construccion e investigacion) — LRD
+
+Estos programas usan el sistema generico de Long-Running Decisions definido en
+`long-running-decisions.ts`. No requieren el modelo `MinistryProgram`; son
+LRD con `type=HOSPITAL_CONSTRUCTION` o `MEDICAL_RESEARCH`. La UI los lanza
+desde el mismo modal (pestaña "Largo plazo").
+
+- `HOSPITAL_COSTS` / `HOSPITAL_DURATIONS`: costo y duracion por nivel (primario/secundario/terciario)
+- `HOSPITAL_BEDS_ADDED` / `HOSPITAL_FACILITIES_ADDED`: cuanto aumenta la region al completarse
+- `MEDICAL_RESEARCH_COST` / `MEDICAL_RESEARCH_DURATION`: costo y duracion (48 meses)
+- `MEDICAL_RESEARCH_MORTALITY_REDUCTION` (0.5): si la enf. ya tenia vacuna, reduce su mortalityRate a la mitad. Si no, desbloquea vacuna (hasVaccine=true).
+
+---
+
+## Produccion de profesionales medicos (Sesion Salud-3A Capa E)
+
+Primera activacion real del sistema de Cross-Ministry Dependencies de Salud-1.
+
+```
+output_mensual = (edu.budget/100) × (edu.efficiency/100) × population × MEDICAL_PROFESSIONALS_FACTOR
+demanda_mensual = Σ region.beds(level) × MEDICS_PER_BED
+```
+
+Calibrado: pais promedio (10M pop, edu 16%/60%, red 3.800 beds → demanda 760)
+produce 912 medicos → superavit +20% (margen comodo). Educacion abandonada
+(2%/20%) produce 38 → factor operativo floor (5%). Ver `medical-professionals.ts`.
+
+Para ajustar:
+- `MEDICAL_PROFESSIONALS_FACTOR` (0.00095): subir si quieres mas mdcs en promedio
+- `MEDICS_PER_BED` (0.2): subir si la red demanda mas medicos por cama
+- `MEDICS_SURPLUS_BONUS_CAP` (0.2): bonus maximo de coverage operativa por superavit
+- `MEDICS_OPERATIONAL_FLOOR` (0.05): floor del factor operativo (nunca 0)
+
+### Factor operativo vs eficiencia de gestion
+
+El `calculateHospitalOperationalFactor` retorna un factor en
+`[MEDICS_OPERATIONAL_FLOOR, 1.2]` que se aplica en `calculateRegionalCoverage`
+para escalar la cobertura efectiva de los hospitales. **No** modifica
+`ministry.efficiency` del ministerio HEALTH — esa sigue calculandose normalmente
+en `calculateMinistryEfficiency` (gestion pura).
+
+La curva de bonus por superavit es `1 - exp(-surplus/20)` (cap `MEDICS_SURPLUS_BONUS_CAP`),
+reutilizando el patron del sistema generico `RESOURCE_TYPES` con `bonusX=20`.
+
+### MINISTRY_RESOURCE_PROFILES (registro de perfiles)
+
+El motor generico de Cross-Ministry (`calculateResourceFlows`) itera un
+registro tipado en codigo (`MINISTRY_RESOURCE_PROFILES` en `resource-balance.ts`).
+Cada ministerio declara que produce/consume y como (fixed o computed). Añadir
+nuevas dependencias (Defensa-3, Economica-3, etc.) es añadir entradas a ese
+registro, no reescribir el motor.
