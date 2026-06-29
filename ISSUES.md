@@ -116,3 +116,96 @@ El riesgo se considera aceptable porque:
 - ✅ TypeScript compila sin errores nuevos en `turn.ts`
 - ❌ Pruebas funcionales (ley, justicia, doble-click, 3-4 meses consecutivos)
      requieren servidor + DB + navegador — pendientes de verificación manual
+
+---
+
+## Incidencia #2: Seed snapshot bloquea idempotencia `===` (2026-06-28)
+
+### Resumen
+
+Después de corregir la fórmula de idempotencia a `===`, el presupuesto de
+ministerios dejó de persistir. El slider se movía visualmente pero al recargar
+volvía al valor anterior. El síntoma era idéntico a un bug anterior de «slider
+sin persistencia».
+
+### La línea exacta del bug
+
+`src/app/actions/turn.ts:330-332` — la idempotencia `===` entre `game.currentMonth`
+y `latestSnapshot.month`. El valor de `game.currentMonth` era `0` (semilla del
+juego), y `latestSnapshot.month` también era `0` (snapshot inicial creado por
+`seed-game.ts:264`). La comparación `0 === 0` retornaba `true` → la función
+retornaba `existingState` sin ejecutar `processTurn` → el `input.budgetAdjustments`
+del jugador nunca se aplicaba.
+
+### Por qué la lectura superficial del código no lo detectaba
+
+En las dos revisiones anteriores de este archivo, el diagnóstico fue «el código
+está bien». El razonamiento era:
+
+1. `processTurn` PASO 1a (`turn.ts:120-135`) — aplica `input.budgetAdjustments`
+   correctamente. Revisado línea por línea, confirmado.
+2. Transacción paso b (`turn.ts:488-503`) — persiste `budgetPercent` en la DB.
+   Revisado, confirmado.
+3. Las keys coinciden (uppercase inglés en frontend y DB). Confirmado.
+4. No hay ningún paso intermedio que sobrescriba `ministry.budgetPercent`.
+   Confirmado.
+
+**Todo eso era correcto, pero irrelevante.** El bug no estaba en ninguna de esas
+líneas. Estaba en la línea 330-332, que decidía SIQUIERA EJECUTAR esas líneas.
+La idempotencia retornaba antes de llegar a `processTurn`, haciendo que todo el
+análisis de PASO 1a y la transacción fuera condicional muerto.
+
+**Patrón de error:** confiar en lectura de código sin verificar con evidencia de
+ejecución real. La lectura de código confirma que la lógica ES CORRECTA cuando
+se ejecuta — pero no confirma que SE EJECUTE. Solo un log de runtime (o un test
+end-to-end) revela si el código muerto es alcanzado.
+
+### Diagnóstico
+
+La confirmación llegó con logs estratégicos en tres niveles:
+
+| Nivel | Log | ¿Apareció? | ¿Qué implica? |
+|-------|-----|------------|---------------|
+| 1. Server action (antes de idempotencia) | `DEBUG input crudo recibido: {"budgetAdjustments":{"DEFENSE":5}}` | ✅ | El cliente envía bien el input |
+| 2. Idempotencia | `game: {year:1, month:0} === latestSnapshot: {year:1, month:0}` | ✅ match | La idempotencia está bloqueando |
+| 3. `processTurn` PASO 1a | `DEBUG ministerios después de PASO 1a: ...` | ❌ NUNCA | `processTurn` nunca se ejecuta |
+
+El log del nivel 2 reveló que `game.currentMonth` y `latestSnapshot.month`
+tenían el mismo valor (`0`), lo que no debería ocurrir en un flujo normal
+donde `currentMonth` avanza después de crear el snapshot. La investigación
+retrospectiva encontró que el seed (`seed-game.ts:264`) crea un snapshot
+inicial con `year:1, month:0` — exactamente el mismo mes en que empieza el
+juego (`currentMonth:0` en `seed-game.ts:38`).
+
+### Solución aplicada
+
+Eliminar el `MonthSnapshot` inicial del seed (`seed-game.ts:260-283`). El
+primer `advanceMonth` naturalmente crea el snapshot del mes 0 como parte del
+flujo normal.
+
+Flujo resultante:
+- Juego nuevo: `currentMonth=0`, cero snapshots
+- 1er avance: `latestSnapshot=null` → skip idempotencia → `processTurn` → snapshot mes 0, `currentMonth=1`
+- 2do avance: `latestSnapshot.month=0, currentMonth=1` → `0 !== 1` → procede
+- N-ésimo avance: siempre `latestSnapshot.month < currentMonth` → procede
+
+### Lección aprendida
+
+La fórmula de idempotencia con `===` tiene una precondición implícita: el
+juego NO debe tener un snapshot para el mes actual antes de la primera
+llamada a `advanceMonth`. Si el seed crea un snapshot que coincide con
+`currentMonth`, la primera llamada válida también es bloqueada.
+
+**Metodológicamente:** cuando un bug persiste después de revisar el código,
+no alcanza con volver a leerlo. Hay que instrumentar con logs en los puntos
+de decisión (no solo en los puntos de ejecución) para confirmar que el flujo
+de control llega donde se espera.
+
+### Archivos modificados
+
+- `src/app/actions/seed-game.ts` — eliminado snapshot inicial (líneas 260-283)
+
+### Verificación
+
+- ✅ 300 tests unitarios pasan (27 archivos)
+- ✅ Prueba funcional manual: slider de presupuesto persiste tras avanzar mes y recargar

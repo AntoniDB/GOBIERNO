@@ -257,30 +257,8 @@ export async function createInitialGame(
     data: { gameId, ...cfg.regimeMetrics },
   });
 
-  // ── Snapshot inicial ──────────────────────────────────────────────────
-  const approvalAvg = socialClassData.reduce(
-    (sum, sc) => sum + sc.approval * (sc.populationPercent / 100), 0
-  );
-  await prismaClient.monthSnapshot.create({
-    data: {
-      gameId, year: 1, month: 0,
-      treasury: cfg.treasury,
-      gdp: cfg.gdpBase,
-      population: cfg.population,
-      approval: approvalAvg,
-      corruption: cfg.initialCorruption,
-      povertyRate: cfg.povertyRate,
-      unemploymentRate: cfg.unemploymentRate,
-      sickRate: 3,
-      crimeRate: cfg.regimeMetrics.militarySubordination < 40 ? 12 : 7,
-      foodSecurity: cfg.povertyRate < 20 ? 85 : 60,
-      educationLevel: cfg.regimeMetrics.civilLiberties > 60 ? 62 : 45,
-      inflation: cfg.inflation,
-      gini: cfg.gini,
-      regimeType: cfg.regimeMetrics.pressFreedom > 70 && cfg.regimeMetrics.judicialIndependence > 60 ? "Democracia plena" : cfg.regimeMetrics.powerConcentration > 50 ? "Autoritarismo electoral" : "Democracia defectuosa",
-      regimeMetrics: cfg.regimeMetrics,
-    },
-  });
+  // Snapshot inicial eliminado intencionalmente (año 1 mes 0 = currentMonth 0 rompía idempotencia).
+  // El primer advanceMonth crea el snapshot del mes 0 como parte del flujo normal.
 
   // ── Bienes comerciables y flujos iniciales (Salud-3B-i) ──────────────
   const demandBase = Math.ceil(cfg.population * 0.00001); // demandPerCapita = 0.00001

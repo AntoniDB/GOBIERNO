@@ -95,13 +95,18 @@ export function calculateSickRateFromDiseases(prevalences: DiseasePrevalenceStat
  * Calcula la tasa de mortalidad atribuible a enfermedades.
  * Aditiva: cada enfermedad contribuye independientemente a la mortalidad.
  *
- * diseaseMortality = Σ(currentPrevalence × mortalityRate)
+ * diseaseMortality = Σ(currentPrevalence × mortalityRate × shortageMultiplier)
+ *
+ * shortageMultipliers: cuando hay escasez de medicamentos (cobertura <50%),
+ * cada categoria de enfermedad multiplica su mortalidad por el factor definido
+ * en balance.ts (TRADE_SHORTAGE_MORTALITY_MULTIPLIER_*).
  *
  * Esta tasa se multiplica por LE_DISEASE_FACTOR para obtener el impacto en LE.
  */
 export function calculateDiseaseMortality(
   prevalences: DiseasePrevalenceState[],
-  diseases: DiseaseState[]
+  diseases: DiseaseState[],
+  shortageMultipliers?: Partial<Record<"TRANSMISSIBLE" | "CHRONIC" | "MENTAL_HEALTH", number>>,
 ): number {
   if (prevalences.length === 0 || diseases.length === 0) return 0;
 
@@ -111,7 +116,8 @@ export function calculateDiseaseMortality(
   for (const p of prevalences) {
     const disease = diseaseMap.get(p.diseaseId);
     if (!disease) continue;
-    totalMortality += (p.currentPrevalence / 100) * disease.mortalityRate;
+    const multiplier = shortageMultipliers?.[disease.category] ?? 1;
+    totalMortality += (p.currentPrevalence / 100) * disease.mortalityRate * multiplier;
   }
 
   return totalMortality;

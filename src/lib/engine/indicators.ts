@@ -13,6 +13,7 @@ import { BALANCE } from "../balance";
 import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
 import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDiseaseMortality } from "./diseases";
 import { calculateHospitalOperationalFactor } from "./medical-professionals";
+import { isMedicationShortage } from "./trade";
 import type { DiseaseState } from "./diseases";
 
 /**
@@ -379,9 +380,18 @@ export function calculateHealthRegional(state: GameState): number {
     const sickFromDiseases = calculateSickRateFromDiseases(prevalences);
     if (sickFromDiseases !== null) {
       state.diseasePrevalences = prevalences;
+      const shortage = isMedicationShortage(state);
+      const shortageMultipliers = shortage
+        ? {
+            CHRONIC: BALANCE.TRADE_SHORTAGE_MORTALITY_MULTIPLIER_CHRONIC,
+            TRANSMISSIBLE: BALANCE.TRADE_SHORTAGE_MORTALITY_MULTIPLIER_TRANSMISSIBLE,
+            MENTAL_HEALTH: BALANCE.TRADE_SHORTAGE_MORTALITY_MULTIPLIER_MENTAL,
+          }
+        : undefined;
       state.diseaseMortality = calculateDiseaseMortality(
         prevalences,
-        state.diseases as unknown as DiseaseState[]
+        state.diseases as unknown as DiseaseState[],
+        shortageMultipliers,
       );
       return sickFromDiseases;
     }
