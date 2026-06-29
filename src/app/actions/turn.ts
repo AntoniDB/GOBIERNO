@@ -55,6 +55,8 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
     population: latestSnapshot?.population ?? DEFAULT_POPULATION,
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
+    healthEfficiencyStreak: (game as Record<string, unknown>).healthEfficiencyStreak as number ?? 0,
+    consecutiveSaturationMonths: (game as Record<string, unknown>).consecutiveSaturationMonths as Record<string, number> ?? {},
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
       key: m.key as string,
@@ -346,6 +348,7 @@ export async function advanceMonth(
         newEvents: [],
         mediaCoverages: [],
         mediaPolls: [],
+        autoProposedLaws: [],
       };
     }
   }
@@ -365,7 +368,7 @@ export async function advanceMonth(
 
   // Ejecutar motor puro
   const output = processTurn(gameState, input, rng);
-  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages, mediaPolls, gameOver } = output;
+  const { newState, monthSnapshot, notifications, newEvents, mediaCoverages, mediaPolls, gameOver, autoProposedLaws } = output;
 
   // Calcular nuevo año/mes
   const monthAdvanced = game.currentMonth + 1;
@@ -379,13 +382,19 @@ export async function advanceMonth(
     upperFor: number; upperAgainst: number; upperAbstain: number;
   }[] = [];
 
-  if (input.proposedLaws && input.proposedLaws.length > 0) {
+  // Merge de leyes propuestas por el jugador con auto-propuestas del motor
+  const allProposedLaws = [
+    ...(input.proposedLaws ?? []),
+    ...(autoProposedLaws ?? []).filter((l) => !input.proposedLaws?.includes(l)),
+  ];
+
+  if (allProposedLaws.length > 0) {
     // Construir set de partidos beneficiados por compra de votos
     const rewardedPartyIds = input.voteBuyingPartyIds
       ? new Set(input.voteBuyingPartyIds)
       : new Set<string>();
 
-    for (const lawKey of input.proposedLaws) {
+    for (const lawKey of allProposedLaws) {
       const catalogEntry = lawCatalogMap.get(lawKey);
       if (!catalogEntry) continue;
 
@@ -578,6 +587,8 @@ export async function advanceMonth(
           treasury: newState.treasury,
           population: newState.population,
           consecutiveLowApprovalMonths: newState.consecutiveLowApprovalMonths ?? 0,
+          healthEfficiencyStreak: newState.healthEfficiencyStreak ?? 0,
+          consecutiveSaturationMonths: newState.consecutiveSaturationMonths ?? {},
           status: gameOver ? ("FINISHED" as const) : undefined,
           sanctionsMultiplier: newState.sanctionsMultiplier ?? 1.0,
         },
@@ -869,5 +880,6 @@ export async function advanceMonth(
     mediaCoverages,
     mediaPolls,
     gameOver,
+    autoProposedLaws: autoProposedLaws ?? [],
   };
 }

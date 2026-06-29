@@ -56,6 +56,15 @@ import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./lo
 import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
 import { processResourceBalance } from "./resource-balance";
 import { processTradeFlows } from "./trade";
+import {
+  detectDiseaseOutbreak,
+  detectHospitalCollapse,
+  detectMedicationShortage,
+  detectMalpracticeScandal,
+  detectMedicalBreakthrough,
+  applyOutbreakEffects,
+  updateEfficiencyStreak,
+} from "./health-crises";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
@@ -856,6 +865,161 @@ export function processTurn(
   newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
 
   // ═══════════════════════════════════════════════════════════════════════
+  // PASO 11c: Disparar crisis sanitarias específicas (Salud-3B-ii)
+  // Cinco crisis conectadas al catálogo de enfermedades, saturación
+  // hospitalaria, comercio exterior, corrupción y sistema de justicia.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Determinar si una MEDICAL_RESEARCH LRD se completó este mes
+  const researchCompletedThisMonth = (lrdResult.completed ?? []).some(
+    (lrd) => lrd.type === "MEDICAL_RESEARCH",
+  );
+
+  // Determinar si ya había escasez de medicamentos activa
+  const wasMedicationShortage = newState.events.some(
+    (e) => e.type === "MEDICATION_SHORTAGE" && !e.resolvedAt,
+  );
+
+  // Trackear enfermedades que ya recibieron avance médico
+  const alreadyBenefitedDiseaseIds = newState.events
+    .filter((e) => e.type === "MEDICAL_BREAKTHROUGH" && e.effectsApplied)
+    .map((e) => (e.effectsApplied as Record<string, unknown>).diseaseId as string)
+    .filter(Boolean);
+
+  const autoProposedLaws: string[] = [];
+
+  // Crisis 1: Brote epidémico (reemplaza al viejo EPIDEMIC)
+  const outbreakEvents = detectDiseaseOutbreak(newState, rng);
+  for (const ev of outbreakEvents) {
+    newState.events.push(ev);
+    allNewEvents.push(ev);
+    const fx = ev.effectsApplied as Record<string, unknown>;
+    if (fx.autoProposeLaw) {
+      autoProposedLaws.push("estado-emergencia");
+    }
+    allNotifications.push({
+      type: "crisis",
+      title: "Brote epidémico",
+      description: ev.description,
+      severity: ev.severity,
+    });
+  }
+
+  // Crisis 2: Colapso hospitalario
+  const collapseEvents = detectHospitalCollapse(newState, rng);
+  for (const ev of collapseEvents) {
+    newState.events.push(ev);
+    allNewEvents.push(ev);
+    allNotifications.push({
+      type: "crisis",
+      title: "Colapso hospitalario",
+      description: ev.description,
+      severity: ev.severity,
+    });
+  }
+
+  // Crisis 3: Escasez de medicamentos (solo notificacion, mortalidad ya existe)
+  const shortageEvents = detectMedicationShortage(newState, wasMedicationShortage);
+  for (const ev of shortageEvents) {
+    newState.events.push(ev);
+    allNewEvents.push(ev);
+    allNotifications.push({
+      type: "crisis",
+      title: "Escasez de medicamentos",
+      description: ev.description,
+      severity: ev.severity,
+    });
+  }
+
+  // Crisis 4: Escándalo de mala praxis
+  const malpracticeEvents = detectMalpracticeScandal(newState, rng);
+  for (const ev of malpracticeEvents) {
+    newState.events.push(ev);
+    allNewEvents.push(ev);
+    const fx = ev.effectsApplied as Record<string, unknown>;
+    allNotifications.push({
+      type: "crisis",
+      title: "Escándalo de mala praxis",
+      description: ev.description,
+      severity: ev.severity,
+    });
+  }
+
+  // Crisis 5: Avance médico
+  const breakthroughEvents = detectMedicalBreakthrough(
+    newState,
+    rng,
+    researchCompletedThisMonth,
+    alreadyBenefitedDiseaseIds,
+  );
+  for (const ev of breakthroughEvents) {
+    newState.events.push(ev);
+    allNewEvents.push(ev);
+    allNotifications.push({
+      type: "info",
+      title: "Avance médico",
+      description: ev.description,
+      severity: ev.severity,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 11d: Aplicar efectos de crisis sanitarias + tracking de streaks
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Efectos de brotes activos (mortalidad temporal decrementada)
+  applyOutbreakEffects(newState, eventsThisMonth);
+
+  // Efectos de escándalo de mala praxis: abrir caso judicial y bajar reputacion
+  const allHealthEvents = newState.events.filter(
+    (e) =>
+      e.year === newState.currentYear &&
+      e.month === newState.currentMonth &&
+      e.type === "MALPRACTICE_SCANDAL",
+  );
+  for (const ev of allHealthEvents) {
+    const fx = ev.effectsApplied as Record<string, unknown>;
+    const dirId = fx.directorOfficialId as string | undefined;
+    if (dirId && fx.opensJudicialCase) {
+      const target = newState.officials.find((o) => o.id === dirId);
+      if (target) {
+        target.reputation = Math.max(0, target.reputation - ((fx.reputationHit as number) ?? 0));
+        // Abrir caso judicial automático
+        const prosecutors = newState.officials.filter(
+          (o) => o.role === "PROSECUTOR" && o.status === "ACTIVE",
+        );
+        const judges = newState.officials.filter(
+          (o) => o.role === "JUDGE" && o.status === "ACTIVE",
+        );
+        if (prosecutors.length > 0 && judges.length > 0) {
+          const newCase = {
+            id: `auto-malpractice-${dirId}-${newState.currentYear}-${newState.currentMonth}`,
+            defendantOfficialId: dirId,
+            caseType: "CORRUPTION" as const,
+            currentPhase: "INVESTIGATION" as const,
+            monthsInPhase: 0,
+            evidenceStrength: 40 + Math.floor(rng() * 30),
+            prosecutorId: prosecutors[0].id,
+            judgeId: judges[0].id,
+            verdict: null as string | null,
+            sentenceMonths: null as number | null,
+          };
+          newState.judicialCases.push(newCase);
+          target.status = "INVESTIGATED";
+          allNotifications.push({
+            type: "case",
+            title: "Caso abierto por mala praxis",
+            description: `Se ha abierto una investigacion judicial contra ${target.name} por el escandalo de mala praxis en el Ministerio de Salud.`,
+          });
+        }
+      }
+    }
+  }
+
+  // Actualizar streak de eficiencia de Salud (para avance medico Crisis 5)
+  updateEfficiencyStreak(newState);
+
+  // ═══════════════════════════════════════════════════════════════════════
   // PASO 12: Generar coberturas mediáticas (eventos + decisiones)
   // ═══════════════════════════════════════════════════════════════════════
   allMediaCoverages = generateMediaCoverage(
@@ -1040,5 +1204,6 @@ export function processTurn(
     mediaCoverages: allMediaCoverages,
     mediaPolls: allMediaPolls,
     gameOver,
+    autoProposedLaws,
   };
 }

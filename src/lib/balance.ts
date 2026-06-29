@@ -580,6 +580,40 @@ export const BALANCE = {
 
   /** Multiplicador de mortalidad por escasez: salud mental afectada marginalmente */
   TRADE_SHORTAGE_MORTALITY_MULTIPLIER_MENTAL: 1.1,
+
+  // ─── Crisis Sanitarias (Salud-3B-ii) ──────────────────────────────────────
+  // 5 crisis específicas del Ministerio de Salud conectadas al catálogo de
+  // enfermedades, saturación hospitalaria, comercio exterior y corrupción.
+
+  // Crisis 1: Brote epidémico (DISEASE_OUTBREAK) — reemplaza al EPIDEMIC viejo
+  OUTBREAK_PREVALENCE_THRESHOLD: 15,          // % prevalencia minima en TRANSMISSIBLES
+  OUTBREAK_REGIONAL_COVERAGE_THRESHOLD: 40,    // cobertura regional maxima para disparar
+  OUTBREAK_BASE_PROB: 0.08,                    // probabilidad base mensual (misma que viejo EPIDEMIC)
+  OUTBREAK_MORTALITY_MULTIPLIER_MIN: 1.3,      // mortalidad temporal minima
+  OUTBREAK_MORTALITY_MULTIPLIER_MAX: 2.0,      // mortalidad temporal maxima
+  OUTBREAK_AUTO_LAW_SEVERITY_THRESHOLD: 60,    // severidad minima para auto-proponer ley
+  OUTBREAK_AUTO_LAW_PROB: 0.40,               // probabilidad de auto-proponer ley de emergencia
+  OUTBREAK_DURATION_MIN: 2,                    // meses minimos de duracion
+  OUTBREAK_DURATION_MAX: 4,                    // meses maximos de duracion
+
+  // Crisis 2: Colapso hospitalario (HOSPITAL_COLLAPSE)
+  COLLAPSE_SATURATION_THRESHOLD: 1.5,          // sickNeedingBeds > 1.5x totalBeds
+  COLLAPSE_CONSECUTIVE_MONTHS: 3,              // meses consecutivos necesarios
+  COLLAPSE_MORTALITY_FACTOR: 0.01,             // multiplicador de mortalidad por punto de severidad
+
+  // Crisis 3: Escasez de medicamentos (MEDICATION_SHORTAGE) — aprovecha TRADE_SHORTAGE_COVERAGE_THRESHOLD
+
+  // Crisis 4: Escándalo de mala praxis (MALPRACTICE_SCANDAL)
+  MALPRACTICE_BASE_PROB: 0.015,                // probabilidad base mensual
+  MALPRACTICE_CORRUPTION_THRESHOLD: 30,        // internalCorruption minima para escalar
+
+  // Crisis 5: Avance médico (MEDICAL_BREAKTHROUGH)
+  BREAKTHROUGH_RESEARCH_PROB: 0.30,            // prob si LRD completada este mes
+  BREAKTHROUGH_EFFICIENCY_PROB: 0.15,          // prob si HEALTH.efficiency >= threshold por N meses
+  BREAKTHROUGH_EFFICIENCY_THRESHOLD: 70,       // umbral de eficiencia
+  BREAKTHROUGH_EFFICIENCY_STREAK: 3,           // meses consecutivos necesarios
+  BREAKTHROUGH_MORTALITY_REDUCTION: 0.8,       // factor multiplicativo (1 - 0.8 = 20% reduccion)
+  BREAKTHROUGH_MORTALITY_FLOOR_RATIO: 0.05,    // piso: mortalityRate no baja de 5% del original
 } as const;
 
 export type BalanceConfig = typeof BALANCE;

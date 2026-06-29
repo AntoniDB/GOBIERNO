@@ -114,6 +114,11 @@ enum EventType {
   ECONOMIC_CRISIS
   LEAK
   OTHER
+  DISEASE_OUTBREAK
+  HOSPITAL_COLLAPSE
+  MEDICATION_SHORTAGE
+  MALPRACTICE_SCANDAL
+  MEDICAL_BREAKTHROUGH
 }
 
 enum TradeGoodCategory {
@@ -188,6 +193,8 @@ model Game {
   treasury      Float     @default(1000000)
   population    Int       @default(10000000)
   consecutiveLowApprovalMonths Int @default(0)
+  healthEfficiencyStreak      Int @default(0)
+  consecutiveSaturationMonths Json?
   sanctionsMultiplier Float  @default(1.0)
   createdAt     DateTime  @default(now())
 

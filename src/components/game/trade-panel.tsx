@@ -38,6 +38,7 @@ export function TradePanel({
   goodCategories?: TradeGoodCategory[];
 }) {
   const gameState = useGameStore((s) => s.gameState);
+  const pendingInput = useGameStore((s) => s.pendingInput);
   const updateTradeFlowTarget = useGameStore((s) => s.updateTradeFlowTarget);
 
   if (!gameState) return null;
@@ -229,15 +230,17 @@ export function TradePanel({
         const demand = calculateDemand(gameState.population, good.demandPerCapita);
         const isActive = flow?.isActive && flow.direction === "IMPORT";
 
+        const flowId = flow?.id;
+
         // Si hay flujo activo, usar sus datos; si no, valores por defecto
         const monthlyVolume = isActive ? flow.monthlyVolume : 0;
-        const targetVolume = isActive ? flow.targetVolume : 0;
+        const pendingTarget = flowId ? pendingInput.tradeFlowDecisions?.[flowId]?.targetVolume : undefined;
+        const targetVolume = pendingTarget ?? (isActive ? flow.targetVolume : 0);
         const monthlyCost = isActive ? flow.monthlyCost : 0;
         const sanctionsM = flow?.sanctionsMultiplier ?? 1.0;
         const pct = targetVolume > 0
           ? Math.round((monthlyVolume / targetVolume) * 100)
           : 0;
-        const flowId = flow?.id;
 
         return (
           <div key={good.id} style={{ marginBottom: 14 }}>

@@ -37,6 +37,8 @@ export interface GameState {
   diseasePrevalences: DiseasePrevalenceStateInput[];
   diseaseMortality: number;
   consecutiveLowApprovalMonths: number;
+  healthEfficiencyStreak: number;
+  consecutiveSaturationMonths: Record<string, number>;
   sanctionsMultiplier: number;
   tradeGoods: TradeGoodState[];
   tradeFlows: TradeFlowState[];
@@ -355,6 +357,10 @@ export interface TurnOutput {
   notifications: TurnNotification[];
   gameOver: GameOverResult | null;
   newEvents: EventState[];
+  mediaCoverages: MediaCoverageData[];
+  mediaPolls: MediaPollData[];
+  autoProposedLaws: string[];
+}
   mediaCoverages: MediaCoverageData[];
   mediaPolls: MediaPollData[];
 }

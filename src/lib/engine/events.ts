@@ -185,18 +185,7 @@ export function triggerRandomEvents(
     baseProb: number;
     severityFn: () => number;
   }[] = [
-    {
-      type: "EPIDEMIC",
-      condition: healthImpact < BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD,
-      baseProb: BALANCE.EVENT_EPIDEMIC_PROB,
-      severityFn: () =>
-        Math.min(
-          100,
-          ((BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD - healthImpact) /
-            BALANCE.EVENT_EPIDEMIC_HEALTH_THRESHOLD) *
-            100
-        ),
-    },
+    // EPIDEMIC eliminado en Salud-3B-ii: reemplazado por DISEASE_OUTBREAK en health-crises.ts
     {
       type: "SCANDAL",
       condition: avgCorruption > BALANCE.EVENT_SCANDAL_CORRUPTION_THRESHOLD,
