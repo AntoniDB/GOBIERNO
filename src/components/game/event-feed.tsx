@@ -102,7 +102,7 @@ function EventRow({ event, gameId }: { event: EventState; gameId: string }) {
           </span>
           {event.severity > 0 && (
             <span className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
-              Severidad {event.severity}/10
+              Severidad {event.severity}/100
             </span>
           )}
         </div>
@@ -128,7 +128,7 @@ function NotificationRow({ notification }: { notification: TurnNotification }) {
         <p className="text-xs text-muted-foreground">{notification.description}</p>
         {notification.severity != null && (
           <span className="mt-0.5 inline-block rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
-            Severidad {notification.severity}/10
+            Severidad {notification.severity}/100
           </span>
         )}
       </div>

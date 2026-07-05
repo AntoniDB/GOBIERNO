@@ -59,7 +59,7 @@ export function calculateDiseasePrevalence(
 
     // Transmisibles: la contagionRate puede hacer que suba si no hay control
     const contagionBonus = disease.category === "TRANSMISSIBLE"
-      ? disease.contagionRate * (1 - coverageBonus) * 5
+      ? disease.contagionRate * (1 - coverageBonus) * BALANCE.CONTAGION_MULTIPLIER
       : 0;
 
     const rawPrevalence = disease.prevalenceBase * (1 - preventionEffect) + contagionBonus;

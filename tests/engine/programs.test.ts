@@ -267,8 +267,9 @@ describe("reduccion de prevalencia (efecto por mes)", () => {
     expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(12 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
     expect(state.diseasePrevalences[1].currentPrevalence).toBeCloseTo(10 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
     expect(state.diseasePrevalences[2].currentPrevalence).toBeCloseTo(5 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
-    // Trans no debe bajar (sino por recuperacion)
-    expect(state.diseasePrevalences[3].currentPrevalence).toBe(10);
+    // Trans no debe bajar: el contagio sin cobertura (mental no cubre transmissibles)
+    // la empuja hacia prevalenceBase + contagionBonus = 10 + 0.15×0.5×5 = 10.375
+    expect(state.diseasePrevalences[3].currentPrevalence).toBeCloseTo(10.375, 2);
   });
 });
 
@@ -286,15 +287,15 @@ describe("recuperacion al desactivar", () => {
     expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(2.4, 1);
   });
 
-  it("la prevalencia no supera prevalenceBase al recuperarse", () => {
+  it("la prevalencia supera prevalenceBase al recuperarse por contagio", () => {
     const state = crearEstadoBase({
       diseases: [crearDisease({ prevalenceBase: 10 })],
       diseasePrevalences: [{ id: "p1", diseaseId: "d-gripe", currentPrevalence: 9.8 }],
       programs: [],
     });
     advancePrograms(state, {});
-    // 9.8 + 0.4 = 10.2 -> clamped a 10
-    expect(state.diseasePrevalences[0].currentPrevalence).toBe(10);
+    // 9.8 + 0.4 = 10.2, sin cap porque target = prevalenceBase + contagionBonus (10.375) > 10.2
+    expect(state.diseasePrevalences[0].currentPrevalence).toBe(10.2);
   });
 });
 

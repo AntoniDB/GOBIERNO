@@ -461,6 +461,8 @@ export const BALANCE = {
 
   /** Umbrales de cobertura sanitaria para reducir prevalencia: 100 = maxima cobertura */
   DISEASE_COVERAGE_MAX: 100,
+  /** Multiplicador del contagio de transmisibles: contagionRate × (1 − coverage) × N */
+  CONTAGION_MULTIPLIER: 5,
 
   // ─── Programas operativos (Salud-3A Capa D) ──────────────────────────────
   // Programas persistentes lanzables por el Ministro (sin aprobacion del Senado).

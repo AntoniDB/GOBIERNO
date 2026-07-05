@@ -257,7 +257,11 @@ function applyMentalHealthProgram(
 
 /**
  * Recuperacion: para enfermedades que NO tienen programa activo sobre ellas,
- * subir la prevalencia hacia prevalenceBase a su tasa de recuperacion.
+ * subir (o bajar) la prevalencia hacia un target dinamico.
+ *
+ * Para transmisibles, el target incluye contagioBonus (contagionRate
+ * escalado por la falta de cobertura sanitaria). Asi, bajar el presupuesto
+ * de Salud SÍ sube la prevalencia cada mes, no solo en la inicializacion.
  *
  * La tasa de recuperacion depende del tipo de programa que normally las cubriria:
  *  - transmisibles con vacuna: VACCINATION_RECOVERY_RATE
@@ -269,6 +273,13 @@ function applyUnprogrammedRecovery(
   activePrograms: MinistryProgramState[],
   diseasesById: Map<string, DiseaseStateInput>,
 ): void {
+  // Eficiencia actual de Salud para calcular contagioBonus
+  const healthMinistry = state.ministries.find(
+    (m) => m.key === "HEALTH" || (m as any).key === "salud",
+  );
+  const healthEfficiency = healthMinistry?.efficiency ?? 50;
+  const coverageBonus = healthEfficiency / BALANCE.DISEASE_COVERAGE_MAX;
+
   // Set de diseaseIds cubiertos por una campaña de vacunacion activa
   const vaccinatedIds = new Set<string>(
     activePrograms
@@ -285,28 +296,27 @@ function applyUnprogrammedRecovery(
     let rate: number;
     let covered: boolean;
     if (disease.category === "MENTAL_HEALTH") {
-      // Mentales: solo cubiertas por el programa de salud mental.
       rate = BALANCE.MENTAL_HEALTH_RECOVERY_RATE;
       covered = mentalActive;
     } else if (disease.category === "TRANSMISSIBLE" && disease.hasVaccine) {
-      // Transmisibles con vacuna disponible: cubiertas si hay campaña específica
-      // sobre esta enf. o si el programa de prevencion esta activo (abate todas).
       rate = BALANCE.VACCINATION_RECOVERY_RATE;
       covered = vaccinatedIds.has(prev.diseaseId) || preventionActive;
     } else {
-      // Resto (transmisibles sin vacuna + cronicos): cubiertas por prevencion.
       rate = BALANCE.PREVENTION_RECOVERY_RATE;
       covered = preventionActive;
     }
 
-    // Si la enfermedad está cubierta por un programa activo, no recuperar
-    // (el efecto del programa ya actuó en applyProgramEffects)
     if (covered) continue;
 
-    // Recuperar hacia prevalenceBase
+    // Target dinamico: incluye contagio para transmisibles
+    const contagionBonus = disease.category === "TRANSMISSIBLE"
+      ? disease.contagionRate * (1 - coverageBonus) * BALANCE.CONTAGION_MULTIPLIER
+      : 0;
+    const target = disease.prevalenceBase + contagionBonus;
+
     prev.currentPrevalence = recoverToward(
       prev.currentPrevalence,
-      disease.prevalenceBase,
+      target,
       rate,
     );
   }
@@ -323,13 +333,14 @@ function decayToward(value: number, target: number, delta: number): number {
 }
 
 /**
- * Mueve value hacia target subiendo por `delta` (no pasa del target).
- * Para programas desactivados que dejan la prevalencia recuperarse.
+ * Mueve value hacia target subiendo o bajando por `delta` (no pasa del target).
+ * Para programas desactivados que dejan la prevalencia re-equilibrarse.
  */
 function recoverToward(value: number, target: number, delta: number): number {
-  if (value >= target) return value; // ya esta en la base
-  const newVal = value + delta;
-  return Math.min(target, Math.round(newVal * 100) / 100);
+  const rounded = Math.round((value + (value < target ? delta : value > target ? -delta : 0)) * 100) / 100;
+  if (value < target) return Math.min(target, rounded);
+  if (value > target) return Math.max(target, rounded);
+  return value;
 }
 
 /**

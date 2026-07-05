@@ -58,10 +58,11 @@ interface NotificationsPanelProps {
 export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelProps) {
   const gameState = useGameStore((s) => s.gameState);
   const notifications = useGameStore((s) => s.notifications);
+  const sorted = [...notifications].reverse();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:max-w-md">
+      <SheetContent side="right" className="flex w-[400px] flex-col sm:max-w-md">
         <SheetHeader>
           <SheetTitle>
             Resultado del Mes {gameState?.currentMonth ?? "?"}
@@ -71,14 +72,14 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
           </SheetDescription>
         </SheetHeader>
         <Separator />
-        <ScrollArea className="-mx-4 flex-1 px-4">
-          {notifications.length === 0 ? (
+        <ScrollArea className="-mx-4 flex-1 overflow-y-auto px-4">
+          {sorted.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               No hay notificaciones pendientes.
             </p>
           ) : (
             <div className="space-y-3 pr-2">
-              {notifications.map((notif, i) => {
+              {sorted.map((notif, i) => {
                 const colorClass = getIconColor(notif.type);
                 return (
                   <div key={i} className="flex gap-3 rounded-lg border border-border/50 p-3">
@@ -88,7 +89,7 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
                       <p className="text-xs text-muted-foreground">{notif.description}</p>
                       {notif.severity != null && (
                         <span className="mt-1 inline-block rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
-                          Severidad {notif.severity}/10
+                          Severidad {notif.severity}/100
                         </span>
                       )}
                     </div>
