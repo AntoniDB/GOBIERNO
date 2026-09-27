@@ -24,7 +24,6 @@ import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
-import { calculateGlobalCorruption } from "./corruption";
 import {
   calculatePoverty,
   calculateUnemployment,
@@ -44,7 +43,6 @@ import { advanceJudicialCases, openAutoCases } from "./justice";
 import { evaluateMotions } from "./congress";
 import {
   calculateRegimeMetrics,
-  classifyRegime,
   regenerateRegimeMetrics,
 } from "./regime";
 import { triggerRandomEvents, applyEventEffects } from "./events";
@@ -689,11 +687,6 @@ export function processTurn(
       newState.officials
     );
   }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PASO 7: Calcular corrupción global
-  // ═══════════════════════════════════════════════════════════════════════
-  const globalCorruption = calculateGlobalCorruption(newState.officials);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 8: Recalcular indicadores sociales explícitamente
