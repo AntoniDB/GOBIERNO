@@ -71,6 +71,7 @@ export function generateCandidates(
       id: `cand-${state.currentYear}-${state.currentMonth}-${i}`,
       name,
       role,
+      specialty: null,
       ministryId: null,
       partyId: null,
       loyalty,

@@ -212,6 +212,7 @@ export interface OfficialData {
   skill: number;
   reputation: number;
   partyId?: number;
+  specialty?: string;
 }
 
 export function generateOfficials(baseCorruption: number): OfficialData[] {

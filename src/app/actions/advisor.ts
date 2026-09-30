@@ -49,12 +49,16 @@ async function loadGameStateWithSnapshot(gameId: string): Promise<GameState | nu
     internalCorruption: m.internalCorruption,
     subDecisions: (m.subDecisions ?? {}) as Record<string, number | boolean>,
     ministerOfficialId: m.ministerOfficialId as string | null,
+    producedResources: (m.producedResources ?? {}) as Record<string, number>,
+    consumedResources: (m.consumedResources ?? {}) as Record<string, number>,
+    healthBudgetSplit: (m.healthBudgetSplit ?? { primary: 50, secondary: 30, tertiary: 20 }) as Record<string, number>,
   }));
 
   const officials = game.officials.map((o) => ({
     id: o.id,
     name: o.name,
     role: o.role,
+    specialty: o.specialty as string | null,
     ministryId: o.ministryId as string | null,
     partyId: o.partyId as string | null,
     loyalty: o.loyalty,
@@ -197,12 +201,27 @@ async function loadGameStateWithSnapshot(gameId: string): Promise<GameState | nu
       civilLiberties: 70,
       transparency: 50,
       militarySubordination: 60,
-    }) as GameState["regimeMetrics"],
+    }) as unknown as GameState["regimeMetrics"],
     media,
     events,
     consecutiveLowApprovalMonths: game.consecutiveLowApprovalMonths ?? 0,
     lifeExpectancy: 68,
     longRunningDecisions: [],
+    // Estado de salud/comercio no se usa en los prompts de IA: valores neutros.
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
+    sanctionsMultiplier: 1,
+    tradeGoods: [],
+    tradeFlows: [],
+    tradeBalance: 0,
+    totalImports: 0,
+    totalExports: 0,
   };
 }
 

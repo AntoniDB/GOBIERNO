@@ -38,7 +38,7 @@ export function detectDiseaseOutbreak(
   const events: EventState[] = [];
 
   const transmissibles = (state.diseases ?? []).filter(
-    (d: Record<string, unknown>) => d.category === "TRANSMISSIBLE",
+    (d) => d.category === "TRANSMISSIBLE",
   ) as unknown as DiseaseState[];
 
   if (transmissibles.length === 0) return events;
@@ -133,8 +133,9 @@ export function applyOutbreakEffects(
     // El multiplicador se aplica en calculateDiseaseMortality via
     // shortageMultipliers; aqui solo se registra el efecto activo.
 
-    fx.remainingMonths = remaining - 1;
-    if (fx.remainingMonths <= 0) {
+    const nextRemaining = remaining - 1;
+    fx.remainingMonths = nextRemaining;
+    if (nextRemaining <= 0) {
       outbreak.resolvedAt = `${state.currentYear}-${state.currentMonth}`;
     }
   }
