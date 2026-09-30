@@ -1,21 +1,30 @@
-// ─── Backfill: sembrar enfermedades para partidas existentes ──────────────
-// Uso: node --import tsx scripts/backfill-diseases.ts
-// Requiere DATABASE_URL en el entorno.
-// Solo ejecuta para partidas sin enfermedades (idempotente).
+// ─── Catálogos de siembra por partida ────────────────────────────────────────
+// Única fuente de verdad de las entidades que se crean con cada partida nueva
+// y que `ensureSeedIntegrity` repone en partidas existentes. Solo datos:
+// sin Prisma ni lógica, para poder importarlo desde el motor y los tests.
 
-import { config } from "dotenv";
-import { resolve } from "path";
+import type { TradeGoodCategory } from "./engine/types";
 
-// Cargar .env.local
-config({ path: resolve(process.cwd(), ".env.local") });
+export type DiseaseCategory = "TRANSMISSIBLE" | "CHRONIC" | "MENTAL_HEALTH";
 
-import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+export interface DiseaseSeed {
+  name: string;
+  category: DiseaseCategory;
+  contagionRate: number;
+  mortalityRate: number;
+  prevalenceBase: number;
+  hasVaccine: boolean;
+  preventionSensitivity: number;
+  monthlyCostPerPatient: number;
+  classAffinity: {
+    EXTREME_POVERTY: number;
+    POVERTY: number;
+    MIDDLE: number;
+    ELITE: number;
+  };
+}
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
-
-const DISEASES = [
+export const DISEASE_CATALOG: readonly DiseaseSeed[] = [
   { name: "Gripe estacional", category: "TRANSMISSIBLE", contagionRate: 0.15, mortalityRate: 0.001, prevalenceBase: 10, hasVaccine: true, preventionSensitivity: 0.8, monthlyCostPerPatient: 200, classAffinity: { EXTREME_POVERTY: 1.0, POVERTY: 1.0, MIDDLE: 1.0, ELITE: 1.0 } },
   { name: "Dengue", category: "TRANSMISSIBLE", contagionRate: 0.08, mortalityRate: 0.005, prevalenceBase: 5, hasVaccine: false, preventionSensitivity: 0.6, monthlyCostPerPatient: 500, classAffinity: { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.5 } },
   { name: "Tuberculosis", category: "TRANSMISSIBLE", contagionRate: 0.03, mortalityRate: 0.02, prevalenceBase: 3, hasVaccine: true, preventionSensitivity: 0.5, monthlyCostPerPatient: 1200, classAffinity: { EXTREME_POVERTY: 2.0, POVERTY: 1.5, MIDDLE: 0.5, ELITE: 0.2 } },
@@ -32,55 +41,37 @@ const DISEASES = [
   { name: "Adicciones", category: "MENTAL_HEALTH", contagionRate: 0, mortalityRate: 0.005, prevalenceBase: 5, hasVaccine: false, preventionSensitivity: 0.4, monthlyCostPerPatient: 900, classAffinity: { EXTREME_POVERTY: 1.4, POVERTY: 1.3, MIDDLE: 0.8, ELITE: 0.7 } },
 ];
 
-async function main() {
-  const games = await prisma.game.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, countryName: true },
-  });
-
-  for (const game of games) {
-    const existing = await prisma.disease.count({ where: { gameId: game.id } });
-    if (existing >= 14) {
-      console.log(`  ✓ ${game.countryName}: ya tiene ${existing} enfermedades`);
-      continue;
-    }
-
-    console.log(`  ⟳ ${game.countryName}: sembrando ${DISEASES.length} enfermedades...`);
-    for (const d of DISEASES) {
-      const disease = await prisma.disease.create({
-        data: {
-          game: { connect: { id: game.id } },
-          name: d.name,
-          category: d.category,
-          contagionRate: d.contagionRate,
-          mortalityRate: d.mortalityRate,
-          prevalence: 0,
-          prevalenceBase: d.prevalenceBase,
-          hasVaccine: d.hasVaccine,
-          preventionSensitivity: d.preventionSensitivity,
-          monthlyCostPerPatient: d.monthlyCostPerPatient,
-          classAffinity: d.classAffinity,
-        },
-      });
-      await prisma.diseasePrevalence.create({
-        data: {
-          game: { connect: { id: game.id } },
-          disease: { connect: { id: disease.id } },
-          currentPrevalence: 0,
-        },
-      });
-    }
-    console.log(`  ✓ ${game.countryName}: ${DISEASES.length} enfermedades sembradas`);
-  }
-
-  console.log("\n✅ Backfill completado.");
+export interface TradeGoodSeed {
+  key: string;
+  category: TradeGoodCategory;
+  name: string;
+  description: string;
+  baseCostPerUnit: number;
+  unitDescription: string;
+  demandPerCapita: number;
+  /** Fracción de la demanda que cubre el flujo de importación inicial (mix por defecto). */
+  defaultFlowShare: number;
 }
 
-main()
-  .catch((e) => {
-    console.error("❌ Error:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export const TRADE_GOOD_CATALOG: readonly TradeGoodSeed[] = [
+  {
+    key: "medicamentos_genericos",
+    category: "MEDICAMENTS_GENERIC",
+    name: "Medicamentos genéricos",
+    description: "Medicamentos esenciales de bajo costo para cobertura basica",
+    baseCostPerUnit: 50,
+    unitDescription: "Tratamiento mensual para 100 personas",
+    demandPerCapita: 0.00001,
+    defaultFlowShare: 0.7,
+  },
+  {
+    key: "medicamentos_marca",
+    category: "MEDICAMENTS_BRAND",
+    name: "Medicamentos de marca",
+    description: "Farmacos de patente con mayor efectividad y menor mortalidad",
+    baseCostPerUnit: 200,
+    unitDescription: "Tratamiento mensual para 100 personas",
+    demandPerCapita: 0.00001,
+    defaultFlowShare: 0.3,
+  },
+];

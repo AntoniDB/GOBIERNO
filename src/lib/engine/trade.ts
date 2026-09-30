@@ -17,40 +17,55 @@
 //             = target_volume * treasury_factor * baseCost
 //   → se cancela en costo total, pero reduce volumen recibido
 
-import type { GameState, TradeGoodState, TradeFlowState } from "./types";
+import type {
+  GameState,
+  TradeGoodState,
+  TradeFlowState,
+  TradeGoodCategory,
+} from "./types";
 import { BALANCE } from "../balance";
+import { TRADE_GOOD_CATALOG, type TradeGoodSeed } from "../seed-catalogs";
+
+const DEFAULT_GOOD_ID_PREFIX: Record<TradeGoodCategory, string> = {
+  MEDICAMENTS_GENERIC: "tgood-gen",
+  MEDICAMENTS_BRAND: "tgood-brand",
+};
 
 /**
- * Crea bienes por defecto para una partida nueva.
+ * Crea bienes por defecto para una partida nueva (desde TRADE_GOOD_CATALOG).
  */
 export function createDefaultTradeGoods(
   idx: number,
   gameId: string,
 ): TradeGoodState[] {
-  return [
-    {
-      id: `tgood-gen-${idx}`,
-      gameId,
-      key: "medicamentos_genericos",
-      category: "MEDICAMENTS_GENERIC",
-      name: "Medicamentos genéricos",
-      description: "Medicamentos esenciales de bajo costo para cobertura basica",
-      baseCostPerUnit: 50,
-      unitDescription: "Tratamiento mensual para 100 personas",
-      demandPerCapita: 0.00001,
-    },
-    {
-      id: `tgood-brand-${idx}`,
-      gameId,
-      key: "medicamentos_marca",
-      category: "MEDICAMENTS_BRAND",
-      name: "Medicamentos de marca",
-      description: "Farmacos de patente con mayor efectividad y menor mortalidad",
-      baseCostPerUnit: 200,
-      unitDescription: "Tratamiento mensual para 100 personas",
-      demandPerCapita: 0.00001,
-    },
-  ];
+  return TRADE_GOOD_CATALOG.map((good) => ({
+    id: `${DEFAULT_GOOD_ID_PREFIX[good.category]}-${idx}`,
+    gameId,
+    key: good.key,
+    category: good.category,
+    name: good.name,
+    description: good.description,
+    baseCostPerUnit: good.baseCostPerUnit,
+    unitDescription: good.unitDescription,
+    demandPerCapita: good.demandPerCapita,
+  }));
+}
+
+/**
+ * Parámetros del flujo de importación inicial de un bien: cubre
+ * `defaultFlowShare` de la demanda de la población dada, a costo base.
+ */
+export function defaultTradeFlowParams(
+  population: number,
+  good: Pick<TradeGoodSeed, "demandPerCapita" | "defaultFlowShare" | "baseCostPerUnit">,
+): { volume: number; unitCost: number; monthlyCost: number } {
+  const demand = calculateDemand(population, good.demandPerCapita);
+  const volume = Math.ceil(demand * good.defaultFlowShare);
+  return {
+    volume,
+    unitCost: good.baseCostPerUnit,
+    monthlyCost: volume * good.baseCostPerUnit,
+  };
 }
 
 /**

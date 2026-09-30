@@ -21,13 +21,23 @@ se usaba). Ambos se eliminaron en este commit.
 
 ---
 
-## 2. Backfill de nuevas entidades para partidas existentes
+## 2. ~~Backfill de nuevas entidades para partidas existentes~~ — RESUELTO
 
-**Descripción:** Cada sesión que agrega entidades nuevas al modelo de datos deja las partidas existentes sin esos registros. El motor tiene fallbacks (ej: sin enfermedades → `calculateHealth` viejo), pero los valores mostrados no reflejan la nueva mecánica hasta que el jugador crea una partida nueva.
+**Problema original:** cada sesión que agregaba entidades por partida (enfermedades, bienes de comercio) dejaba las partidas existentes sin esos registros hasta correr un script manual, y el catálogo estaba copiado en 4 lugares (`seed-game.ts`, 2 scripts de backfill y `engine/trade.ts`).
 
-**Impacto:** El jugador ve valores inconsistentes (ej: sickRate al 3% en vez de ~41%) hasta que se ejecuta un script de backfill manual. Esto va a repetirse en Salud-3, Educación-1, Defensa-1, etc.
+**Solución:** patrón `ensureSeedIntegrity`, que repone lo que falte al cargar la partida.
+- `src/lib/seed-catalogs.ts` — única fuente de verdad de los catálogos (`DISEASE_CATALOG`, `TRADE_GOOD_CATALOG`). Lo usan la creación de partidas, el motor y la reparación.
+- `src/lib/seed-integrity.ts` — `ensureSeedIntegrity(prisma, gameId)`. Un solo `count` por carga; solo si algo falta abre una transacción con advisory lock por partida (re-chequea dentro del lock, así cargas concurrentes no duplican). Idempotente, no pisa datos existentes y nunca lanza (si falla, registra el error y la partida carga igual).
+- Se invoca desde `getGameState` (`actions/game.ts`) y `advanceMonth` (`actions/turn.ts`).
+- Se eliminaron `scripts/backfill-diseases.ts` y `scripts/backfill-trade-data.ts`.
 
-**Propuesta de solución:** Ver recomendación en el commit `77bad4e` (patrón `ensureSeedIntegrity` al cargar partida). No implementada aún — evaluar en la próxima sesión que agregue entidades.
+**Cómo agregar una entidad nueva por partida (Educación-1, Defensa-1, ...):**
+1. Agregar su catálogo a `seed-catalogs.ts` y usarlo en `createInitialGame`.
+2. Agregar un `SeedStep` a `SEED_STEPS` en `seed-integrity.ts` (`isMissing` con conteos + `fill` idempotente) y su conteo en `findMissingSteps`.
+
+**Limitación conocida:** repone entidades *ausentes*; no corrige valores de entidades ya existentes (si cambia un parámetro del catálogo, las partidas viejas conservan el suyo). Si hiciera falta, sería una migración de datos explícita.
+
+**Verificación:** tests en `tests/persistence/seed-integrity.test.ts` y prueba manual contra Postgres 16 real (partida con 10/14 enfermedades y sin comercio + 8 cargas concurrentes → 1 sola repara, 14 enfermedades/14 prevalencias/2 bienes/2 flujos sin duplicados; segunda pasada no hace nada; partida nueva no requiere reparación).
 
 ---
 
@@ -75,5 +85,5 @@ para que conste antes de seguir añadiendo costos fijos.
 **Archivos afectados:**
 - `src/lib/balance.ts` — todas las constantes `*_COST` (legacy + Salud-3A)
 - `src/lib/game-factory.ts` — `generateOrganisms` siembra con costos fijos
-- `prisma/seed.ts` y `scripts/backfill-diseases.ts` — costos de leyes sembradas
+- `prisma/seed.ts` — costos de leyes sembradas
 - Programas de Salud-3A en `programs.ts` y LRD en `long-running-decisions.ts`

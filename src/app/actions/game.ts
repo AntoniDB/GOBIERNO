@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { ensureSeedIntegrity } from "@/lib/seed-integrity";
 import type {
   GameState,
   RegimeMetricsState,
@@ -287,6 +288,7 @@ async function verifyOwnership(gameId: string): Promise<string> {
  */
 export async function getGameState(gameId: string): Promise<GameState | null> {
   await verifyOwnership(gameId);
+  await ensureSeedIntegrity(prisma, gameId);
 
   const [game, latestMetrics, latestSnapshot, lawCatalog] = await Promise.all([
     fetchGameData(gameId),

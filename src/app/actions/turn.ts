@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { ensureSeedIntegrity } from "@/lib/seed-integrity";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { simulateSenateVote } from "@/lib/engine/congress";
@@ -298,6 +299,8 @@ export async function advanceMonth(
   if (!gameOwnership || gameOwnership.userId !== session.user.id) {
     throw new Error("No tienes acceso a esta partida.");
   }
+
+  await ensureSeedIntegrity(prisma, gameId);
 
   const [game, latestMetrics, latestSnapshot, lawCatalog] = await Promise.all([
     fetchGameData(gameId),

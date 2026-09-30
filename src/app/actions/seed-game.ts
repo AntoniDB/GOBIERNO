@@ -3,6 +3,8 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { PresetKey, Difficulty } from "@/lib/game-factory";
+import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
+import { defaultTradeFlowParams } from "@/lib/engine/trade";
 import {
   generateSeed,
   getPresetConfig,
@@ -187,24 +189,7 @@ export async function createInitialGame(
   }
 
   // ── Catalogo de enfermedades ──────────────────────────────────────────
-  const diseases = [
-    { name: "Gripe estacional", category: "TRANSMISSIBLE", contagionRate: 0.15, mortalityRate: 0.001, prevalenceBase: 10, hasVaccine: true, preventionSensitivity: 0.8, monthlyCostPerPatient: 200, classAffinity: { EXTREME_POVERTY: 1.0, POVERTY: 1.0, MIDDLE: 1.0, ELITE: 1.0 } },
-    { name: "Dengue", category: "TRANSMISSIBLE", contagionRate: 0.08, mortalityRate: 0.005, prevalenceBase: 5, hasVaccine: false, preventionSensitivity: 0.6, monthlyCostPerPatient: 500, classAffinity: { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.5 } },
-    { name: "Tuberculosis", category: "TRANSMISSIBLE", contagionRate: 0.03, mortalityRate: 0.02, prevalenceBase: 3, hasVaccine: true, preventionSensitivity: 0.5, monthlyCostPerPatient: 1200, classAffinity: { EXTREME_POVERTY: 2.0, POVERTY: 1.5, MIDDLE: 0.5, ELITE: 0.2 } },
-    { name: "VIH", category: "TRANSMISSIBLE", contagionRate: 0.01, mortalityRate: 0.05, prevalenceBase: 2, hasVaccine: false, preventionSensitivity: 0.7, monthlyCostPerPatient: 3000, classAffinity: { EXTREME_POVERTY: 1.0, POVERTY: 1.0, MIDDLE: 1.0, ELITE: 1.0 } },
-    { name: "COVID-X", category: "TRANSMISSIBLE", contagionRate: 0.20, mortalityRate: 0.015, prevalenceBase: 1, hasVaccine: true, preventionSensitivity: 0.9, monthlyCostPerPatient: 1500, classAffinity: { EXTREME_POVERTY: 1.0, POVERTY: 1.0, MIDDLE: 1.0, ELITE: 1.2 } },
-    { name: "Parasitos", category: "TRANSMISSIBLE", contagionRate: 0.06, mortalityRate: 0.002, prevalenceBase: 8, hasVaccine: false, preventionSensitivity: 0.4, monthlyCostPerPatient: 300, classAffinity: { EXTREME_POVERTY: 2.5, POVERTY: 1.8, MIDDLE: 0.5, ELITE: 0.1 } },
-    { name: "Neumonia", category: "TRANSMISSIBLE", contagionRate: 0.04, mortalityRate: 0.03, prevalenceBase: 4, hasVaccine: true, preventionSensitivity: 0.6, monthlyCostPerPatient: 2000, classAffinity: { EXTREME_POVERTY: 1.3, POVERTY: 1.2, MIDDLE: 0.8, ELITE: 0.7 } },
-    { name: "Diabetes", category: "CHRONIC", contagionRate: 0, mortalityRate: 0.01, prevalenceBase: 8, hasVaccine: false, preventionSensitivity: 0.5, monthlyCostPerPatient: 800, classAffinity: { EXTREME_POVERTY: 0.7, POVERTY: 0.8, MIDDLE: 1.3, ELITE: 1.2 } },
-    { name: "Hipertension", category: "CHRONIC", contagionRate: 0, mortalityRate: 0.008, prevalenceBase: 14, hasVaccine: false, preventionSensitivity: 0.5, monthlyCostPerPatient: 600, classAffinity: { EXTREME_POVERTY: 0.6, POVERTY: 0.8, MIDDLE: 1.2, ELITE: 1.3 } },
-    { name: "Cancer", category: "CHRONIC", contagionRate: 0, mortalityRate: 0.04, prevalenceBase: 2.5, hasVaccine: false, preventionSensitivity: 0.3, monthlyCostPerPatient: 5000, classAffinity: { EXTREME_POVERTY: 0.8, POVERTY: 0.9, MIDDLE: 1.0, ELITE: 1.1 } },
-    { name: "EPOC", category: "CHRONIC", contagionRate: 0, mortalityRate: 0.02, prevalenceBase: 4, hasVaccine: false, preventionSensitivity: 0.3, monthlyCostPerPatient: 1000, classAffinity: { EXTREME_POVERTY: 1.0, POVERTY: 1.0, MIDDLE: 1.0, ELITE: 1.0 } },
-    { name: "Depresion", category: "MENTAL_HEALTH", contagionRate: 0, mortalityRate: 0.001, prevalenceBase: 12, hasVaccine: false, preventionSensitivity: 0.5, monthlyCostPerPatient: 400, classAffinity: { EXTREME_POVERTY: 0.8, POVERTY: 0.9, MIDDLE: 1.3, ELITE: 1.0 } },
-    { name: "Ansiedad", category: "MENTAL_HEALTH", contagionRate: 0, mortalityRate: 0.001, prevalenceBase: 10, hasVaccine: false, preventionSensitivity: 0.5, monthlyCostPerPatient: 350, classAffinity: { EXTREME_POVERTY: 0.8, POVERTY: 0.9, MIDDLE: 1.3, ELITE: 1.0 } },
-    { name: "Adicciones", category: "MENTAL_HEALTH", contagionRate: 0, mortalityRate: 0.005, prevalenceBase: 5, hasVaccine: false, preventionSensitivity: 0.4, monthlyCostPerPatient: 900, classAffinity: { EXTREME_POVERTY: 1.4, POVERTY: 1.3, MIDDLE: 0.8, ELITE: 0.7 } },
-  ];
-
-  for (const d of diseases) {
+  for (const d of DISEASE_CATALOG) {
     const disease = await prismaClient.disease.create({
       data: {
         gameId,
@@ -261,62 +246,36 @@ export async function createInitialGame(
   // El primer advanceMonth crea el snapshot del mes 0 como parte del flujo normal.
 
   // ── Bienes comerciables y flujos iniciales (Salud-3B-i) ──────────────
-  const demandBase = Math.ceil(cfg.population * 0.00001); // demandPerCapita = 0.00001
+  for (const good of TRADE_GOOD_CATALOG) {
+    const tradeGood = await prismaClient.tradeGood.create({
+      data: {
+        gameId,
+        key: good.key,
+        category: good.category,
+        name: good.name,
+        description: good.description,
+        baseCostPerUnit: good.baseCostPerUnit,
+        unitDescription: good.unitDescription,
+        demandPerCapita: good.demandPerCapita,
+      },
+    });
 
-  const genericGood = await prismaClient.tradeGood.create({
-    data: {
-      gameId,
-      key: "medicamentos_genericos",
-      category: "MEDICAMENTS_GENERIC",
-      name: "Medicamentos genéricos",
-      description: "Medicamentos esenciales de bajo costo para cobertura basica",
-      baseCostPerUnit: 50,
-      unitDescription: "Tratamiento mensual para 100 personas",
-      demandPerCapita: 0.00001,
-    },
-  });
-
-  const brandGood = await prismaClient.tradeGood.create({
-    data: {
-      gameId,
-      key: "medicamentos_marca",
-      category: "MEDICAMENTS_BRAND",
-      name: "Medicamentos de marca",
-      description: "Farmacos de patente con mayor efectividad y menor mortalidad",
-      baseCostPerUnit: 200,
-      unitDescription: "Tratamiento mensual para 100 personas",
-      demandPerCapita: 0.00001,
-    },
-  });
-
-  // Flujo por defecto: 70% genéricos, 30% marca (mix default del jugador)
-  await prismaClient.tradeFlow.create({
-    data: {
-      gameId,
-      tradeGoodId: genericGood.id,
-      direction: "IMPORT",
-      monthlyVolume: Math.ceil(demandBase * 0.7),
-      targetVolume: Math.ceil(demandBase * 0.7),
-      unitCost: 50,
-      sanctionsMultiplier: 1.0,
-      monthlyCost: Math.ceil(demandBase * 0.7) * 50,
-      isActive: true,
-    },
-  });
-
-  await prismaClient.tradeFlow.create({
-    data: {
-      gameId,
-      tradeGoodId: brandGood.id,
-      direction: "IMPORT",
-      monthlyVolume: Math.ceil(demandBase * 0.3),
-      targetVolume: Math.ceil(demandBase * 0.3),
-      unitCost: 200,
-      sanctionsMultiplier: 1.0,
-      monthlyCost: Math.ceil(demandBase * 0.3) * 200,
-      isActive: true,
-    },
-  });
+    // Flujo por defecto: mix de importación del catalogo (70% genericos / 30% marca)
+    const flow = defaultTradeFlowParams(cfg.population, good);
+    await prismaClient.tradeFlow.create({
+      data: {
+        gameId,
+        tradeGoodId: tradeGood.id,
+        direction: "IMPORT",
+        monthlyVolume: flow.volume,
+        targetVolume: flow.volume,
+        unitCost: flow.unitCost,
+        sanctionsMultiplier: 1.0,
+        monthlyCost: flow.monthlyCost,
+        isActive: true,
+      },
+    });
+  }
 
   return gameId;
 }
