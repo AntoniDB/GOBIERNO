@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { BALANCE } from "@/lib/balance";
+import { scaleCost } from "@/lib/engine/cost-scale";
 import {
   buildHospitalConstructionInput,
   buildMedicalResearchInput,
@@ -37,6 +38,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
 
   if (!gameState) return null;
 
+  const population = gameState.population;
   const diseases = (gameState.diseases ?? []) as unknown as DiseaseLite[];
   const vaccineOptions = diseases.filter((d) => d.hasVaccine);
   const regions = gameState.regions ?? [];
@@ -65,7 +67,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
   function launchHospital() {
     if (!hospitalRegionId) return;
     const region = regions.find((r) => r.id === hospitalRegionId);
-    const lrd = buildHospitalConstructionInput(hospitalRegionId, hospitalLevel, region?.name ?? "");
+    const lrd = buildHospitalConstructionInput(hospitalRegionId, hospitalLevel, region?.name ?? "", population);
     startLRD(lrd.type, lrd.name, lrd.totalMonths, lrd.monthlyCost, lrd.parameters);
     onClose();
   }
@@ -79,7 +81,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
   function launchResearch() {
     if (researchDiseaseIds.length === 0) return;
     const names = researchDiseaseIds.map((id) => diseases.find((d) => d.id === id)?.name ?? id);
-    const lrd = buildMedicalResearchInput(researchDiseaseIds, names);
+    const lrd = buildMedicalResearchInput(researchDiseaseIds, names, population);
     startLRD(lrd.type, lrd.name, lrd.totalMonths, lrd.monthlyCost, lrd.parameters);
     onClose();
   }
@@ -155,7 +157,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
             <ProgramOption
               title="Campaña de vacunación"
               color="#00C2B8"
-              cost={BALANCE.PROGRAM_VACCINATION_COST}
+              cost={scaleCost(BALANCE.PROGRAM_VACCINATION_COST, gameState.population)}
               description="Elige una enfermedad con vacuna disponible. Reduce su prevalencia hacia un mínimo del 10% de su base. Si se desactiva, vuelve a subir lentamente."
             >
               <label style={{ fontSize: 10, fontWeight: 700, color: "#555", letterSpacing: 1 }}>
@@ -196,7 +198,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
             <ProgramOption
               title="Programa de prevención (educación sanitaria)"
               color="#8844CC"
-              cost={BALANCE.PROGRAM_PREVENTION_COST}
+              cost={scaleCost(BALANCE.PROGRAM_PREVENTION_COST, gameState.population)}
               description="Reduce nuevos casos de transmisibles y crónicos de forma transversal. Efecto sutil pero acumulativo. No requiere elegir enfermedad."
             >
               <LaunchButton onClick={launchPrevention} color="#8844CC">
@@ -208,7 +210,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
             <ProgramOption
               title="Programa de salud mental"
               color="#E08800"
-              cost={BALANCE.PROGRAM_MENTAL_HEALTH_COST}
+              cost={scaleCost(BALANCE.PROGRAM_MENTAL_HEALTH_COST, gameState.population)}
               description="Reduce prevalencia de depresión, ansiedad y adicciones. Mientras esté activo, mejora la aprobación de POVERTY (+3/mes) y MIDDLE (+2/mes)."
             >
               <LaunchButton onClick={launchMentalHealth} color="#E08800">
@@ -224,7 +226,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
             <ProgramOption
               title="Construcción de hospital"
               color="#2468CC"
-              cost={BALANCE.HOSPITAL_COSTS[hospitalLevel]}
+              cost={scaleCost(BALANCE.HOSPITAL_COSTS[hospitalLevel], gameState.population)}
               description={`LRD de ${BALANCE.HOSPITAL_DURATIONS[hospitalLevel]} meses. Al completarse suma camas y facilities permanentes a la región elegida. Cancelar antes pierde lo invertido.`}
             >
               <div style={{ display: "flex", gap: 10 }}>
@@ -281,7 +283,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div style={{ fontSize: 10, color: "#888", fontWeight: 600, marginTop: 6, display: "flex", gap: 16 }}>
-                <span>Costo: <span style={{ fontFamily: FFM, color: "#FF6600" }}>{fmtCost(BALANCE.HOSPITAL_COSTS[hospitalLevel])}/mes</span></span>
+                <span>Costo: <span style={{ fontFamily: FFM, color: "#FF6600" }}>{fmtCost(scaleCost(BALANCE.HOSPITAL_COSTS[hospitalLevel], gameState.population))}/mes</span></span>
                 <span>Duración: <span style={{ fontFamily: FFM }}>{BALANCE.HOSPITAL_DURATIONS[hospitalLevel]} meses</span></span>
               </div>
               <LaunchButton
@@ -297,7 +299,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
             <ProgramOption
               title="Investigación en enfermedades locales"
               color="#FF6600"
-              cost={BALANCE.MEDICAL_RESEARCH_COST}
+              cost={scaleCost(BALANCE.MEDICAL_RESEARCH_COST, gameState.population)}
               duration={BALANCE.MEDICAL_RESEARCH_DURATION}
               description="LRD de muy largo plazo. Al completarse desbloquea vacuna para 1-2 enfermedades elegidas que no la tenían, o reduce la mortalidad a la mitad si ya tenían vacuna. La apuesta a largo plazo."
             >

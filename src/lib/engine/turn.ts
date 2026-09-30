@@ -49,7 +49,8 @@ import { triggerRandomEvents, applyEventEffects } from "./events";
 import { generateMediaCoverage, generateDecisionCoverage, generateEditorialCoverage, generateMediaPolls, generateInvestigativeReports } from "./media";
 import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
-import { generateCandidates, removeExpiredCandidates } from "./candidates";
+import { generateCandidates, removeExpiredCandidates, candidateHireCost } from "./candidates";
+import { scaleCost } from "./cost-scale";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
 import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
 import { processResourceBalance } from "./resource-balance";
@@ -388,8 +389,9 @@ export function processTurn(
           break;
         case "buyAffinity":
           // Siempre se puede comprar afinidad, incluso si el medio esta CENSORED o CLOSED
-          if (newState.treasury >= BALANCE.MEDIA_BUY_AFFINITY_COST) {
-            newState.treasury -= BALANCE.MEDIA_BUY_AFFINITY_COST;
+          const buyAffinityCost = scaleCost(BALANCE.MEDIA_BUY_AFFINITY_COST, newState.population);
+          if (newState.treasury >= buyAffinityCost) {
+            newState.treasury -= buyAffinityCost;
             medium.governmentAffinity = Math.min(
               100,
               medium.governmentAffinity + BALANCE.MEDIA_BUY_AFFINITY_AMOUNT
@@ -402,7 +404,7 @@ export function processTurn(
             allNotifications.push({
               type: "info",
               title: "Afinidad mediatica comprada",
-              description: `Se ha mejorado la afinidad de ${medium.name} mediante incentivos economicos. Costo: M$ ${(BALANCE.MEDIA_BUY_AFFINITY_COST / 1_000_000).toFixed(1)}.`,
+              description: `Se ha mejorado la afinidad de ${medium.name} mediante incentivos economicos. Costo: M$ ${(buyAffinityCost / 1_000_000).toFixed(1)}.`,
             });
           }
           break;
@@ -508,9 +510,7 @@ export function processTurn(
       const sameRoleCount = newState.officials.filter(
         (o) => o.role === candidate.role && o.status === "ACTIVE"
       ).length;
-      const hireCost =
-        BALANCE.CANDIDATE_HIRE_COST_BASE +
-        sameRoleCount * BALANCE.CANDIDATE_HIRE_COST_PER_SAME_ROLE;
+      const hireCost = candidateHireCost(sameRoleCount, newState.population);
 
       if (newState.treasury >= hireCost) {
         newState.treasury -= hireCost;

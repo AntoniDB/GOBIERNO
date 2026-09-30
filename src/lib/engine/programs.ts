@@ -23,6 +23,7 @@ import type {
   TurnNotification,
 } from "./types";
 import { BALANCE } from "../balance";
+import { scaleCost } from "./cost-scale";
 
 /**
  * Catalogo de enfermedades que tienen vacuna disponible.
@@ -48,7 +49,7 @@ export function createProgram(
   idx = 0,
 ): MinistryProgramState {
   const id = `prog-${state.currentYear}-${state.currentMonth}-${idx}`;
-  const cost = monthlyCost ?? defaultCostFor(type);
+  const cost = monthlyCost ?? defaultCostFor(type, state.population);
   return {
     id,
     type,
@@ -60,15 +61,18 @@ export function createProgram(
   };
 }
 
-/** Costo por defecto segun el tipo de programa. */
-export function defaultCostFor(type: MinistryProgramState["type"]): number {
+/** Costo mensual por defecto segun el tipo de programa, escalado a la poblacion. */
+export function defaultCostFor(
+  type: MinistryProgramState["type"],
+  population: number,
+): number {
   switch (type) {
     case "VACCINATION_CAMPAIGN":
-      return BALANCE.PROGRAM_VACCINATION_COST;
+      return scaleCost(BALANCE.PROGRAM_VACCINATION_COST, population);
     case "PREVENTION_EDUCATION":
-      return BALANCE.PROGRAM_PREVENTION_COST;
+      return scaleCost(BALANCE.PROGRAM_PREVENTION_COST, population);
     case "MENTAL_HEALTH_PROGRAM":
-      return BALANCE.PROGRAM_MENTAL_HEALTH_COST;
+      return scaleCost(BALANCE.PROGRAM_MENTAL_HEALTH_COST, population);
   }
 }
 

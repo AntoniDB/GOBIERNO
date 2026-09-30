@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BALANCE } from "@/lib/balance";
+import { candidateHireCost } from "@/lib/engine/candidates";
 import {
   UserPlus,
   Star,
@@ -26,11 +26,11 @@ const ROLE_LABEL: Record<string, string> = {
   GENERAL: "General",
 };
 
-function computeHireCost(official: OfficialState, allOfficials: OfficialState[]): number {
+function computeHireCost(official: OfficialState, allOfficials: OfficialState[], population: number): number {
   const sameRoleActive = allOfficials.filter(
     (o) => o.role === official.role && o.status === "ACTIVE"
   ).length;
-  return BALANCE.CANDIDATE_HIRE_COST_BASE + sameRoleActive * BALANCE.CANDIDATE_HIRE_COST_PER_SAME_ROLE;
+  return candidateHireCost(sameRoleActive, population);
 }
 
 function computeAgeMonths(official: OfficialState): number | null {
@@ -70,7 +70,7 @@ export function CandidatesPanel() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {candidates.map((c) => {
-          const cost = computeHireCost(c, gameState.officials);
+          const cost = computeHireCost(c, gameState.officials, gameState.population);
           const isPending = pendingHires.includes(c.id);
           const treasury = gameState.treasury;
           const canAfford = treasury >= cost;

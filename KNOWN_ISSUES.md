@@ -47,43 +47,65 @@ se usaba). Ambos se eliminaron en este commit.
 
 ---
 
-## 4. Costos fijos en USD no escalan con poblacion
+## 4. Costos fijos en USD no escalan con población — PARCIALMENTE RESUELTO
 
-**Descripción:** Varios costos del motor están definidos como montos fijos en
-USD en `balance.ts`, sin escalar con el tamaño del pais (poblacion o PIB).
-Esto afecta a:
+**Causa de fondo (descubierta al atacarlo):** los presets (25M–80M de habitantes)
+no se aplicaban desde `98ac4e8`, así que toda partida corría a 10M/1.000M y el
+balance "calibrado a 10M" era un efecto de ese bug, no una decisión. Ver
+`ISSUES.md` Incidencia #3. Restaurado en este cambio.
 
-- `Organism.monthlyBudget` (organismos creables: Contraloria $150M, Fiscalia $200M, Inteligencia $250M)
-- `LawCatalog.cost` y `effectsJson.monthlyCost` (leyes activas con costo fijo)
-- `HOSPITAL_COSTS`, `MEDICAL_RESEARCH_COST` (construcción e investigación LRD de Salud-3A)
-- `PROGRAM_VACCINATION_COST`, `PROGRAM_PREVENTION_COST`, `PROGRAM_MENTAL_HEALTH_COST` (programas persistentes de Salud-3A)
-- `CANDIDATE_HIRE_COST_BASE` y `MEDIA_BUY_AFFINITY_COST` (contratación de funcionarios y compra de afinidad mediática)
+**Resuelto — se escalan por población** (`scaleCost` en `engine/cost-scale.ts`,
+referencia `BALANCE.COST_REFERENCE_POPULATION` = 10M; con 10M el factor es 1, así
+que las partidas existentes no cambian):
+- Programas de Salud-3A (`PROGRAM_*_COST`), hospitales (`HOSPITAL_COSTS`) e investigación (`MEDICAL_RESEARCH_COST`)
+- Contratación de candidatos (`candidateHireCost`, compartido por motor y UI)
+- Compra de afinidad mediática (`MEDIA_BUY_AFFINITY_COST`)
 
-**Impacto:** En paises pequeños (preset `pobre_con_potencial`, ~10M.population),
-estos costos representan un % desproporcionado del ingreso/presupuesto. En
-paises grandes (80M+), son triviales. Por ejemplo, 3 programas de Salud-3A
-simultáneos cuestan 7.5M/mes — un 12% del presupuesto de Salud en pais 10M,
-pero solo 1.5% en pais 80M.
+Fórmula: `costo = costoBase × población / 10M`. Mantiene constante el peso del costo
+respecto del ingreso mensual (`45 × población`). Los valores de `balance.ts` son
+costos BASE (a 10M).
 
-**Por qué no se corrige ahora:** El balance del juego está calibrado contra el
-preset default de 10M de población (donde los valores son jugables). Modificar
-la escala impactaría el balance de todas las sesiones anteriores
-simultáneamente. Se prefiere resolver en una sesión futura de **balance general**
-que revise la escala del motor completo, no a nivel de ministerio.
+**Pendiente — decisión de balance aparte (NO se escalan):**
+- **Leyes** (`LawCatalog.cost`, `effectsJson.monthlyCost`): no están calibradas a 10M. Varias cuestan 800M–900M *al mes* (`reforma-previsional`, `becas-merito`), más que todo el ingreso mensual de un país de 10M (450M). Escalarlas por `población/10M` las volvería imposibles en países grandes (6.400M de costo frente a 3.600M de ingreso a 80M). Hay que decidir su población de referencia y recalibrar.
+- **Organismos** (`Organism.monthlyBudget`: Contraloría 150M sembrada en `seed-game.ts`; el resto lo fija el jugador con un slider en `create-organism.tsx`). Con presets restaurados es el gasto fijo que domina el balance del primer turno (~150M de déficit en los 4 presets): 33% del ingreso a 10M, 4% a 80M.
+- **Capacidad hospitalaria**: las camas por región son fijas por preset (`generateRegions`), no dependen de la población.
+- `BASE_SALARY_PER_MINISTER` (5.000 por funcionario) no se escala a propósito: un sueldo no depende del tamaño del país.
 
-**Propuesta de solución futura:** Los costos deberían definirse como función
-de la población o del PIB (por ejemplo, % del PIB per cápita) en lugar de
-monto fijo. Una fórmula como `cost = baseline × (population / 10_000_000)`
-haría que el costo sea proporcional al tamaño del país. Aplicar de forma
-transversal a organismos, leyes, programas y LRDs.
+**Archivos:** `src/lib/engine/cost-scale.ts`, `src/lib/balance.ts`, `programs.ts`,
+`long-running-decisions.ts`, `candidates.ts`, `turn.ts` (compra de afinidad y contratación),
+`program-launch-modal.tsx` y `candidates-panel.tsx` (UI muestra el costo escalado).
 
-**Sesión para resolverlo:** Sesión de balance general (probablemente Sesion 7
-o posterior), una vez que todos los ministerios tengan sus programas de
-profundización definidos. Documentado explicitamente por el prompt de Salud-3A
-para que conste antes de seguir añadiendo costos fijos.
+---
 
-**Archivos afectados:**
-- `src/lib/balance.ts` — todas las constantes `*_COST` (legacy + Salud-3A)
-- `src/lib/game-factory.ts` — `generateOrganisms` siembra con costos fijos
-- `prisma/seed.ts` — costos de leyes sembradas
-- Programas de Salud-3A en `programs.ts` y LRD en `long-running-decisions.ts`
+## 5. Colapso hospitalario saturado siempre (calibración)
+
+**Descripción:** `detectHospitalCollapse` (`health-crises.ts`) calcula
+`sickNeedingBeds = población_región × sickRate% × 8%` y lo compara con las camas
+de la región (`healthCoverage.*.beds`). Con `sickRate ≈ 40%` (incluye crónicas y
+salud mental) la razón de saturación es de 50× a 1.600× el umbral
+(`COLLAPSE_SATURATION_THRESHOLD` = 1,5) **incluso a 10M**, y la severidad queda
+capada en 100. Con la población de los presets es 2,5×–8× mayor, pero como ya
+estaba capada no cambia el resultado.
+
+**Impacto:** el evento `HOSPITAL_COLLAPSE` se dispara de forma sostenida (una región
+cada 3 meses, siempre severidad máxima) en cualquier partida, con su penalización
+de aprobación y de mortalidad. No responde a las decisiones del jugador.
+
+**Propuesta:** dimensionar la demanda de camas sobre la población que realmente
+requiere hospitalización (no `sickRate` agregado) y/o escalar las camas de cada
+preset con su población. Es parte de la recalibración del sistema de salud.
+
+---
+
+## 6. LRD: el costo mensual lo define el cliente
+
+**Descripción:** `newLongRunningDecisions[].monthlyCost` viaja desde el cliente
+(`buildHospitalConstructionInput` corre en el navegador) y el motor lo usa tal cual
+(`long-running-decisions.ts`, creación de LRD). Un cliente manipulado podría enviar
+un costo menor. Contradice la regla de que el motor no es manipulable desde el
+cliente. Lo mismo ocurre con los programas: `createProgram` usa el `monthlyCost`
+recibido si existe y solo calcula el costo por defecto cuando no llega.
+
+**Propuesta:** que el motor ignore el `monthlyCost` recibido para
+`HOSPITAL_CONSTRUCTION`, `MEDICAL_RESEARCH` y programas, y lo calcule siempre
+con el estado (población). La UI ya no necesitaría enviarlo.

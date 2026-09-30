@@ -100,9 +100,9 @@ function crearPrograma(overrides?: Partial<MinistryProgramState>): MinistryProgr
 
 describe("defaultCostFor", () => {
   it("retorna el costo correcto para cada tipo de programa", () => {
-    expect(defaultCostFor("VACCINATION_CAMPAIGN")).toBe(BALANCE.PROGRAM_VACCINATION_COST);
-    expect(defaultCostFor("PREVENTION_EDUCATION")).toBe(BALANCE.PROGRAM_PREVENTION_COST);
-    expect(defaultCostFor("MENTAL_HEALTH_PROGRAM")).toBe(BALANCE.PROGRAM_MENTAL_HEALTH_COST);
+    expect(defaultCostFor("VACCINATION_CAMPAIGN", BALANCE.COST_REFERENCE_POPULATION)).toBe(BALANCE.PROGRAM_VACCINATION_COST);
+    expect(defaultCostFor("PREVENTION_EDUCATION", BALANCE.COST_REFERENCE_POPULATION)).toBe(BALANCE.PROGRAM_PREVENTION_COST);
+    expect(defaultCostFor("MENTAL_HEALTH_PROGRAM", BALANCE.COST_REFERENCE_POPULATION)).toBe(BALANCE.PROGRAM_MENTAL_HEALTH_COST);
   });
 });
 

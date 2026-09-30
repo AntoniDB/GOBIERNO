@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import type { GameState, TurnInput } from "@/lib/engine/types";
 import { processTurn } from "@/lib/engine/turn";
 import { createRNG } from "@/lib/rng";
+import { BALANCE } from "@/lib/balance";
+import { scaleCost } from "@/lib/engine/cost-scale";
+import { candidateHireCost } from "@/lib/engine/candidates";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
@@ -136,5 +139,48 @@ describe("processTurn", () => {
     const rng = createRNG("turn-notif");
     const output = processTurn(state, {}, rng);
     expect(Array.isArray(output.notifications)).toBe(true);
+  });
+});
+
+describe("processTurn — costos fijos escalados por población", () => {
+  const candidato = {
+    id: "cand-1", name: "Candidato", role: "JUDGE", specialty: null, ministryId: null,
+    partyId: null, loyalty: 60, ambition: 30, wealth: 50000,
+    ideology: { economic: 0, social: 0, authority: 0 },
+    corruption: 10, skill: 60, reputation: 50, status: "CANDIDATE",
+  };
+  const medio = {
+    id: "med1", name: "El Diario", type: "NEWSPAPER",
+    ideologicalAffinity: { economic: 0, social: 0, authority: 0 },
+    reach: 30, credibility: 60, governmentAffinity: 50, status: "ACTIVE",
+  };
+
+  // Mismo turno con y sin la acción: la diferencia de tesorería es el costo.
+  function costoObservado(population: number, input: TurnInput, overrides: Partial<GameState>): number {
+    const base = crearEstadoBase({ population, treasury: 50_000_000_000, ...overrides });
+    const sin = processTurn(base, {}, createRNG("costos"));
+    const con = processTurn(base, input, createRNG("costos"));
+    return sin.newState.treasury - con.newState.treasury;
+  }
+
+  it.each([10_000_000, 40_000_000])("contratar un candidato cuesta el valor escalado (pob. %i)", (population) => {
+    // 1 juez ACTIVE + el contratado: el costo usa el conteo previo (1)
+    const esperado = candidateHireCost(1, population);
+    // El candidato contratado pasa a ACTIVE y cobra el salario base del mes
+    const delta = costoObservado(
+      population,
+      { hireCandidateIds: ["cand-1"] },
+      { officials: [...crearEstadoBase().officials, candidato as never] },
+    );
+    expect(delta).toBeCloseTo(esperado + BALANCE.BASE_SALARY_PER_MINISTER, 0);
+  });
+
+  it.each([10_000_000, 40_000_000])("comprar afinidad de un medio cuesta el valor escalado (pob. %i)", (population) => {
+    const delta = costoObservado(
+      population,
+      { mediaActions: { med1: "buyAffinity" } },
+      { media: [medio as never] },
+    );
+    expect(delta).toBeCloseTo(scaleCost(BALANCE.MEDIA_BUY_AFFINITY_COST, population), 0);
   });
 });

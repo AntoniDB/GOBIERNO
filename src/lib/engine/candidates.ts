@@ -6,6 +6,7 @@
 
 import type { GameState, OfficialState } from "./types";
 import { BALANCE } from "../balance";
+import { scaleCost } from "./cost-scale";
 import type { Ideology } from "./types";
 
 const ROLES = ["JUDGE", "PROSECUTOR", "JUDGE", "PROSECUTOR", "MINISTER", "GENERAL"];
@@ -86,6 +87,18 @@ export function generateCandidates(
   }
 
   return candidates;
+}
+
+/**
+ * Costo de contratar un candidato: base + extra por cada oficial ACTIVE del
+ * mismo rol, escalado a la poblacion. Lo usan el motor y la UI.
+ */
+export function candidateHireCost(sameRoleActiveCount: number, population: number): number {
+  return scaleCost(
+    BALANCE.CANDIDATE_HIRE_COST_BASE +
+      sameRoleActiveCount * BALANCE.CANDIDATE_HIRE_COST_PER_SAME_ROLE,
+    population,
+  );
 }
 
 /**

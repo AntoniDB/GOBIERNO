@@ -12,6 +12,15 @@ export const BALANCE = {
   /** Ingreso mensual per cápita base en USD */
   BASE_MONTHLY_INCOME_PER_CAPITA: 500,
 
+  /**
+   * Población con la que se calibraron los costos fijos en USD (programas,
+   * hospitales, investigación, contratación, compra de afinidad). A esa
+   * población el ingreso mensual es 0.6 × 500 × 0.15 × 10M = 450M, y estos
+   * costos se escalan linealmente con la población (ver engine/cost-scale.ts)
+   * para que pesen lo mismo respecto del ingreso en cualquier país.
+   */
+  COST_REFERENCE_POPULATION: 10_000_000,
+
   /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
   INFLATION_DEFICIT_FACTOR: 0.02,
 
@@ -215,7 +224,7 @@ export const BALANCE = {
   /** Penalización a concentración de poder al restaurar un medio */
   MEDIA_RESTORE_POWER_CONCENTRATION_PENALTY: -3,
 
-  /** Costo en tesorería de comprar afinidad de un medio */
+  /** Costo BASE en tesorería de comprar afinidad de un medio (se escala por población) */
   MEDIA_BUY_AFFINITY_COST: 5_000_000,
 
   /** Cantidad de puntos de afinidad ganados al comprar un medio */
@@ -340,10 +349,10 @@ export const BALANCE = {
   /** Meses antes de que un candidato expire */
   CANDIDATE_EXPIRATION_MONTHS: 6,
 
-  /** Costo base de contratar un candidato */
+  /** Costo base de contratar un candidato (se escala por población) */
   CANDIDATE_HIRE_COST_BASE: 200_000,
 
-  /** Costo extra por cada oficial ACTIVE del mismo rol existente */
+  /** Costo extra por cada oficial ACTIVE del mismo rol existente (se escala por población) */
   CANDIDATE_HIRE_COST_PER_SAME_ROLE: 50_000,
 
   // ─── IA ────────────────────────────────────────────────────────────────
@@ -467,9 +476,10 @@ export const BALANCE = {
   // ─── Programas operativos (Salud-3A Capa D) ──────────────────────────────
   // Programas persistentes lanzables por el Ministro (sin aprobacion del Senado).
   // Costo mensual descontado del tesoro automaticamente.
-  // Costos calibrados contra pais default 10M (presupuesto Salud 63M/mes):
-  // 3 programas simultaneos ≈ 12% del presupuesto Salud; + terciario ≈ 25%.
-  // NOTA: costos fijos en USD no escalan con poblacion — ver KNOWN_ISSUES.md.
+  // Costos calibrados contra pais de COST_REFERENCE_POPULATION (10M, presupuesto
+  // Salud 63M/mes): 3 programas simultaneos ≈ 12% del presupuesto Salud;
+  // + terciario ≈ 25%. Son costos BASE: el motor los escala por poblacion
+  // con scaleCost() antes de cobrarlos o mostrarlos.
 
   /** Costo mensual: campaña de vacunacion por enfermedad especifica */
   PROGRAM_VACCINATION_COST: 2_000_000,

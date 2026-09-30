@@ -10,6 +10,7 @@
 
 import type { GameState, LongRunningDecisionState, TurnInput } from "./types";
 import { BALANCE } from "../balance";
+import { scaleCost } from "./cost-scale";
 
 /**
  * Avanza todas las LRD activas un mes:
@@ -175,6 +176,7 @@ export function buildHospitalConstructionInput(
   regionId: string,
   level: "primary" | "secondary" | "tertiary",
   regionName: string,
+  population: number,
 ): {
   type: string;
   name: string;
@@ -186,7 +188,7 @@ export function buildHospitalConstructionInput(
     type: "HOSPITAL_CONSTRUCTION",
     name: `Construcción hospital ${level} — ${regionName}`,
     totalMonths: BALANCE.HOSPITAL_DURATIONS[level],
-    monthlyCost: BALANCE.HOSPITAL_COSTS[level],
+    monthlyCost: scaleCost(BALANCE.HOSPITAL_COSTS[level], population),
     parameters: { regionId, level },
   };
 }
@@ -197,6 +199,7 @@ export function buildHospitalConstructionInput(
 export function buildMedicalResearchInput(
   diseaseIds: string[],
   diseaseNames: string[],
+  population: number,
 ): {
   type: string;
   name: string;
@@ -208,7 +211,7 @@ export function buildMedicalResearchInput(
     type: "MEDICAL_RESEARCH",
     name: `Investigación médica — ${diseaseNames.join(", ")}`,
     totalMonths: BALANCE.MEDICAL_RESEARCH_DURATION,
-    monthlyCost: BALANCE.MEDICAL_RESEARCH_COST,
+    monthlyCost: scaleCost(BALANCE.MEDICAL_RESEARCH_COST, population),
     parameters: { diseaseIds },
   };
 }

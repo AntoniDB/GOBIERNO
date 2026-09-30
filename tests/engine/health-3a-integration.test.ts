@@ -112,7 +112,7 @@ function crearLrd(overrides?: Partial<LongRunningDecisionState>): LongRunningDec
 
 describe("Construcción de hospital (HOSPITAL_CONSTRUCTION LRD)", () => {
   it("buildHospitalConstructionInput genera configuracion correcta", () => {
-    const lrd = buildHospitalConstructionInput("r1", "primary", "Capital Federal");
+    const lrd = buildHospitalConstructionInput("r1", "primary", "Capital Federal", BALANCE.COST_REFERENCE_POPULATION);
     expect(lrd.type).toBe("HOSPITAL_CONSTRUCTION");
     expect(lrd.name).toContain("Capital Federal");
     expect(lrd.totalMonths).toBe(BALANCE.HOSPITAL_DURATIONS.primary);
@@ -194,7 +194,7 @@ describe("Construcción de hospital (HOSPITAL_CONSTRUCTION LRD)", () => {
 
 describe("Investigación medica (MEDICAL_RESEARCH LRD)", () => {
   it("buildMedicalResearchInput genera configuracion correcta", () => {
-    const lrd = buildMedicalResearchInput(["d1", "d2"], ["VIH", "Gripe"]);
+    const lrd = buildMedicalResearchInput(["d1", "d2"], ["VIH", "Gripe"], BALANCE.COST_REFERENCE_POPULATION);
     expect(lrd.type).toBe("MEDICAL_RESEARCH");
     expect(lrd.name).toContain("VIH");
     expect(lrd.totalMonths).toBe(BALANCE.MEDICAL_RESEARCH_DURATION);
