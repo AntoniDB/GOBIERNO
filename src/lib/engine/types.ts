@@ -214,6 +214,63 @@ export interface LongRunningDecisionState {
   effectOnCompletion: Record<string, unknown>;
 }
 
+export interface DiseaseStateInput {
+  id: string;
+  name: string;
+  category: string;
+  contagionRate: number;
+  mortalityRate: number;
+  prevalence: number;
+  prevalenceBase: number;
+  hasVaccine: boolean;
+  preventionSensitivity: number;
+  monthlyCostPerPatient: number;
+  classAffinity: Record<string, number>;
+}
+
+export interface DiseasePrevalenceStateInput {
+  id: string;
+  diseaseId: string;
+  currentPrevalence: number;
+}
+
+export interface LawCatalogEntry {
+  key: string;
+  name: string;
+  description: string;
+  effectsJson: Record<string, unknown>;
+  idealIdeology: Ideology;
+  cost: number;
+}
+
+export interface Ideology {
+  economic: number;
+  social: number;
+  authority: number;
+}
+
+/** Configuracion de fin de partida */
+export interface GameOverConfig {
+  electionIntervalYears: number;
+  termLimit: number;
+  consecutiveLowApprovalMonths: number;
+}
+
+/** Resultado de evaluar condiciones de fin de partida */
+export interface GameOverResult {
+  reason: "golpe_estado" | "juicio_politico" | "renuncia_forzada" | "perdida_electoral" | "fin_mandato" | "asesinato" | "estado_fallido" | "reeleccion";
+  description: string;
+  regimeType: string;
+  approval: number;
+  corruption: number;
+  treasury: number;
+  gdp: number;
+  /** % de votos obtenidos (solo para perdida_electoral y reeleccion) */
+  votePercent?: number;
+  /** Desglose de votos por clase social (solo elecciones) */
+  perClassVotes?: Record<string, number>;
+}
+
 // ─── Programas operativos de ministerios (Salud-3A Capa D) ──────────────────
 // Programas persistentes (no requieren Senado): campañas de vacunación,
 // prevención sanitaria, salud mental. El Ministro los activa/desactiva.
@@ -322,16 +379,33 @@ export interface MediaPollData {
 
 // ─── Turn Input / Output ─────────────────────────────────────────────────────
 
+/** Entrada del jugador al avanzar el mes */
 export interface TurnInput {
+  /** Ajustes de presupuesto por ministerio key → nuevo % */
   budgetAdjustments?: Record<string, number>;
+  /** Sub-decisiones modificadas por ministerio key → { key: value } */
   subDecisionChanges?: Record<string, Record<string, number | boolean>>;
+  /** Leyes propuestas este mes (keys del catálogo) */
   proposedLaws?: string[];
-  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
-  mediaActions?: Record<string, string>;
+  /** Nombramientos: role → officialId */
   appointments?: Record<string, string>;
+  /** Organismos creados: type → { name, budget, headOfficialId } */
+  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
+  /** Acciones sobre medios: mediaId → acción */
+  mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none">;
+  /** ¿El jugador ordenó investigar a alguien? officialId[] */
+  investigations?: string[];
+  /** IDs de partidos a los que el jugador ofrece beneficios a cambio de votos */
+  voteBuyingPartyIds?: string[];
+  /** IDs de candidatos a contratar (status CANDIDATE → ACTIVE) */
   hireCandidateIds?: string[];
+  /** Cambios de titular de organismos existentes: organismId → officialId */
   organismHeadChanges?: Record<string, string>;
+  /** IDs de organismos a disolver este mes */
   dissolveOrganismIds?: string[];
+  /** IDs de LRD a cancelar este mes */
+  cancelDecisionIds?: string[];
+  /** Nuevas LRD a iniciar este mes */
   newLongRunningDecisions?: Array<{
     type: string;
     name: string;
@@ -340,7 +414,7 @@ export interface TurnInput {
     parameters?: Record<string, unknown>;
     effectOnCompletion?: Record<string, unknown>;
   }>;
-  cancelDecisionIds?: string[];
+  /** Nuevos programas operativos (Salud-3A) */
   newPrograms?: Array<{
     type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM";
     parameters?: Record<string, unknown>;
@@ -360,10 +434,4 @@ export interface TurnOutput {
   mediaCoverages: MediaCoverageData[];
   mediaPolls: MediaPollData[];
   autoProposedLaws: string[];
-}
-
-export interface GameOverResult {
-  reason: string;
-  finalApproval: number;
-  totalTurns: number;
 }
