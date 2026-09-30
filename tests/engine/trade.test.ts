@@ -43,6 +43,8 @@ function crearTradeFlow(overrides?: Partial<TradeFlowState>): TradeFlowState {
 
 function crearEstado(overrides?: Partial<GameState>): GameState {
   return {
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,

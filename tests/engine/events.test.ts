@@ -5,6 +5,14 @@ import { createRNG } from "@/lib/rng";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2024,
     currentMonth: 1,
@@ -21,9 +29,9 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     inflation: 5,
     lifeExpectancy: 68,
     ministries: [
-      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 70, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 70, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 70, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 70, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [],
     parties: [],
@@ -71,7 +79,7 @@ describe("triggerRandomEvents", () => {
     // determinista (aunque no sepamos cuántos eventos se disparan exactamente)
     const state = crearEstadoBase({
       officials: [
-        { id: "off-1", name: "Corrupto", role: "MINISTER", ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 90, skill: 50, reputation: 20, status: "ACTIVE" },
+        { id: "off-1", name: "Corrupto", role: "MINISTER", specialty: null, ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 90, skill: 50, reputation: 20, status: "ACTIVE" },
       ],
     });
     const rng1 = createRNG("alta-corrupcion");
@@ -95,10 +103,10 @@ describe("triggerRandomEvents", () => {
   it("los eventos devueltos tienen la estructura correcta", () => {
     const state = crearEstadoBase({
       officials: [
-        { id: "off-1", name: "Corrupto", role: "MINISTER", ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 90, skill: 50, reputation: 20, status: "ACTIVE" },
+        { id: "off-1", name: "Corrupto", role: "MINISTER", specialty: null, ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 90, skill: 50, reputation: 20, status: "ACTIVE" },
       ],
       ministries: [
-        { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 20, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+        { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 20, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
       ],
     });
     const rng = createRNG("estructura-evento");
@@ -129,7 +137,7 @@ describe("triggerRandomEvents", () => {
   it("es determinista: mismo estado + misma semilla = mismos eventos", () => {
     const state = crearEstadoBase({
       officials: [
-        { id: "off-1", name: "Corrupto", role: "MINISTER", ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 70, skill: 50, reputation: 20, status: "ACTIVE" },
+        { id: "off-1", name: "Corrupto", role: "MINISTER", specialty: null, ministryId: null, partyId: null, loyalty: 50, ambition: 60, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 70, skill: 50, reputation: 20, status: "ACTIVE" },
       ],
     });
     const rng1 = createRNG("det-events");

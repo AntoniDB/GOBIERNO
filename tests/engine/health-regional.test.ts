@@ -27,6 +27,12 @@ function crearRegion(overrides?: Partial<RegionState>): RegionState {
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,

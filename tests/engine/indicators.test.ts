@@ -14,6 +14,14 @@ import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2024,
     currentMonth: 1,
@@ -30,12 +38,12 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     inflation: 5,
     lifeExpectancy: 68,
     ministries: [
-      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 7, efficiency: 50, internalCorruption: 8, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-agricultura", key: "agricultura", budgetPercent: 5, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-educacion", key: "educacion", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 7, efficiency: 50, internalCorruption: 8, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-agricultura", key: "agricultura", budgetPercent: 5, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-educacion", key: "educacion", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [],
     parties: [],
@@ -76,7 +84,7 @@ describe("calculatePoverty", () => {
     const stateBase = crearEstadoBase();
     const stateAlta = crearEstadoBase({
       ministries: [
-        { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 10, efficiency: 80, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null },
+        { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 10, efficiency: 80, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
       ],
     });
     const pobrezaBase = calculatePoverty(stateBase);
@@ -96,7 +104,7 @@ describe("calculateUnemployment", () => {
   it("devuelve al menos 2 aunque la eficiencia sea muy alta", () => {
     const state = crearEstadoBase({
       ministries: [
-        { id: "min-economia", key: "economia", budgetPercent: 40, efficiency: 100, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null },
+        { id: "min-economia", key: "economia", budgetPercent: 40, efficiency: 100, internalCorruption: 0, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
       ],
     });
     // economyImpact = 100 * budgetFactor(40%) = 100 * 0.964 = 96.4

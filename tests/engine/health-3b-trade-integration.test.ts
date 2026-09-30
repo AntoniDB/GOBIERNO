@@ -7,6 +7,8 @@ import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,
@@ -51,8 +53,8 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
       politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 60,
     },
     media: [
-      { id: "med1", name: "El Diario", type: "NEWSPAPER", ideologicalAffinity: "CENTER", reach: 30, credibility: 60, governmentAffinity: 50, status: "ACTIVE" },
-      { id: "med2", name: "Canal 2", type: "TV", ideologicalAffinity: "CENTER_RIGHT", reach: 50, credibility: 50, governmentAffinity: 50, status: "ACTIVE" },
+      { id: "med1", name: "El Diario", type: "NEWSPAPER", ideologicalAffinity: { economic: 0, social: 0, authority: 0 }, reach: 30, credibility: 60, governmentAffinity: 50, status: "ACTIVE" },
+      { id: "med2", name: "Canal 2", type: "TV", ideologicalAffinity: { economic: 30, social: 0, authority: 0 }, reach: 50, credibility: 50, governmentAffinity: 50, status: "ACTIVE" },
     ],
     events: [],
     longRunningDecisions: [],

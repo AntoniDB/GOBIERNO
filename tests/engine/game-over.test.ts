@@ -4,6 +4,14 @@ import type { GameState, EventState } from "@/lib/engine/types";
 
 function baseState(overrides: Partial<GameState> = {}): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Testlandia",
     currentYear: 1,
     currentMonth: 1,
@@ -20,17 +28,17 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
     inflation: 3,
     lifeExpectancy: 68,
     ministries: [
-      { id: "m-def", key: "DEFENSE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: "off-1" },
-      { id: "m-soc", key: "SOCIAL_DEVELOPMENT", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-hea", key: "HEALTH", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-edu", key: "EDUCATION", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-eco", key: "ECONOMY", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-sec", key: "SECURITY", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-jus", key: "JUSTICE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-agr", key: "AGRICULTURE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+      { id: "m-def", key: "DEFENSE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: "off-1", producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-soc", key: "SOCIAL_DEVELOPMENT", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-hea", key: "HEALTH", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-edu", key: "EDUCATION", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-eco", key: "ECONOMY", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-sec", key: "SECURITY", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-jus", key: "JUSTICE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-agr", key: "AGRICULTURE", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [
-      { id: "off-1", name: "Test", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 60, ambition: 30, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 10, skill: 70, reputation: 50, status: "ACTIVE" },
+      { id: "off-1", name: "Test", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 60, ambition: 30, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 10, skill: 70, reputation: 50, status: "ACTIVE" },
     ],
     parties: [],
     senators: [],
@@ -76,7 +84,7 @@ function protest(severity: number, year = 1, month = 1): EventState {
  */
 function cfgModerate(overrides: Partial<GameState> = {}): GameState {
   return baseState({
-    officials: [{ id: "off-x", name: "Golpista", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 80 }, corruption: 60, skill: 50, reputation: 20, status: "ACTIVE" }],
+    officials: [{ id: "off-x", name: "Golpista", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 80 }, corruption: 60, skill: 50, reputation: 20, status: "ACTIVE" }],
     events: [protest(13)],
     ...overrides,
   });
@@ -90,7 +98,7 @@ function cfgModerate(overrides: Partial<GameState> = {}): GameState {
  */
 function cfgCritical(overrides: Partial<GameState> = {}): GameState {
   return baseState({
-    officials: [{ id: "off-x", name: "Corrupto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 95, skill: 30, reputation: 10, status: "ACTIVE" }],
+    officials: [{ id: "off-x", name: "Corrupto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 95, skill: 30, reputation: 10, status: "ACTIVE" }],
     events: [protest(100)],
     ...overrides,
   });
@@ -147,7 +155,7 @@ describe("checkGameOverConditions", () => {
       consecutiveLowApprovalMonths: 6,
       regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 90 },
       officials: [
-        { id: "off-x", name: "Impopular", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
+        { id: "off-x", name: "Impopular", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
       ],
       events: [protest(80)],
     });
@@ -161,7 +169,7 @@ describe("checkGameOverConditions", () => {
       consecutiveLowApprovalMonths: 3,
       regimeMetrics: { powerConcentration: 30, pressFreedom: 70, judicialIndependence: 65, politicalPluralism: 70, civilLiberties: 70, transparency: 50, militarySubordination: 90 },
       officials: [
-        { id: "off-x", name: "Impopular", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
+        { id: "off-x", name: "Impopular", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
       ],
       events: [protest(80)],
     });
@@ -174,7 +182,7 @@ describe("checkGameOverConditions", () => {
       currentYear: 6,
       currentMonth: 0,
       officials: [
-        { id: "off-1", name: "Corrupto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 20, skill: 50, reputation: 20, status: "ACTIVE" },
+        { id: "off-1", name: "Corrupto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 20, skill: 50, reputation: 20, status: "ACTIVE" },
       ],
       socialClasses: [
         { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
@@ -194,10 +202,10 @@ describe("checkGameOverConditions", () => {
       currentYear: 6,
       currentMonth: 0,
       officials: [
-        { id: "off-1", name: "Honesto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
+        { id: "off-1", name: "Honesto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
       ],
       activeLaws: [
-        { id: "law-sub", key: "subsidio-alimentario", activatedAt: new Date().toISOString(), effectsJson: { approval: { EXTREME_POVERTY: 8, POVERTY: 4 } } },
+        { id: "law-sub", lawKey: "subsidio-alimentario", activatedAt: new Date().toISOString(), effectsJson: { approval: { EXTREME_POVERTY: 8, POVERTY: 4 } } },
       ],
       socialClasses: [
         { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
@@ -243,7 +251,7 @@ describe("electionResult", () => {
   it("calcula votos ponderados por poblacion", () => {
     const state = baseState({
       officials: [
-        { id: "off-1", name: "Honesto", role: "GENERAL", ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
+        { id: "off-1", name: "Honesto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 80, ambition: 20, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 0, skill: 70, reputation: 80, status: "ACTIVE" },
       ],
       socialClasses: [
         { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 25, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },

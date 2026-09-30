@@ -11,6 +11,14 @@ function crearEstadoBase(
   lrds?: LongRunningDecisionState[]
 ): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2024,
     currentMonth: 6,

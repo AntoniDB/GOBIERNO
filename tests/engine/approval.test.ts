@@ -4,6 +4,14 @@ import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDeman
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2024,
     currentMonth: 1,
@@ -20,12 +28,12 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     inflation: 5,
     lifeExpectancy: 68,
     ministries: [
-      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 7, efficiency: 50, internalCorruption: 8, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-agricultura", key: "agricultura", budgetPercent: 5, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "min-educacion", key: "educacion", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-salud", key: "salud", budgetPercent: 8, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-seguridad", key: "seguridad", budgetPercent: 6, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-desarrollo", key: "desarrollo_social", budgetPercent: 7, efficiency: 50, internalCorruption: 8, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-agricultura", key: "agricultura", budgetPercent: 5, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "min-educacion", key: "educacion", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [],
     parties: [],
@@ -101,7 +109,7 @@ describe("calculateApprovalByClass", () => {
     const stateLimpio = crearEstadoBase();
     const stateCorrupto = crearEstadoBase({
       officials: [
-        { id: "off-1", name: "X", role: "MINISTER", ministryId: null, partyId: null, loyalty: 50, ambition: 40, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 50, reputation: 30, status: "ACTIVE" },
+        { id: "off-1", name: "X", role: "MINISTER", specialty: null, ministryId: null, partyId: null, loyalty: 50, ambition: 40, wealth: 100000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 50, reputation: 30, status: "ACTIVE" },
       ],
     });
     const socialClass = crearClaseSocial();

@@ -11,6 +11,9 @@ function crearMinisterio(overrides?: Partial<MinistryState>): MinistryState {
     internalCorruption: 10,
     subDecisions: {},
     ministerOfficialId: null,
+    producedResources: {},
+    consumedResources: {},
+    healthBudgetSplit: {},
     ...overrides,
   };
 }
@@ -20,6 +23,7 @@ function crearMinistro(overrides?: Partial<OfficialState>): OfficialState {
     id: "off-min",
     name: "Ministro de Prueba",
     role: "MINISTER",
+    specialty: null,
     ministryId: "min-test",
     partyId: null,
     loyalty: 50,

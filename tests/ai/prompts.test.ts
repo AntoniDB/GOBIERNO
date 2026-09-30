@@ -5,6 +5,14 @@ import type { EventState, GameState, MediaState } from "@/lib/engine/types";
 
 function crearEstadoMinimo(): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2026,
     currentMonth: 3,
@@ -28,6 +36,9 @@ function crearEstadoMinimo(): GameState {
         internalCorruption: 15,
         subDecisions: {},
         ministerOfficialId: "off-1",
+        producedResources: {},
+        consumedResources: {},
+        healthBudgetSplit: {},
       },
       {
         id: "min-security",
@@ -37,6 +48,9 @@ function crearEstadoMinimo(): GameState {
         internalCorruption: 10,
         subDecisions: {},
         ministerOfficialId: null,
+        producedResources: {},
+        consumedResources: {},
+        healthBudgetSplit: {},
       },
     ],
     officials: [
@@ -44,6 +58,7 @@ function crearEstadoMinimo(): GameState {
         id: "off-1",
         name: "Dr. García",
         role: "MINISTER",
+        specialty: null,
         ministryId: "min-health",
         partyId: null,
         loyalty: 70,

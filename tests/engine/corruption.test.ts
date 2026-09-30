@@ -5,6 +5,14 @@ import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "República de Prueba",
     currentYear: 2024,
     currentMonth: 1,
@@ -21,7 +29,7 @@ function crearEstadoBase(overrides?: Partial<GameState>): GameState {
     inflation: 5,
     lifeExpectancy: 68,
     ministries: [
-      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: "off-min" },
+      { id: "min-economia", key: "economia", budgetPercent: 10, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: "off-min", producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [],
     parties: [],
@@ -53,6 +61,7 @@ function crearFuncionario(overrides?: Partial<OfficialState>): OfficialState {
     id: "off-1",
     name: "Funcionario X",
     role: "MINISTER",
+    specialty: null,
     ministryId: "min-economia",
     partyId: null,
     loyalty: 50,
@@ -108,7 +117,7 @@ describe("updateOfficialCorruption", () => {
   it("presupuestos altos incrementan la corrupción adicionalmente", () => {
     const state = crearEstadoBase({
       ministries: [
-        { id: "min-economia", key: "economia", budgetPercent: 30, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: "off-min" },
+        { id: "min-economia", key: "economia", budgetPercent: 30, efficiency: 50, internalCorruption: 10, subDecisions: {}, ministerOfficialId: "off-min", producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
       ],
       organisms: [],
       judicialCases: [],

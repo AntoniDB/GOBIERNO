@@ -21,6 +21,7 @@ function crearMinisterio(overrides?: Partial<MinistryState>): MinistryState {
     ministerOfficialId: null,
     producedResources: {},
     consumedResources: {},
+    healthBudgetSplit: {},
     ...overrides,
   };
 }
@@ -31,6 +32,13 @@ function crearStock(resourceType: string, quantity: number): ResourceStockState 
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,

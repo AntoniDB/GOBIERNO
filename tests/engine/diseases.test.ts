@@ -10,6 +10,9 @@ import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
+    programs: [],
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,

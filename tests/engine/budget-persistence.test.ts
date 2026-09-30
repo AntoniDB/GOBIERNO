@@ -8,6 +8,14 @@ import { createRNG } from "@/lib/rng";
 
 function crearEstado(): GameState {
   return {
+    programs: [],
+    resourceStocks: [],
+    regions: [],
+    diseases: [],
+    diseasePrevalences: [],
+    diseaseMortality: 0,
+    healthEfficiencyStreak: 0,
+    consecutiveSaturationMonths: {},
     countryName: "Test",
     currentYear: 2024,
     currentMonth: 1,
@@ -24,8 +32,8 @@ function crearEstado(): GameState {
     inflation: 5,
     lifeExpectancy: 68,
     ministries: [
-      { id: "m-salud", key: "HEALTH", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
-      { id: "m-economia", key: "ECONOMY", budgetPercent: 15, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null },
+      { id: "m-salud", key: "HEALTH", budgetPercent: 10, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
+      { id: "m-economia", key: "ECONOMY", budgetPercent: 15, efficiency: 50, internalCorruption: 5, subDecisions: {}, ministerOfficialId: null, producedResources: {}, consumedResources: {}, healthBudgetSplit: {} },
     ],
     officials: [],
     parties: [],

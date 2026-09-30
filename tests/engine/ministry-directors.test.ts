@@ -17,6 +17,7 @@ function crearMinistry(overrides?: Partial<MinistryState>): MinistryState {
     ministerOfficialId: "off-minister",
     producedResources: {},
     consumedResources: {},
+    healthBudgetSplit: {},
     ...overrides,
   };
 }

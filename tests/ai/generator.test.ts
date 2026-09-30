@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 
 // Mockear process.env antes de importar los módulos que lo leen
 const originalEnv = { ...process.env };
@@ -99,6 +99,20 @@ describe("buildEventPrompt integración", () => {
       lifeExpectancy: 68,
       longRunningDecisions: [],
       consecutiveLowApprovalMonths: 0,
+      programs: [],
+      resourceStocks: [],
+      regions: [],
+      diseases: [],
+      diseasePrevalences: [],
+      diseaseMortality: 0,
+      healthEfficiencyStreak: 0,
+      consecutiveSaturationMonths: {},
+      sanctionsMultiplier: 1,
+      tradeGoods: [],
+      tradeFlows: [],
+      tradeBalance: 0,
+      totalImports: 0,
+      totalExports: 0,
     };
     const { system, user } = buildEventPrompt(event, state);
     expect(system.length).toBeGreaterThan(10);
