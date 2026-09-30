@@ -361,9 +361,6 @@ export interface TurnOutput {
   mediaPolls: MediaPollData[];
   autoProposedLaws: string[];
 }
-  mediaCoverages: MediaCoverageData[];
-  mediaPolls: MediaPollData[];
-}
 
 export interface GameOverResult {
   reason: string;
