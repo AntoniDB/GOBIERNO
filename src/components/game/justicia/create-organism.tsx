@@ -3,6 +3,8 @@
 import { useState, useMemo } from "react";
 import type { OfficialState } from "@/lib/engine/types";
 import { useGameStore } from "@/lib/store/game-store";
+import { BALANCE } from "@/lib/balance";
+import { costScaleFactor } from "@/lib/engine/cost-scale";
 import {
   Dialog,
   DialogContent,
@@ -62,7 +64,14 @@ export function CreateOrganism({
 }) {
   const [type, setType] = useState<string>("COMPTROLLER");
   const [name, setName] = useState("");
-  const [monthlyBudget, setMonthlyBudget] = useState(50);
+  // El rango del presupuesto (M$ 50-500 para un país de 50M) escala con la población
+  const population = useGameStore((s) => s.gameState?.population) ?? BALANCE.LAW_COST_REFERENCE_POPULATION;
+  const budgetFactor = costScaleFactor(population, BALANCE.LAW_COST_REFERENCE_POPULATION);
+  const budgetMin = Math.max(1, Math.round(50 * budgetFactor));
+  const budgetMax = Math.max(budgetMin + 1, Math.round(500 * budgetFactor));
+  const budgetStep = Math.max(1, Math.round(10 * budgetFactor));
+  const [chosenBudget, setChosenBudget] = useState<number | null>(null);
+  const monthlyBudget = chosenBudget ?? budgetMin;
   const [staff, setStaff] = useState(10);
   const [headOfficialId, setHeadOfficialId] = useState<string>("");
   const [autonomyLevel, setAutonomyLevel] = useState(70);
@@ -105,7 +114,7 @@ export function CreateOrganism({
     });
 
     setName("");
-    setMonthlyBudget(50);
+    setChosenBudget(null);
     setStaff(10);
     setHeadOfficialId("");
     setAutonomyLevel(70);
@@ -113,7 +122,7 @@ export function CreateOrganism({
   };
 
   const handleBudgetChange = (value: number | readonly number[]) => {
-    setMonthlyBudget(Array.isArray(value) ? value[0] : value);
+    setChosenBudget(Array.isArray(value) ? value[0] : value);
   };
 
   const handleAutonomyChange = (value: number | readonly number[]) => {
@@ -200,13 +209,13 @@ export function CreateOrganism({
             <Slider
               value={[monthlyBudget]}
               onValueChange={handleBudgetChange}
-              min={50}
-              max={500}
-              step={10}
+              min={budgetMin}
+              max={budgetMax}
+              step={budgetStep}
             />
             <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>M$ 50</span>
-              <span>M$ 500</span>
+              <span>M$ {budgetMin}</span>
+              <span>M$ {budgetMax}</span>
             </div>
           </div>
 

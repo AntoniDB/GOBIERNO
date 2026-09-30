@@ -3,6 +3,7 @@
 
 import type { GameState } from "./types";
 import { BALANCE } from "../balance";
+import { scaleLawCost } from "./cost-scale";
 
 /**
  * Ingresos fiscales = poblaciónActiva * ingresoPerCápita * tasaImpositiva.
@@ -59,8 +60,10 @@ export function calculateExpenses(state: GameState): number {
   const lawDetails: Array<{ key: string; cost: number }> = [];
   for (const law of state.activeLaws) {
     const effects = law.effectsJson as Record<string, unknown>;
-    const cost = effects["monthlyCost"] ?? effects["cost"];
-    if (typeof cost === "number") {
+    const baseCost = effects["monthlyCost"] ?? effects["cost"];
+    if (typeof baseCost === "number") {
+      // El catálogo guarda el costo para la población de referencia de leyes
+      const cost = scaleLawCost(baseCost, state.population);
       lawCosts += cost;
       lawDetails.push({ key: law.lawKey, cost });
     }

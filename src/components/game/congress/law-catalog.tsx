@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { LawCatalogEntry, SenatorState, PartyState } from "@/lib/engine/types";
 import { LawProposalModal } from "./law-proposal-modal";
+import { scaleLawCost } from "@/lib/engine/cost-scale";
+import { BALANCE } from "@/lib/balance";
 
 const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
 const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
@@ -96,7 +98,9 @@ export function LawCatalog({
   senators,
   parties,
   approval,
+  population = BALANCE.LAW_COST_REFERENCE_POPULATION,
 }: {
+  population?: number;
   laws: LawCatalogEntry[];
   proposedLaws: string[];
   activeLaws: string[];
@@ -155,6 +159,8 @@ export function LawCatalog({
                 if (change === 0) continue;
                 badges.push({ label: `${getClassLabel(cls)}: ${change > 0 ? "+" : ""}${change}`, positive: change > 0 });
               }
+            } else if (key === "monthlyCost" && typeof val === "number" && val > 0) {
+              badges.push({ label: `Costo/mes: M$ ${(scaleLawCost(val, population) / 1_000_000).toFixed(0)}`, positive: false });
             } else if (typeof val === "number" && val !== 0 && key !== "cost") {
               badges.push({ label: `${key}: ${val > 0 ? "+" : ""}${val}`, positive: val > 0 });
             }
@@ -202,7 +208,7 @@ export function LawCatalog({
               {/* Footer */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 4, borderTop: "1.5px solid #E8E0D8" }}>
                 <span style={{ fontFamily: FFM, fontSize: 11, color: "#666" }}>
-                  {law.cost <= 0 ? "SIN COSTO" : `M$ ${(law.cost / 1_000_000).toFixed(0)}`}
+                  {law.cost <= 0 ? "SIN COSTO" : `M$ ${(scaleLawCost(law.cost, population) / 1_000_000).toFixed(0)}`}
                 </span>
                 {isActive ? (
                   <span style={{

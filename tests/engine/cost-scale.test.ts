@@ -1,14 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { GameState } from "@/lib/engine/types";
 import { BALANCE } from "@/lib/balance";
-import { costScaleFactor, scaleCost } from "@/lib/engine/cost-scale";
+import { costScaleFactor, scaleCost, scaleLawCost } from "@/lib/engine/cost-scale";
+import { LAW_CATALOG } from "@/lib/game-factory";
 import { candidateHireCost } from "@/lib/engine/candidates";
 import { defaultCostFor, createProgram } from "@/lib/engine/programs";
 import {
   buildHospitalConstructionInput,
   buildMedicalResearchInput,
 } from "@/lib/engine/long-running-decisions";
-import { calculateIncome } from "@/lib/engine/economy";
+import { calculateIncome, calculateExpenses } from "@/lib/engine/economy";
 
 const REF = BALANCE.COST_REFERENCE_POPULATION;
 
@@ -69,5 +70,51 @@ describe("costos escalados en el motor", () => {
     const base = BALANCE.CANDIDATE_HIRE_COST_BASE + 2 * BALANCE.CANDIDATE_HIRE_COST_PER_SAME_ROLE;
     expect(candidateHireCost(2, REF)).toBe(base);
     expect(candidateHireCost(2, 50_000_000)).toBe(base * 5);
+  });
+});
+
+describe("costos de leyes y organismos (referencia 50M)", () => {
+  const LAW_REF = BALANCE.LAW_COST_REFERENCE_POPULATION;
+
+  function gastoConLey(population: number, monthlyCost: number): number {
+    const base = {
+      population, ministries: [], officials: [], organisms: [],
+      activeLaws: [] as { id: string; lawKey: string; activatedAt: string; effectsJson: Record<string, unknown> }[],
+    };
+    const con = { ...base, activeLaws: [{ id: "l1", lawKey: "x", activatedAt: "", effectsJson: { monthlyCost } }] };
+    return calculateExpenses(con as unknown as GameState) - calculateExpenses(base as unknown as GameState);
+  }
+
+  it("scaleLawCost no cambia el costo a la población de referencia de leyes", () => {
+    expect(scaleLawCost(400_000_000, LAW_REF)).toBe(400_000_000);
+  });
+
+  it("scaleLawCost usa una referencia distinta a la de programas", () => {
+    expect(scaleLawCost(400_000_000, 10_000_000)).toBe(80_000_000);
+    expect(scaleCost(400_000_000, 10_000_000)).toBe(400_000_000);
+  });
+
+  it.each([10_000_000, 25_000_000, LAW_REF, 80_000_000])(
+    "calculateExpenses cobra el monthlyCost de una ley escalado (pob. %i)",
+    (population) => {
+      expect(gastoConLey(population, 400_000_000)).toBe(scaleLawCost(400_000_000, population));
+    },
+  );
+
+  it("el peso de una ley respecto del ingreso mensual es el mismo en cualquier país", () => {
+    const peso = (population: number) =>
+      gastoConLey(population, 800_000_000) /
+      calculateIncome({ population, activeLaws: [] } as unknown as GameState);
+    expect(peso(80_000_000)).toBeCloseTo(peso(25_000_000), 6);
+    expect(peso(10_000_000)).toBeCloseTo(peso(LAW_REF), 6);
+  });
+
+  it("ninguna ley del catálogo supera el 50% del ingreso mensual a la población de referencia", () => {
+    const ingreso = calculateIncome({ population: LAW_REF, activeLaws: [] } as unknown as GameState);
+    const costos = LAW_CATALOG
+      .map((l) => (l.effectsJson as Record<string, unknown>).monthlyCost)
+      .filter((c): c is number => typeof c === "number");
+    expect(costos.length).toBeGreaterThan(0);
+    for (const c of costos) expect(c / ingreso).toBeLessThanOrEqual(0.5);
   });
 });

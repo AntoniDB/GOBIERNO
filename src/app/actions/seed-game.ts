@@ -5,6 +5,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import type { PresetKey, Difficulty } from "@/lib/game-factory";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
 import { defaultTradeFlowParams } from "@/lib/engine/trade";
+import { scaleLawCost } from "@/lib/engine/cost-scale";
 import {
   generateSeed,
   getPresetConfig,
@@ -157,7 +158,7 @@ export async function createInitialGame(
     data: {
       gameId, type: "COMPTROLLER",
       name: "Contraloria General de la Republica",
-      monthlyBudget: 150000000, staff: 30, effectiveness: 40,
+      monthlyBudget: scaleLawCost(150_000_000, cfg.population), staff: 30, effectiveness: 40,
       autonomyLevel: cfg.regimeMetrics.transparency > 50 ? 70 : 40,
       headOfficialId: contralor.id,
     },

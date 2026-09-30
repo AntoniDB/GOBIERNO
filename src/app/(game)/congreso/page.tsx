@@ -123,11 +123,12 @@ export default function CongresoPage() {
                 senators={gameState?.senators ?? []}
                 parties={gameState?.parties ?? []}
                 approval={generalApproval}
+                population={gameState?.population}
               />
             ) : <LawCatalogLoading />
           )}
           {activeTab === "activas" && (
-            <ActiveLaws activeLaws={gameState?.activeLaws ?? []} />
+            <ActiveLaws activeLaws={gameState?.activeLaws ?? []} population={gameState?.population} />
           )}
           {activeTab === "historial" && (
             <LawProposalsHistory proposals={lawProposals ?? []} />

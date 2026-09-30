@@ -47,7 +47,7 @@ se usaba). Ambos se eliminaron en este commit.
 
 ---
 
-## 4. Costos fijos en USD no escalan con población — PARCIALMENTE RESUELTO
+## 4. ~~Costos fijos en USD no escalan con población~~ — RESUELTO
 
 **Causa de fondo (descubierta al atacarlo):** los presets (25M–80M de habitantes)
 no se aplicaban desde `98ac4e8`, así que toda partida corría a 10M/1.000M y el
@@ -65,15 +65,30 @@ Fórmula: `costo = costoBase × población / 10M`. Mantiene constante el peso de
 respecto del ingreso mensual (`45 × población`). Los valores de `balance.ts` son
 costos BASE (a 10M).
 
-**Pendiente — decisión de balance aparte (NO se escalan):**
-- **Leyes** (`LawCatalog.cost`, `effectsJson.monthlyCost`): no están calibradas a 10M. Varias cuestan 800M–900M *al mes* (`reforma-previsional`, `becas-merito`), más que todo el ingreso mensual de un país de 10M (450M). Escalarlas por `población/10M` las volvería imposibles en países grandes (6.400M de costo frente a 3.600M de ingreso a 80M). Hay que decidir su población de referencia y recalibrar.
-- **Organismos** (`Organism.monthlyBudget`: Contraloría 150M sembrada en `seed-game.ts`; el resto lo fija el jugador con un slider en `create-organism.tsx`). Con presets restaurados es el gasto fijo que domina el balance del primer turno (~150M de déficit en los 4 presets): 33% del ingreso a 10M, 4% a 80M.
-- **Capacidad hospitalaria**: las camas por región son fijas por preset (`generateRegions`), no dependen de la población.
-- `BASE_SALARY_PER_MINISTER` (5.000 por funcionario) no se escala a propósito: un sueldo no depende del tamaño del país.
+**Resuelto — leyes y organismos** (referencia propia, `BALANCE.LAW_COST_REFERENCE_POPULATION` = 50M):
+los costos de leyes y organismos **no** se calibraron a 10M: el catálogo se escribió el
+21-22/06/2026, cuando los presets sí se aplicaban (25M–80M). A 10M pesaban 100%–200% del
+ingreso solo por el bug de los presets. Se toma 50M (preset `estable_democratico`; media de
+los presets ≈ 47M) como la población para la que los valores del catálogo son "el costo
+real": la ley mediana (400M/mes) pesa ≈18% del ingreso y la más cara (900M) ≈40%. Es una
+decisión de balance y es un solo número: subirlo abarata todas las leyes y organismos.
+- **Leyes**: el motor cobra `effectsJson.monthlyCost × población / 50M` (`economy.ts`,
+  `scaleLawCost`). El catálogo en la DB no se modifica (se escala al cobrar). La UI
+  (`law-catalog.tsx`, `active-laws.tsx`) muestra el costo escalado y reemplaza el badge
+  crudo `monthlyCost: +400000000` por "Costo/mes: M$ X".
+- **Organismos**: la Contraloría sembrada se escala a la población del preset
+  (`seed-game.ts`) y el slider de `create-organism.tsx` escala su rango (M$ 50–500 a 50M).
+  El monto se guarda ya escalado, así que **los organismos de partidas existentes no cambian**.
+- Efecto en partidas existentes (que corren a 10M por el bug de los presets): sus leyes
+  activas pasan a costar 1/5 de lo que costaban (ahora pesan lo mismo que en un país de 50M).
+
+**Sigue sin escalar, a propósito:** `BASE_SALARY_PER_MINISTER` (un sueldo no depende del
+tamaño del país) y la capacidad hospitalaria (ver #5).
 
 **Archivos:** `src/lib/engine/cost-scale.ts`, `src/lib/balance.ts`, `programs.ts`,
 `long-running-decisions.ts`, `candidates.ts`, `turn.ts` (compra de afinidad y contratación),
-`program-launch-modal.tsx` y `candidates-panel.tsx` (UI muestra el costo escalado).
+`program-launch-modal.tsx` y `candidates-panel.tsx` (UI muestra el costo escalado), `economy.ts`, `seed-game.ts`,
+`law-catalog.tsx`, `active-laws.tsx`, `create-organism.tsx`.
 
 ---
 
@@ -109,3 +124,32 @@ recibido si existe y solo calcula el costo por defecto cuando no llega.
 **Propuesta:** que el motor ignore el `monthlyCost` recibido para
 `HOSPITAL_CONSTRUCTION`, `MEDICAL_RESEARCH` y programas, y lo calcule siempre
 con el estado (población). La UI ya no necesitaría enviarlo.
+
+---
+
+## 7. Leyes con costo que nunca se cobra
+
+**Descripción:** `LawCatalog.cost` solo se muestra en la UI; el motor cobra únicamente
+`effectsJson.monthlyCost` (o `effectsJson.cost`, que ninguna ley define). De las 43 leyes:
+- 20 tienen `monthlyCost` y se cobran cada mes (en las del segundo lote `cost == monthlyCost`).
+- **17 tienen `cost > 0` pero ningún `monthlyCost`**: la UI muestra "M$ 500" (o 1.000 en
+  `salud-universal`, 800 en `educacion-publica-gratuita`…) y aplicarlas no cuesta nada.
+- **3 tienen `cost < 0`** (`privatizacion-empresas` −2.000M, `reforma-afp` −3.000M,
+  `extincion-dominio` −500M): parecen ingresos puntuales, pero nunca se acreditan.
+- `abenomics` define `effectsJson.treasury: -1.000M`, sin ningún código que lo aplique.
+
+**Impacto:** las leyes de bienestar más grandes son gratis y las privatizaciones no dan dinero:
+el Congreso es más barato de lo que muestra la UI y hay leyes estrictamente dominantes.
+
+**Decisión pendiente (diseño):** ¿`cost` es un costo único al promulgar (negativo = ingreso),
+un costo mensual, o debe ocultarse? Hasta decidirlo, no se cambió el comportamiento.
+
+---
+
+## 8. Déficit estructural desde el primer turno
+
+**Descripción:** los 8 ministerios iniciales suman exactamente 100% del ingreso
+(`generateMinistries`: 14+16+18+10+12+8+10+12), así que cualquier gasto fijo (Contraloría
+≈6,7% del ingreso, salarios) produce déficit desde el turno 1 en los cuatro presets.
+No es un bug: el jugador debe redistribuir presupuesto. Se anota porque condiciona
+cualquier recalibración de costos (la holgura fiscal inicial es cero por diseño).

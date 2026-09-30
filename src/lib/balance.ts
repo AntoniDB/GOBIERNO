@@ -21,6 +21,20 @@ export const BALANCE = {
    */
   COST_REFERENCE_POPULATION: 10_000_000,
 
+  /**
+   * Población de referencia de los costos de LEYES y ORGANISMOS (catálogo de
+   * leyes, Contraloría sembrada, rango de presupuesto de organismos creables).
+   * Estos valores se escribieron el 21-22/06/2026, cuando los presets sí se
+   * aplicaban (25M-80M, ingreso mensual 1.125M-3.600M), no contra 10M. Se toma
+   * 50M (preset "estable_democratico"; media de los presets ≈ 47M) como la
+   * población para la que los valores del catálogo son "el costo real":
+   *   ley mediana (400M/mes) ≈ 18% del ingreso mensual, la más cara (900M) ≈ 40%.
+   * El costo se escala linealmente: costo = base × población / 50M, de modo que
+   * pese lo mismo respecto del ingreso en cualquier país. Para reajustar la
+   * dificultad fiscal de todas las leyes basta cambiar esta constante.
+   */
+  LAW_COST_REFERENCE_POPULATION: 50_000_000,
+
   /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
   INFLATION_DEFICIT_FACTOR: 0.02,
 

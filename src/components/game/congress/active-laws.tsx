@@ -3,6 +3,8 @@
 import type { ActiveLawState } from "@/lib/engine/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { BALANCE } from "@/lib/balance";
+import { scaleLawCost } from "@/lib/engine/cost-scale";
 import { ScrollTextIcon, CalendarIcon } from "lucide-react";
 
 const LAW_NAMES: Record<string, string> = {
@@ -42,7 +44,13 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function ActiveLaws({ activeLaws }: { activeLaws: ActiveLawState[] }) {
+export function ActiveLaws({
+  activeLaws,
+  population = BALANCE.LAW_COST_REFERENCE_POPULATION,
+}: {
+  activeLaws: ActiveLawState[];
+  population?: number;
+}) {
   if (activeLaws.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
@@ -91,6 +99,14 @@ export function ActiveLaws({ activeLaws }: { activeLaws: ActiveLawState[] }) {
 
                   for (const [key, val] of Object.entries(effects)) {
                     if (key === "approval") continue;
+                    if (key === "monthlyCost" && typeof val === "number" && val > 0) {
+                      badges.push(
+                        <Badge key={key} variant="destructive" className="text-[10px]">
+                          Costo/mes: M$ {(scaleLawCost(val, population) / 1_000_000).toFixed(0)}
+                        </Badge>
+                      );
+                      continue;
+                    }
                     if (typeof val === "number" && val !== 0) {
                       badges.push(
                         <Badge
