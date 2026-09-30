@@ -31,6 +31,7 @@ export interface PresetConfig {
 }
 
 export type PresetKey = "estable_democratico" | "pobre_con_potencial" | "crisis_economica" | "post_conflicto";
+export const PRESET_KEYS: readonly PresetKey[] = ["estable_democratico", "pobre_con_potencial", "crisis_economica", "post_conflicto"];
 export type Difficulty = "facil" | "normal" | "dificil";
 
 const NOMBRES = [

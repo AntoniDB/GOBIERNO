@@ -8,6 +8,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "./seed-catalogs";
 import { defaultTradeFlowParams } from "./engine/trade";
+import { initialEconomy } from "./initial-economy";
 
 type Tx = Prisma.TransactionClient;
 
@@ -34,9 +35,9 @@ async function currentPopulation(tx: Tx, gameId: string): Promise<number> {
   if (snapshot) return snapshot.population;
   const game = await tx.game.findUniqueOrThrow({
     where: { id: gameId },
-    select: { population: true },
+    select: { preset: true, difficulty: true },
   });
-  return game.population;
+  return initialEconomy(game.preset, game.difficulty).population;
 }
 
 const diseasesStep: SeedStep = {

@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { ensureSeedIntegrity } from "@/lib/seed-integrity";
+import { initialEconomy } from "@/lib/initial-economy";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { simulateSenateVote } from "@/lib/engine/congress";
@@ -15,9 +16,6 @@ import type {
 } from "@/lib/engine/types";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-
-const DEFAULT_TREASURY = 1_000_000_000;
-const DEFAULT_POPULATION = 10_000_000;
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
 
@@ -48,12 +46,13 @@ function asIdeology(raw: any): Ideology {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, latestSnapshot: MonthSnapshotData | null, lawCatalogMap: Map<string, LawCatalogEntry>): GameState {
+  const initial = initialEconomy(game.preset, game.difficulty);
   return {
     countryName: game.countryName,
     currentYear: game.currentYear,
     currentMonth: game.currentMonth,
-    treasury: latestSnapshot?.treasury ?? DEFAULT_TREASURY,
-    population: latestSnapshot?.population ?? DEFAULT_POPULATION,
+    treasury: latestSnapshot?.treasury ?? initial.treasury,
+    population: latestSnapshot?.population ?? initial.population,
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     healthEfficiencyStreak: (game as Record<string, unknown>).healthEfficiencyStreak as number ?? 0,

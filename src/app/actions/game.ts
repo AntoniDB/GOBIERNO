@@ -5,6 +5,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { ensureSeedIntegrity } from "@/lib/seed-integrity";
+import { initialEconomy } from "@/lib/initial-economy";
 import type {
   GameState,
   RegimeMetricsState,
@@ -15,9 +16,6 @@ import type {
 } from "@/lib/engine/types";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-
-const DEFAULT_TREASURY = 1_000_000_000;
-const DEFAULT_POPULATION = 10_000_000;
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────
 
@@ -66,20 +64,21 @@ function buildGameState(
   latestSnapshot: MonthSnapshotData | null,
   lawCatalogMap: Map<string, LawCatalogEntry>,
 ): GameState {
+  const initial = initialEconomy(game.preset, game.difficulty);
   return {
     countryName: game.countryName,
     currentYear: game.currentYear,
     currentMonth: game.currentMonth,
-    treasury: latestSnapshot?.treasury ?? DEFAULT_TREASURY,
-    population: latestSnapshot?.population ?? DEFAULT_POPULATION,
-    gdp: latestSnapshot?.gdp ?? 0,
-    povertyRate: latestSnapshot?.povertyRate ?? 0,
-    unemploymentRate: latestSnapshot?.unemploymentRate ?? 0,
+    treasury: latestSnapshot?.treasury ?? initial.treasury,
+    population: latestSnapshot?.population ?? initial.population,
+    gdp: latestSnapshot?.gdp ?? initial.gdp,
+    povertyRate: latestSnapshot?.povertyRate ?? initial.povertyRate,
+    unemploymentRate: latestSnapshot?.unemploymentRate ?? initial.unemploymentRate,
     sickRate: latestSnapshot?.sickRate ?? 0,
     crimeRate: latestSnapshot?.crimeRate ?? 0,
     foodSecurity: latestSnapshot?.foodSecurity ?? 0,
     educationLevel: latestSnapshot?.educationLevel ?? 0,
-    inflation: latestSnapshot?.inflation ?? 0,
+    inflation: latestSnapshot?.inflation ?? initial.inflation,
     lifeExpectancy: latestSnapshot?.lifeExpectancy ?? 68,
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,

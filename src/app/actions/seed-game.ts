@@ -42,6 +42,8 @@ export async function createInitialGame(
       seed,
       preset: params.preset,
       difficulty: params.difficulty,
+      treasury: cfg.treasury,
+      population: cfg.population,
     },
   });
 

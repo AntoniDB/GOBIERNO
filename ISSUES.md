@@ -209,3 +209,49 @@ de control llega donde se espera.
 
 - ✅ 300 tests unitarios pasan (27 archivos)
 - ✅ Prueba funcional manual: slider de presupuesto persiste tras avanzar mes y recargar
+
+---
+
+## Incidencia #3: Los presets dejaron de aplicarse (2026-06-28 → corregida)
+
+### Resumen
+
+Desde `98ac4e8` (fix de la Incidencia #2) toda partida nueva arrancaba con
+10.000.000 de habitantes y 1.000M de tesoro, sin importar el preset elegido
+(que define 25M–80M de habitantes, tesoro, PIB, pobreza, desempleo e inflación).
+
+### Causa raíz
+
+El fix de la Incidencia #2 eliminó el `MonthSnapshot` inicial del seed. Ese
+snapshot era el único lugar donde se guardaban los valores económicos del preset.
+Sin él, `getGameState` y `advanceMonth` caen a `DEFAULT_TREASURY`/`DEFAULT_POPULATION`
+(`latestSnapshot?.x ?? DEFAULT`). El motor no modifica la población, así que el
+valor por defecto se mantenía durante toda la partida. Nadie lo notó: el balance
+de las sesiones siguientes se calibró contra ese 10M accidental.
+
+### Solución
+
+`src/lib/initial-economy.ts` deriva tesoro, población, PIB, pobreza, desempleo e
+inflación desde `Game.preset`/`difficulty` mientras no exista snapshot; con el
+primer snapshot se usan los valores persistidos. No requiere migración ni toca la
+idempotencia. `seed-game.ts` además guarda `treasury`/`population` en las columnas
+de `Game` (las usan `ai.ts` y `advisor.ts` como respaldo).
+
+- Partidas con al menos un snapshot: **sin cambios** (siguen con sus valores).
+- Partidas sin ningún turno jugado: pasan a usar los valores de su preset.
+- Los indicadores derivados (sickRate, crimeRate, foodSecurity, educationLevel) se
+  recalculan cada turno y no se restauran; antes del primer turno se muestran en 0.
+
+### Verificación
+
+- ✅ Tests unitarios (`tests/persistence/initial-economy.test.ts`)
+- ✅ Prueba de punta a punta contra Postgres 16 real, con los 4 presets: `getGameState`
+  devuelve población/tesoro/PIB/pobreza/desempleo/inflación del preset antes del primer
+  turno, `advanceMonth` conserva la población y el snapshot la persiste.
+
+### Lección
+
+Un fix que elimina un dato de siembra debe reubicarlo, no solo quitarlo. Aquí la
+Incidencia #2 resolvió el síntoma (idempotencia) descartando información de la que
+dependían los presets.
+
