@@ -1,7 +1,7 @@
 // ─── Funciones puras de economía ─────────────────────────────────────────────
 // Cálculo de ingresos fiscales, gastos, tesorería, inflación y PIB.
 
-import type { GameState } from "./types";
+import type { GameState, LawCatalogEntry } from "./types";
 import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
 
@@ -93,6 +93,44 @@ export function calculateExpenses(state: GameState): number {
   console.log(`  DÉFICIT/SUPERÁVIT:       ${fmt(income - total)} AKN`);
 
   return total;
+}
+
+/**
+ * Perfil de costo de una ley, escalado a la población (referencia de leyes):
+ * - monthly: costo mensual recurrente (`effectsJson.monthlyCost`), que cobra calculateExpenses.
+ * - enactment: costo ÚNICO al promulgar (`cost`); negativo = ingreso (privatizaciones, etc.).
+ *
+ * Las leyes con costo mensual no tienen costo único: su `cost` repite el monto mensual
+ * (cost == monthlyCost en todo el catálogo), y cobrarlo también contaría el gasto doble.
+ */
+export function lawCostProfile(
+  law: Pick<LawCatalogEntry, "cost" | "effectsJson">,
+  population: number,
+): { monthly: number; enactment: number } {
+  const rawMonthly = law.effectsJson["monthlyCost"] ?? law.effectsJson["cost"];
+  const monthly = typeof rawMonthly === "number" && rawMonthly > 0 ? scaleLawCost(rawMonthly, population) : 0;
+  const enactment = monthly > 0 ? 0 : scaleLawCost(law.cost, population);
+  return { monthly, enactment };
+}
+
+/**
+ * Costos únicos de promulgar las leyes indicadas. `totalCost` positivo se descuenta
+ * del tesoro; negativo se acredita. Ignora claves que no están en el catálogo y
+ * leyes sin costo único.
+ */
+export function resolveLawEnactments(
+  lawKeys: string[],
+  catalog: Map<string, LawCatalogEntry>,
+  population: number,
+): { totalCost: number; details: Array<{ lawKey: string; name: string; cost: number }> } {
+  const details: Array<{ lawKey: string; name: string; cost: number }> = [];
+  for (const lawKey of lawKeys) {
+    const law = catalog.get(lawKey);
+    if (!law) continue;
+    const { enactment } = lawCostProfile(law, population);
+    if (enactment !== 0) details.push({ lawKey, name: law.name, cost: enactment });
+  }
+  return { totalCost: details.reduce((sum, d) => sum + d.cost, 0), details };
 }
 
 /**

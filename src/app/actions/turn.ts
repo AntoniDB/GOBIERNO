@@ -9,6 +9,7 @@ import { ensureSeedIntegrity } from "@/lib/seed-integrity";
 import { initialEconomy } from "@/lib/initial-economy";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
+import { resolveLawEnactments } from "@/lib/engine/economy";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   GameState, MinistryProgramState, MonthSnapshotData, RegimeMetricsState, LawCatalogEntry,
@@ -433,6 +434,23 @@ export async function advanceMonth(
     }
   }
 
+  // Promulgación: las leyes aprobadas que aún no están vigentes entran en vigor y
+  // pagan su costo único (negativo = ingreso). Una ley ya vigente que se vuelve a
+  // aprobar (p. ej. estado-emergencia auto-propuesto en cada brote) no se duplica
+  // ni se cobra otra vez.
+  const alreadyActiveKeys = new Set<string>(
+    game.activeLaws.filter((al: Record<string, unknown>) => !al.repealedAt).map((al: Record<string, unknown>) => al.lawKey as string),
+  );
+  const enactedKeys: string[] = [];
+  for (const r of lawResults) {
+    if (r.approved && !alreadyActiveKeys.has(r.lawKey) && !enactedKeys.includes(r.lawKey)) {
+      enactedKeys.push(r.lawKey);
+    }
+  }
+  const enactment = resolveLawEnactments(enactedKeys, lawCatalogMap, newState.population);
+  newState.treasury -= enactment.totalCost;
+  monthSnapshot.treasury -= enactment.totalCost;
+
   // Persistir en transacción atómica
   await prisma.$transaction(async (tx) => {
     // a. MonthSnapshot: INSERT ON CONFLICT (atómico, nunca P2002/25P02)
@@ -839,6 +857,7 @@ export async function advanceMonth(
     }
 
     // j. Leyes propuestas
+    const pendingEnactment = new Set(enactedKeys);
     for (const result of lawResults) {
       await tx.lawProposal.create({
         data: {
@@ -853,7 +872,7 @@ export async function advanceMonth(
         },
       });
 
-      if (result.approved) {
+      if (result.approved && pendingEnactment.delete(result.lawKey)) {
         await tx.activeLaw.create({
           data: {
           id: crypto.randomUUID(),
@@ -874,10 +893,19 @@ export async function advanceMonth(
       : `La ley "${r.lawKey}" fue rechazada. Cámara Baja: ${r.lowerFor} a favor, ${r.lowerAgainst} en contra. Cámara Alta: ${r.upperFor} a favor, ${r.upperAgainst} en contra.`,
   }));
 
+  const fmtM = (n: number) => `M$ ${(Math.abs(n) / 1_000_000).toFixed(0)}`;
+  const enactmentNotifications: TurnNotification[] = enactment.details.map((d) => ({
+    type: "law",
+    title: d.cost > 0 ? "Costo de promulgación" : "Ingreso por promulgación",
+    description: d.cost > 0
+      ? `Promulgar "${d.name}" costó ${fmtM(d.cost)} al tesoro (pago único).`
+      : `Promulgar "${d.name}" ingresó ${fmtM(d.cost)} al tesoro (ingreso único).`,
+  }));
+
   return {
     newState,
     monthSnapshot,
-    notifications: [...notifications, ...lawNotifications],
+    notifications: [...notifications, ...lawNotifications, ...enactmentNotifications],
     newEvents,
     mediaCoverages,
     mediaPolls,

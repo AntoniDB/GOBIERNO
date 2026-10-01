@@ -240,3 +240,24 @@ registro tipado en codigo (`MINISTRY_RESOURCE_PROFILES` en `resource-balance.ts`
 Cada ministerio declara que produce/consume y como (fixed o computed). Añadir
 nuevas dependencias (Defensa-3, Economica-3, etc.) es añadir entradas a ese
 registro, no reescribir el motor.
+
+## Costos de leyes y organismos (Issue 3)
+
+Los costos fijos en USD se escalan por población para pesar lo mismo respecto del ingreso
+mensual (`ingreso = 45 × población`). Código: `engine/cost-scale.ts`.
+
+```
+costo = costoBase × población / referencia
+```
+
+| Familia | Referencia | Constante |
+|---|---|---|
+| Programas, hospitales, investigación (Salud-3A), contratación, compra de afinidad | 10M | `COST_REFERENCE_POPULATION` |
+| Leyes y organismos (Contraloría sembrada, rango del slider) | 50M | `LAW_COST_REFERENCE_POPULATION` |
+
+Leyes: `effectsJson.monthlyCost` se cobra cada mes; `cost` es un costo único al promulgar
+(negativo = ingreso) y solo aplica a leyes sin `monthlyCost` (`lawCostProfile`).
+
+Para ajustar: subir `LAW_COST_REFERENCE_POPULATION` abarata todas las leyes y organismos a la
+vez (a 50M la ley mediana de 400M/mes pesa ≈18% del ingreso mensual y la más cara ≈40%).
+

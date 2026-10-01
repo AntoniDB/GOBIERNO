@@ -124,6 +124,7 @@ export default function CongresoPage() {
                 parties={gameState?.parties ?? []}
                 approval={generalApproval}
                 population={gameState?.population}
+                treasury={gameState?.treasury}
               />
             ) : <LawCatalogLoading />
           )}

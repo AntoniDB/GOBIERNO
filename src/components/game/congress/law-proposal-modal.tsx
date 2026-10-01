@@ -82,6 +82,9 @@ export function LawProposalModal({
   lawKey,
   lawName,
   lawDescription,
+  monthlyCost = 0,
+  enactmentCost = 0,
+  treasury,
   parties,
   onConfirm,
 }: {
@@ -90,6 +93,12 @@ export function LawProposalModal({
   lawKey: string;
   lawName: string;
   lawDescription: string;
+  /** Costo mensual recurrente, escalado a la población (0 = sin costo mensual) */
+  monthlyCost?: number;
+  /** Costo único al promulgar, escalado (positivo = gasto, negativo = ingreso) */
+  enactmentCost?: number;
+  /** Tesoro actual, para advertir si el costo único no alcanza */
+  treasury?: number;
   senators: { id: string; partyId: string; name: string; personalIdeology: { economic: number; social: number; authority: number }; chamber: "LOWER" | "UPPER"; loyalty: number }[];
   parties: PartyState[];
   approval: number;
@@ -131,6 +140,25 @@ export function LawProposalModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {(monthlyCost > 0 || enactmentCost !== 0) && (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
+              {monthlyCost > 0 && (
+                <p>Costo mensual mientras esté vigente: <strong>M$ {(monthlyCost / 1_000_000).toFixed(0)}</strong></p>
+              )}
+              {enactmentCost > 0 && (
+                <p>Costo único al promulgar: <strong>M$ {(enactmentCost / 1_000_000).toFixed(0)}</strong></p>
+              )}
+              {enactmentCost < 0 && (
+                <p>Ingreso único al promulgar: <strong>M$ {(-enactmentCost / 1_000_000).toFixed(0)}</strong></p>
+              )}
+              {enactmentCost > 0 && treasury !== undefined && treasury < enactmentCost && (
+                <p className="text-destructive">
+                  El tesoro actual (M$ {(treasury / 1_000_000).toFixed(0)}) no alcanza: quedará en M$ {((treasury - enactmentCost) / 1_000_000).toFixed(0)}.
+                </p>
+              )}
+            </div>
+          )}
+
           {isLoading && (
             <div className="space-y-3">
               <Skeleton className="h-4 w-32" />

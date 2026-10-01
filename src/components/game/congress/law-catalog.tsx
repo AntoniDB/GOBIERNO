@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LawCatalogEntry, SenatorState, PartyState } from "@/lib/engine/types";
 import { LawProposalModal } from "./law-proposal-modal";
-import { scaleLawCost } from "@/lib/engine/cost-scale";
+import { lawCostProfile } from "@/lib/engine/economy";
 import { BALANCE } from "@/lib/balance";
 
 const FF  = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
@@ -99,8 +99,10 @@ export function LawCatalog({
   parties,
   approval,
   population = BALANCE.LAW_COST_REFERENCE_POPULATION,
+  treasury,
 }: {
   population?: number;
+  treasury?: number;
   laws: LawCatalogEntry[];
   proposedLaws: string[];
   activeLaws: string[];
@@ -152,6 +154,12 @@ export function LawCatalog({
           const isActive = activeLaws.includes(law.key);
 
           const effects = law.effectsJson;
+          const costProfile = lawCostProfile(law, population);
+          const costLabel =
+            costProfile.monthly > 0 ? `M$ ${(costProfile.monthly / 1_000_000).toFixed(0)}/mes`
+            : costProfile.enactment > 0 ? `M$ ${(costProfile.enactment / 1_000_000).toFixed(0)} (único)`
+            : costProfile.enactment < 0 ? `INGRESO M$ ${(-costProfile.enactment / 1_000_000).toFixed(0)}`
+            : "SIN COSTO";
           const badges: { label: string; positive: boolean }[] = [];
           for (const [key, val] of Object.entries(effects)) {
             if (key === "approval" && typeof val === "object" && val !== null) {
@@ -159,8 +167,8 @@ export function LawCatalog({
                 if (change === 0) continue;
                 badges.push({ label: `${getClassLabel(cls)}: ${change > 0 ? "+" : ""}${change}`, positive: change > 0 });
               }
-            } else if (key === "monthlyCost" && typeof val === "number" && val > 0) {
-              badges.push({ label: `Costo/mes: M$ ${(scaleLawCost(val, population) / 1_000_000).toFixed(0)}`, positive: false });
+            } else if (key === "monthlyCost") {
+              // se muestra en el pie de la tarjeta
             } else if (typeof val === "number" && val !== 0 && key !== "cost") {
               badges.push({ label: `${key}: ${val > 0 ? "+" : ""}${val}`, positive: val > 0 });
             }
@@ -208,7 +216,7 @@ export function LawCatalog({
               {/* Footer */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 4, borderTop: "1.5px solid #E8E0D8" }}>
                 <span style={{ fontFamily: FFM, fontSize: 11, color: "#666" }}>
-                  {law.cost <= 0 ? "SIN COSTO" : `M$ ${(scaleLawCost(law.cost, population) / 1_000_000).toFixed(0)}`}
+                  {costLabel}
                 </span>
                 {isActive ? (
                   <span style={{
@@ -257,6 +265,9 @@ export function LawCatalog({
           lawKey={modalLaw.key}
           lawName={modalLaw.name}
           lawDescription={modalLaw.description}
+          monthlyCost={lawCostProfile(modalLaw, population).monthly}
+          enactmentCost={lawCostProfile(modalLaw, population).enactment}
+          treasury={treasury}
           senators={senators}
           parties={parties}
           approval={approval}

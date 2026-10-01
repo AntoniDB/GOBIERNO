@@ -127,22 +127,44 @@ con el estado (población). La UI ya no necesitaría enviarlo.
 
 ---
 
-## 7. Leyes con costo que nunca se cobra
+## 7. ~~Leyes con costo que nunca se cobra~~ — RESUELTO
 
-**Descripción:** `LawCatalog.cost` solo se muestra en la UI; el motor cobra únicamente
-`effectsJson.monthlyCost` (o `effectsJson.cost`, que ninguna ley define). De las 43 leyes:
-- 20 tienen `monthlyCost` y se cobran cada mes (en las del segundo lote `cost == monthlyCost`).
-- **17 tienen `cost > 0` pero ningún `monthlyCost`**: la UI muestra "M$ 500" (o 1.000 en
-  `salud-universal`, 800 en `educacion-publica-gratuita`…) y aplicarlas no cuesta nada.
-- **3 tienen `cost < 0`** (`privatizacion-empresas` −2.000M, `reforma-afp` −3.000M,
-  `extincion-dominio` −500M): parecen ingresos puntuales, pero nunca se acreditan.
-- `abenomics` define `effectsJson.treasury: -1.000M`, sin ningún código que lo aplique.
+**Problema original:** `LawCatalog.cost` solo se mostraba en la UI; el motor cobraba únicamente
+`effectsJson.monthlyCost`. De las 43 leyes, 17 mostraban un costo que nunca se cobraba
+(`salud-universal` 1.000M, `educacion-publica-gratuita` 800M…) y 3 con `cost` negativo
+(`privatizacion-empresas`, `reforma-afp`, `extincion-dominio`) nunca daban dinero.
 
-**Impacto:** las leyes de bienestar más grandes son gratis y las privatizaciones no dan dinero:
-el Congreso es más barato de lo que muestra la UI y hay leyes estrictamente dominantes.
+**Decisión (diseño):** `cost` es un **costo único al promulgar**; negativo = ingreso único.
+- Las leyes con `monthlyCost` (20) **no** tienen costo único: en todo el catálogo su `cost`
+  repite el monto mensual (hay un test que lo garantiza), así que cobrarlo también sería
+  contar el gasto dos veces. Siguen cobrándose cada mes como antes.
+- El costo se escala por población con la misma referencia que el resto de leyes (50M).
 
-**Decisión pendiente (diseño):** ¿`cost` es un costo único al promulgar (negativo = ingreso),
-un costo mensual, o debe ocultarse? Hasta decidirlo, no se cambió el comportamiento.
+**Implementación:** `lawCostProfile` y `resolveLawEnactments` (`engine/economy.ts`, puras y
+con tests). El cobro ocurre en `advanceMonth` (`actions/turn.ts`) justo después de la
+votación del Senado, que se resuelve fuera del motor: se ajusta `newState.treasury` y
+`monthSnapshot.treasury` (el snapshot es la base del turno siguiente) y se emite una
+notificación "Costo/Ingreso por promulgación". La UI muestra "M$ X/mes", "M$ X (único)"
+o "INGRESO M$ X", y el modal de propuesta avisa si el tesoro no alcanza.
+
+**Política de fondos insuficientes:** la ley se promulga igual y el tesoro puede quedar
+negativo (igual que ya ocurre con los déficits: `calculateTreasury` no recorta a 0). Si se
+prefiere bloquear la promulgación sin fondos, hay que decidir qué pasa con la propuesta ya
+votada.
+
+**Guard contra duplicados (corrige un bug previo):** `ActiveLaw` no tiene restricción de
+unicidad y el motor auto-propone `estado-emergencia` en cada brote; una ley ya vigente que
+se volvía a aprobar se duplicaba. Ahora una ley vigente (o repetida en el mismo turno) no se
+vuelve a promulgar, ni a cobrar, ni a duplicar.
+
+**Nota:** `abenomics` define además `effectsJson.treasury: -1.000M`, que ningún código aplica.
+Se deja como dato muerto a propósito: su `cost` (1.000M) ya se cobra como costo único, y
+aplicar también ese efecto lo contaría dos veces.
+
+**Verificación:** tests en `tests/engine/cost-scale.test.ts` y prueba de punta a punta contra
+Postgres 16 real con dos partidas idénticas (control vs. ley aprobada): la diferencia de tesoro
+coincide exactamente con el costo escalado (gasto de 800M, ingreso de 3.200M a 80M, 0 para leyes
+con costo mensual o sin costo), el snapshot persistido lo refleja y la re-aprobación no duplica.
 
 ---
 
