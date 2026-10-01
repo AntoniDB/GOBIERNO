@@ -146,24 +146,59 @@ describe("createProgram / createNewPrograms", () => {
     expect(prog.startedAt).toBeDefined();
   });
 
-  it("crea programas desde el input del jugador", () => {
+  it("crea programas desde el input del jugador con el costo del motor", () => {
     const state = crearEstadoBase();
     const input: TurnInput = {
       newPrograms: [
         { type: "PREVENTION_EDUCATION" },
-        { type: "MENTAL_HEALTH_PROGRAM", monthlyCost: 9_000_000 },
+        { type: "MENTAL_HEALTH_PROGRAM" },
       ],
     };
-    const progs = createNewPrograms(state, input);
-    expect(progs).toHaveLength(2);
-    expect(progs[0].id).toBe("prog-2024-1-0");
-    expect(progs[1].id).toBe("prog-2024-1-1");
-    expect(progs[1].monthlyCost).toBe(9_000_000);
+    const { programs, rejections } = createNewPrograms(state, input);
+    expect(rejections).toEqual([]);
+    expect(programs).toHaveLength(2);
+    expect(programs[0].id).toBe("prog-2024-1-0");
+    expect(programs[1].id).toBe("prog-2024-1-1");
+    expect(programs[1].monthlyCost).toBe(BALANCE.PROGRAM_MENTAL_HEALTH_COST);
   });
 
-  it("retorna array vacio si no hay newPrograms", () => {
+  it("ignora el costo y los parámetros extra que envíe el cliente", () => {
     const state = crearEstadoBase();
-    expect(createNewPrograms(state, {})).toEqual([]);
+    const input = {
+      newPrograms: [{ type: "PREVENTION_EDUCATION", monthlyCost: -9_999_999_999, parameters: { cualquier: "cosa" } }],
+    } as unknown as TurnInput;
+    const { programs } = createNewPrograms(state, input);
+    expect(programs[0].monthlyCost).toBe(BALANCE.PROGRAM_PREVENTION_COST);
+    expect(programs[0].parameters).toEqual({});
+  });
+
+  it("la campaña de vacunación toma el nombre de la enfermedad del estado", () => {
+    const state = crearEstadoBase({ diseases: [crearDisease()] });
+    const { programs } = createNewPrograms(state, {
+      newPrograms: [{ type: "VACCINATION_CAMPAIGN", parameters: { diseaseId: "d-gripe", diseaseName: "Falso" } }],
+    });
+    expect(programs[0].parameters).toEqual({ diseaseId: "d-gripe", diseaseName: "Gripe estacional" });
+    expect(programs[0].monthlyCost).toBe(BALANCE.PROGRAM_VACCINATION_COST);
+  });
+
+  it.each([
+    ["vacunación sin enfermedad", { type: "VACCINATION_CAMPAIGN" }],
+    ["vacunación de una enfermedad inexistente", { type: "VACCINATION_CAMPAIGN", parameters: { diseaseId: "nope" } }],
+    ["vacunación de una enfermedad sin vacuna", { type: "VACCINATION_CAMPAIGN", parameters: { diseaseId: "d-sin" } }],
+    ["tipo desconocido", { type: "PROGRAMA_GRATIS" }],
+    ["tipo heredado de Object", { type: "constructor" }],
+    ["sin tipo", {}],
+  ])("rechaza: %s", (_nombre, request) => {
+    const state = crearEstadoBase({ diseases: [crearDisease(), crearDisease({ id: "d-sin", hasVaccine: false })] });
+    const { programs, rejections } = createNewPrograms(state, { newPrograms: [request as never] });
+    expect(programs).toEqual([]);
+    expect(rejections).toHaveLength(1);
+    expect(rejections[0]).toContain("Programa rechazado");
+  });
+
+  it("devuelve vacío si no hay newPrograms", () => {
+    const state = crearEstadoBase();
+    expect(createNewPrograms(state, {})).toEqual({ programs: [], rejections: [] });
   });
 });
 

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import type { OfficialState } from "@/lib/engine/types";
 import { useGameStore } from "@/lib/store/game-store";
 import { BALANCE } from "@/lib/balance";
-import { costScaleFactor } from "@/lib/engine/cost-scale";
+import { organismBudgetRange } from "@/lib/engine/cost-scale";
 import {
   Dialog,
   DialogContent,
@@ -66,10 +66,10 @@ export function CreateOrganism({
   const [name, setName] = useState("");
   // El rango del presupuesto (M$ 50-500 para un país de 50M) escala con la población
   const population = useGameStore((s) => s.gameState?.population) ?? BALANCE.LAW_COST_REFERENCE_POPULATION;
-  const budgetFactor = costScaleFactor(population, BALANCE.LAW_COST_REFERENCE_POPULATION);
-  const budgetMin = Math.max(1, Math.round(50 * budgetFactor));
-  const budgetMax = Math.max(budgetMin + 1, Math.round(500 * budgetFactor));
-  const budgetStep = Math.max(1, Math.round(10 * budgetFactor));
+  const budgetRange = organismBudgetRange(population);
+  const budgetMin = Math.ceil(budgetRange.min / 1_000_000);
+  const budgetMax = Math.max(budgetMin + 1, Math.floor(budgetRange.max / 1_000_000));
+  const budgetStep = Math.max(1, Math.round((budgetMax - budgetMin) / 45));
   const [chosenBudget, setChosenBudget] = useState<number | null>(null);
   const monthlyBudget = chosenBudget ?? budgetMin;
   const [staff, setStaff] = useState(10);

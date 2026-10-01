@@ -40,21 +40,18 @@ export function getMentalHealthDiseases(state: GameState): DiseaseStateInput[] {
   return (state.diseases ?? []).filter((d) => d.category === "MENTAL_HEALTH");
 }
 
-/** Crea un programa desde el input del jugador. */
+/** Crea un programa; el costo mensual siempre lo fija el motor segun la poblacion. */
 export function createProgram(
   state: GameState,
   type: MinistryProgramState["type"],
   parameters: Record<string, unknown> = {},
-  monthlyCost?: number,
   idx = 0,
 ): MinistryProgramState {
-  const id = `prog-${state.currentYear}-${state.currentMonth}-${idx}`;
-  const cost = monthlyCost ?? defaultCostFor(type, state.population);
   return {
-    id,
+    id: `prog-${state.currentYear}-${state.currentMonth}-${idx}`,
     type,
     parameters,
-    monthlyCost: cost,
+    monthlyCost: defaultCostFor(type, state.population),
     status: "ACTIVE",
     startedAt: new Date().toISOString(),
     deactivatedAt: null,
@@ -76,29 +73,48 @@ export function defaultCostFor(
   }
 }
 
+const PROGRAM_TYPES: readonly MinistryProgramState["type"][] = [
+  "VACCINATION_CAMPAIGN",
+  "PREVENTION_EDUCATION",
+  "MENTAL_HEALTH_PROGRAM",
+];
+
 /**
- * Crea nuevos programas desde el input del jugador de este mes.
+ * Crea nuevos programas desde el input del jugador de este mes. El cliente solo
+ * elige el tipo (y la enfermedad en las campañas de vacunacion): el costo lo
+ * fija el motor y los parametros se reconstruyen desde el estado. Las
+ * solicitudes invalidas se descartan y se devuelven como `rejections`.
  */
 export function createNewPrograms(
   state: GameState,
   input: TurnInput,
-): MinistryProgramState[] {
-  const out: MinistryProgramState[] = [];
-  if (!input.newPrograms) return out;
-  let idx = 0;
-  for (const cfg of input.newPrograms) {
-    out.push(
-      createProgram(
-        state,
-        cfg.type,
-        cfg.parameters ?? {},
-        cfg.monthlyCost,
-        idx,
-      ),
-    );
-    idx++;
+): { programs: MinistryProgramState[]; rejections: string[] } {
+  const programs: MinistryProgramState[] = [];
+  const rejections: string[] = [];
+
+  for (const request of input.newPrograms ?? []) {
+    const type = PROGRAM_TYPES.find((t) => t === request?.type);
+    if (!type) {
+      rejections.push("Programa rechazado: tipo no reconocido.");
+      continue;
+    }
+
+    let parameters: Record<string, unknown> = {};
+    if (type === "VACCINATION_CAMPAIGN") {
+      const disease = getVaccineDiseases(state).find(
+        (d) => d.id === (request.parameters ?? {}).diseaseId,
+      );
+      if (!disease) {
+        rejections.push("Programa rechazado: la enfermedad no existe o no tiene vacuna.");
+        continue;
+      }
+      parameters = { diseaseId: disease.id, diseaseName: disease.name };
+    }
+
+    programs.push(createProgram(state, type, parameters, programs.length));
   }
-  return out;
+
+  return { programs, rejections };
 }
 
 /**

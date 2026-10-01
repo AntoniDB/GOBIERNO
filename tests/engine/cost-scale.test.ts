@@ -1,14 +1,11 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, LawCatalogEntry } from "@/lib/engine/types";
 import { BALANCE } from "@/lib/balance";
-import { costScaleFactor, scaleCost, scaleLawCost } from "@/lib/engine/cost-scale";
+import { costScaleFactor, scaleCost, scaleLawCost, organismBudgetRange, clampOrganismBudget } from "@/lib/engine/cost-scale";
 import { LAW_CATALOG } from "@/lib/game-factory";
 import { candidateHireCost } from "@/lib/engine/candidates";
 import { defaultCostFor, createProgram } from "@/lib/engine/programs";
-import {
-  buildHospitalConstructionInput,
-  buildMedicalResearchInput,
-} from "@/lib/engine/long-running-decisions";
+import { createNewDecisions } from "@/lib/engine/long-running-decisions";
 import { calculateIncome, calculateExpenses, lawCostProfile, resolveLawEnactments } from "@/lib/engine/economy";
 
 const REF = BALANCE.COST_REFERENCE_POPULATION;
@@ -49,21 +46,20 @@ describe("costos escalados en el motor", () => {
     expect(createProgram(state, "PREVENTION_EDUCATION").monthlyCost).toBe(BALANCE.PROGRAM_PREVENTION_COST * 3);
   });
 
-  it("un costo explícito no se reescala", () => {
-    const state = { currentYear: 1, currentMonth: 1, population: 30_000_000 } as GameState;
-    expect(createProgram(state, "PREVENTION_EDUCATION", {}, 123).monthlyCost).toBe(123);
-  });
-
-  it("hospitales e investigación escalan con la población", () => {
-    expect(buildHospitalConstructionInput("r1", "tertiary", "X", 40_000_000).monthlyCost)
-      .toBe(BALANCE.HOSPITAL_COSTS.tertiary * 4);
-    expect(buildMedicalResearchInput(["d1"], ["VIH"], 40_000_000).monthlyCost)
-      .toBe(BALANCE.MEDICAL_RESEARCH_COST * 4);
-  });
-
-  it("la duración de hospitales no depende de la población", () => {
-    expect(buildHospitalConstructionInput("r1", "primary", "X", 80_000_000).totalMonths)
-      .toBe(BALANCE.HOSPITAL_DURATIONS.primary);
+  it("hospitales e investigación escalan con la población y su duración no", () => {
+    const state = {
+      currentYear: 1, currentMonth: 1, population: 40_000_000,
+      regions: [{ id: "r1", name: "R" }], diseases: [{ id: "d1", name: "VIH" }],
+    } as unknown as GameState;
+    const { decisions } = createNewDecisions(state, {
+      newLongRunningDecisions: [
+        { type: "HOSPITAL_CONSTRUCTION", parameters: { regionId: "r1", level: "tertiary" } },
+        { type: "MEDICAL_RESEARCH", parameters: { diseaseIds: ["d1"] } },
+      ],
+    });
+    expect(decisions[0].monthlyCost).toBe(BALANCE.HOSPITAL_COSTS.tertiary * 4);
+    expect(decisions[0].totalMonths).toBe(BALANCE.HOSPITAL_DURATIONS.tertiary);
+    expect(decisions[1].monthlyCost).toBe(BALANCE.MEDICAL_RESEARCH_COST * 4);
   });
 
   it("candidateHireCost suma base + extra por rol y escala", () => {
@@ -172,5 +168,33 @@ describe("costo único de promulgar leyes", () => {
       lawCostProfile(entry("salud-universal"), population).enactment /
       calculateIncome({ population, activeLaws: [] } as unknown as GameState);
     expect(peso(25_000_000)).toBeCloseTo(peso(80_000_000), 6);
+  });
+});
+
+describe("presupuesto de organismos", () => {
+  const LAW_REF = BALANCE.LAW_COST_REFERENCE_POPULATION;
+
+  it("el rango escala con la población (50M-500M a 50M)", () => {
+    expect(organismBudgetRange(LAW_REF)).toEqual({ min: 50_000_000, max: 500_000_000 });
+    expect(organismBudgetRange(80_000_000)).toEqual({ min: 80_000_000, max: 800_000_000 });
+    expect(organismBudgetRange(25_000_000)).toEqual({ min: 25_000_000, max: 250_000_000 });
+  });
+
+  it("deja pasar un valor dentro del rango", () => {
+    expect(clampOrganismBudget(120_000_000, LAW_REF)).toBe(120_000_000);
+  });
+
+  it("un presupuesto negativo o cero (que sumaría dinero) sube al mínimo", () => {
+    expect(clampOrganismBudget(-5_000_000_000, LAW_REF)).toBe(50_000_000);
+    expect(clampOrganismBudget(0, LAW_REF)).toBe(50_000_000);
+  });
+
+  it("un presupuesto desmesurado baja al máximo", () => {
+    expect(clampOrganismBudget(9e15, LAW_REF)).toBe(500_000_000);
+  });
+
+  it("un valor no finito usa el mínimo", () => {
+    expect(clampOrganismBudget(NaN, LAW_REF)).toBe(50_000_000);
+    expect(clampOrganismBudget(Infinity, LAW_REF)).toBe(50_000_000);
   });
 });

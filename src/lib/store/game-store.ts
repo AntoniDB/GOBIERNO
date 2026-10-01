@@ -30,9 +30,9 @@ export interface GameStore {
   hireCandidate: (officialId: string) => void;
   assignOrganismHead: (organismId: string, officialId: string) => void;
   dissolveOrganism: (organismId: string) => void;
-  startLongRunningDecision: (type: string, name: string, totalMonths: number, monthlyCost: number, parameters?: Record<string, unknown>, effectOnCompletion?: Record<string, unknown>) => void;
+  startLongRunningDecision: (type: "HOSPITAL_CONSTRUCTION" | "MEDICAL_RESEARCH", parameters: Record<string, unknown>) => void;
   cancelLongRunningDecision: (lrdId: string) => void;
-  startProgram: (type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM", parameters?: Record<string, unknown>, monthlyCost?: number) => void;
+  startProgram: (type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM", parameters?: Record<string, unknown>) => void;
   cancelProgram: (programId: string) => void;
   updateTradeFlowTarget: (tradeFlowId: string, targetVolume: number) => void;
 }
@@ -216,20 +216,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }));
   },
 
-  startLongRunningDecision: (
-    type: string,
-    name: string,
-    totalMonths: number,
-    monthlyCost: number,
-    parameters?: Record<string, unknown>,
-    effectOnCompletion?: Record<string, unknown>,
-  ) => {
+  startLongRunningDecision: (type, parameters) => {
     set((prev) => ({
       pendingInput: {
         ...prev.pendingInput,
         newLongRunningDecisions: [
           ...(prev.pendingInput.newLongRunningDecisions ?? []),
-          { type, name, totalMonths, monthlyCost, parameters, effectOnCompletion },
+          { type, parameters },
         ],
       },
     }));
@@ -247,13 +240,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }));
   },
 
-  startProgram: (type, parameters, monthlyCost) => {
+  startProgram: (type, parameters) => {
     set((prev) => ({
       pendingInput: {
         ...prev.pendingInput,
         newPrograms: [
           ...(prev.pendingInput.newPrograms ?? []),
-          { type, parameters, monthlyCost },
+          { type, parameters },
         ],
       },
     }));

@@ -32,6 +32,21 @@ export function scaleCost(
   return Math.round(baseCost * costScaleFactor(population, referencePopulation));
 }
 
+/** Rango permitido del presupuesto de un organismo para la población dada. */
+export function organismBudgetRange(population: number): { min: number; max: number } {
+  return {
+    min: scaleLawCost(BALANCE.ORGANISM_BUDGET_MIN, population),
+    max: scaleLawCost(BALANCE.ORGANISM_BUDGET_MAX, population),
+  };
+}
+
+/** Acota el presupuesto pedido por el cliente al rango válido (no finito → mínimo). */
+export function clampOrganismBudget(requested: number, population: number): number {
+  const { min, max } = organismBudgetRange(population);
+  if (!Number.isFinite(requested)) return min;
+  return Math.min(max, Math.max(min, requested));
+}
+
 /** Escala el costo de una ley u organismo (referencia LAW_COST_REFERENCE_POPULATION). */
 export function scaleLawCost(baseCost: number, population: number): number {
   return scaleCost(baseCost, population, BALANCE.LAW_COST_REFERENCE_POPULATION);

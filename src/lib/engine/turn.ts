@@ -50,7 +50,7 @@ import { generateMediaCoverage, generateDecisionCoverage, generateEditorialCover
 import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates, candidateHireCost } from "./candidates";
-import { scaleCost } from "./cost-scale";
+import { scaleCost, clampOrganismBudget } from "./cost-scale";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
 import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
 import { processResourceBalance } from "./resource-balance";
@@ -214,7 +214,7 @@ export function processTurn(
         id: generateId("org", newState.currentYear, newState.currentMonth, orgIndex),
         type,
         name: config.name,
-        monthlyBudget: config.monthlyBudget,
+        monthlyBudget: clampOrganismBudget(config.monthlyBudget, newState.population),
         staff: 10,
         effectiveness: 50,
         autonomyLevel: 50,
@@ -570,7 +570,10 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
 
   // Crear nuevas LRD (antes de avanzar, para que no se avancen en el mismo turno)
-  const newDecisions = createNewDecisions(newState, input);
+  const { decisions: newDecisions, rejections: decisionRejections } = createNewDecisions(newState, input);
+  for (const reason of decisionRejections) {
+    allNotifications.push({ type: "warning", title: "Decisión rechazada", description: reason });
+  }
 
   // Avanzar LRD existentes
   const lrdResult = advanceDecisions(newState, input);
@@ -613,7 +616,10 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
 
   // Crear nuevos programas (antes de avanzar, para que no se avancen el mismo mes)
-  const newPrograms = createNewPrograms(newState, input);
+  const { programs: newPrograms, rejections: programRejections } = createNewPrograms(newState, input);
+  for (const reason of programRejections) {
+    allNotifications.push({ type: "warning", title: "Programa rechazado", description: reason });
+  }
 
   // Avanzar programas existentes
   const progResult = advancePrograms(newState, input);

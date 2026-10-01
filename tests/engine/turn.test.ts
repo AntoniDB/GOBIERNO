@@ -184,3 +184,46 @@ describe("processTurn — costos fijos escalados por población", () => {
     expect(delta).toBeCloseTo(scaleCost(BALANCE.MEDIA_BUY_AFFINITY_COST, population), 0);
   });
 });
+
+describe("processTurn — el cliente no define costos", () => {
+  const region = { id: "r1", name: "Capital", type: "URBAN", populationPercent: 100, povertyRate: 10,
+    infrastructureLevel: 80, accessModifier: 0.2, povertyModifier: 0.8,
+    healthCoverage: { primary: { facilities: 1, beds: 10, operationalCost: 0 }, secondary: { facilities: 0, beds: 0, operationalCost: 0 }, tertiary: { facilities: 0, beds: 0, operationalCost: 0 } } };
+  const run = (input: unknown, overrides: Partial<GameState> = {}) =>
+    processTurn(crearEstadoBase({ regions: [region] as never, ...overrides }), input as TurnInput, createRNG("cliente"));
+
+  it("una obra con costo negativo y duración 1 se crea con los valores del motor", () => {
+    const out = run({ newLongRunningDecisions: [{
+      type: "HOSPITAL_CONSTRUCTION", monthlyCost: -9e12, totalMonths: 1,
+      parameters: { regionId: "r1", level: "primary" },
+    }] });
+    const lrd = out.newState.longRunningDecisions[0];
+    expect(lrd.monthlyCost).toBe(BALANCE.HOSPITAL_COSTS.primary);
+    expect(lrd.totalMonths).toBe(BALANCE.HOSPITAL_DURATIONS.primary);
+  });
+
+  it("una decisión inválida se descarta y el jugador recibe un aviso", () => {
+    const out = run({ newLongRunningDecisions: [{ type: "HOSPITAL_CONSTRUCTION", parameters: { regionId: "zzz", level: "primary" } }] });
+    expect(out.newState.longRunningDecisions).toEqual([]);
+    expect(out.notifications.some((n) => n.title === "Decisión rechazada" && n.description.includes("región inexistente"))).toBe(true);
+  });
+
+  it("un programa con costo negativo se crea con el costo del motor", () => {
+    const out = run({ newPrograms: [{ type: "PREVENTION_EDUCATION", monthlyCost: -9e12 }] });
+    expect(out.newState.programs[0].monthlyCost).toBe(BALANCE.PROGRAM_PREVENTION_COST);
+  });
+
+  it("un programa inválido se descarta y el jugador recibe un aviso", () => {
+    const out = run({ newPrograms: [{ type: "VACCINATION_CAMPAIGN", parameters: { diseaseId: "nope" } }] });
+    expect(out.newState.programs).toEqual([]);
+    expect(out.notifications.some((n) => n.title === "Programa rechazado")).toBe(true);
+  });
+
+  it.each([[-5e9, 50_000_000], [0, 50_000_000], [9e15, 500_000_000], [120_000_000, 120_000_000]])(
+    "un organismo pedido con presupuesto %s queda en %s (pob. 50M)",
+    (pedido, esperado) => {
+      const out = run({ newOrganisms: { COMPTROLLER: { name: "C", monthlyBudget: pedido } } }, { population: 50_000_000 });
+      expect(out.newState.organisms[0].monthlyBudget).toBe(esperado);
+    },
+  );
+});

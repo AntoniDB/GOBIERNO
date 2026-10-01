@@ -82,41 +82,102 @@ export function advanceDecisions(
   return { updatedDecisions: updated, totalCost, completed, cancelled };
 }
 
+const HOSPITAL_LEVELS = ["primary", "secondary", "tertiary"] as const;
+
+/** Máximo de enfermedades por investigación médica. */
+const MAX_RESEARCH_DISEASES = 2;
+
+type DecisionRequest = NonNullable<TurnInput["newLongRunningDecisions"]>[number];
+
+type DecisionBuild =
+  | { ok: true; decision: Pick<LongRunningDecisionState, "type" | "name" | "totalMonths" | "monthlyCost" | "parameters"> }
+  | { ok: false; reason: string };
+
 /**
- * Crea nuevas LRD a partir del input del jugador.
+ * Construye una LRD a partir de lo único que el cliente decide (tipo y parámetros).
+ * Nombre, duración y costo salen de BALANCE y del estado: un cliente manipulado no
+ * puede abaratar ni acortar una obra. Devuelve el motivo si la solicitud es inválida.
+ */
+export function buildDecision(state: GameState, request: DecisionRequest): DecisionBuild {
+  const params = (request?.parameters ?? {}) as Record<string, unknown>;
+
+  switch (request?.type) {
+    case "HOSPITAL_CONSTRUCTION": {
+      const level = HOSPITAL_LEVELS.find((l) => l === params.level);
+      if (!level) return { ok: false, reason: "nivel de hospital inválido" };
+      const region = state.regions.find((r) => r.id === params.regionId);
+      if (!region) return { ok: false, reason: "región inexistente" };
+      return {
+        ok: true,
+        decision: {
+          type: "HOSPITAL_CONSTRUCTION",
+          name: `Construcción hospital ${level} — ${region.name}`,
+          totalMonths: BALANCE.HOSPITAL_DURATIONS[level],
+          monthlyCost: scaleCost(BALANCE.HOSPITAL_COSTS[level], state.population),
+          parameters: { regionId: region.id, level },
+        },
+      };
+    }
+    case "MEDICAL_RESEARCH": {
+      const requested = Array.isArray(params.diseaseIds) ? params.diseaseIds : [];
+      const diseases = [...new Set(requested)]
+        .map((id) => state.diseases.find((d) => d.id === id))
+        .filter((d): d is NonNullable<typeof d> => d !== undefined);
+      if (diseases.length === 0) return { ok: false, reason: "enfermedad inexistente" };
+      if (diseases.length > MAX_RESEARCH_DISEASES) {
+        return { ok: false, reason: `máximo ${MAX_RESEARCH_DISEASES} enfermedades por investigación` };
+      }
+      return {
+        ok: true,
+        decision: {
+          type: "MEDICAL_RESEARCH",
+          name: `Investigación médica — ${diseases.map((d) => d.name).join(", ")}`,
+          totalMonths: BALANCE.MEDICAL_RESEARCH_DURATION,
+          monthlyCost: scaleCost(BALANCE.MEDICAL_RESEARCH_COST, state.population),
+          parameters: { diseaseIds: diseases.map((d) => d.id) },
+        },
+      };
+    }
+    default:
+      return { ok: false, reason: "tipo de decisión no reconocido" };
+  }
+}
+
+/**
+ * Crea las nuevas LRD del input del jugador (validadas con buildDecision).
+ * Las solicitudes inválidas se descartan y se devuelven como `rejections`.
  * Genera IDs unicos usando year/month/index.
  */
 export function createNewDecisions(
   state: GameState,
   input: TurnInput
-): LongRunningDecisionState[] {
-  const newDecisions: LongRunningDecisionState[] = [];
-  if (!input.newLongRunningDecisions) return newDecisions;
+): { decisions: LongRunningDecisionState[]; rejections: string[] } {
+  const decisions: LongRunningDecisionState[] = [];
+  const rejections: string[] = [];
 
-  let idx = 0;
-  for (const config of input.newLongRunningDecisions) {
-    const lrd: LongRunningDecisionState = {
-      id: `lrd-${state.currentYear}-${state.currentMonth}-${idx}`,
-      type: config.type,
-      name: config.name,
-      monthsRemaining: config.totalMonths,
-      totalMonths: config.totalMonths,
-      monthlyCost: config.monthlyCost,
-      parameters: (config.parameters ?? {}) as Record<string, unknown>,
+  for (const request of input.newLongRunningDecisions ?? []) {
+    const built = buildDecision(state, request);
+    if (!built.ok) {
+      rejections.push(`Decisión rechazada: ${built.reason}.`);
+      continue;
+    }
+    const { decision } = built;
+    decisions.push({
+      id: `lrd-${state.currentYear}-${state.currentMonth}-${decisions.length}`,
+      ...decision,
+      monthsRemaining: decision.totalMonths,
       status: "IN_PROGRESS",
       startedAt: new Date().toISOString(),
       completedAt: null,
       cancelledAt: null,
       progressLog: [
-        `Mes ${state.currentYear}/${state.currentMonth}: Iniciada. Duracion prevista: ${config.totalMonths} meses.`,
+        `Mes ${state.currentYear}/${state.currentMonth}: Iniciada. Duracion prevista: ${decision.totalMonths} meses.`,
       ],
-      effectOnCompletion: (config.effectOnCompletion ?? {}) as Record<string, unknown>,
-    };
-    newDecisions.push(lrd);
-    idx++;
+      effectOnCompletion: {},
+    });
   }
 
-  return newDecisions;
+  return { decisions, rejections };
 }
 
 /**
@@ -166,52 +227,4 @@ export function applyDecisionEffects(
       }
     }
   }
-}
-
-/**
- * Construye una configuracion de LRD de hospital para el input del jugador.
- * Helper para la UI: dada region + nivel, retorna el payload del LRD.
- */
-export function buildHospitalConstructionInput(
-  regionId: string,
-  level: "primary" | "secondary" | "tertiary",
-  regionName: string,
-  population: number,
-): {
-  type: string;
-  name: string;
-  totalMonths: number;
-  monthlyCost: number;
-  parameters: Record<string, unknown>;
-} {
-  return {
-    type: "HOSPITAL_CONSTRUCTION",
-    name: `Construcción hospital ${level} — ${regionName}`,
-    totalMonths: BALANCE.HOSPITAL_DURATIONS[level],
-    monthlyCost: scaleCost(BALANCE.HOSPITAL_COSTS[level], population),
-    parameters: { regionId, level },
-  };
-}
-
-/**
- * Construye una configuracion de LRD de investigacion medica.
- */
-export function buildMedicalResearchInput(
-  diseaseIds: string[],
-  diseaseNames: string[],
-  population: number,
-): {
-  type: string;
-  name: string;
-  totalMonths: number;
-  monthlyCost: number;
-  parameters: Record<string, unknown>;
-} {
-  return {
-    type: "MEDICAL_RESEARCH",
-    name: `Investigación médica — ${diseaseNames.join(", ")}`,
-    totalMonths: BALANCE.MEDICAL_RESEARCH_DURATION,
-    monthlyCost: scaleCost(BALANCE.MEDICAL_RESEARCH_COST, population),
-    parameters: { diseaseIds },
-  };
 }

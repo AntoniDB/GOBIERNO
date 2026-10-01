@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, LongRunningDecisionState } from "@/lib/engine/types";
-import { advanceDecisions, applyDecisionEffects, buildHospitalConstructionInput, buildMedicalResearchInput } from "@/lib/engine/long-running-decisions";
+import { advanceDecisions, applyDecisionEffects, createNewDecisions } from "@/lib/engine/long-running-decisions";
 import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
@@ -111,8 +111,11 @@ function crearLrd(overrides?: Partial<LongRunningDecisionState>): LongRunningDec
 }
 
 describe("Construcción de hospital (HOSPITAL_CONSTRUCTION LRD)", () => {
-  it("buildHospitalConstructionInput genera configuracion correcta", () => {
-    const lrd = buildHospitalConstructionInput("r1", "primary", "Capital Federal", BALANCE.COST_REFERENCE_POPULATION);
+  it("createNewDecisions genera la configuracion correcta del hospital", () => {
+    const { decisions } = createNewDecisions(crearEstadoBase(), {
+      newLongRunningDecisions: [{ type: "HOSPITAL_CONSTRUCTION", parameters: { regionId: "r1", level: "primary" } }],
+    });
+    const lrd = decisions[0];
     expect(lrd.type).toBe("HOSPITAL_CONSTRUCTION");
     expect(lrd.name).toContain("Capital Federal");
     expect(lrd.totalMonths).toBe(BALANCE.HOSPITAL_DURATIONS.primary);
@@ -193,13 +196,18 @@ describe("Construcción de hospital (HOSPITAL_CONSTRUCTION LRD)", () => {
 });
 
 describe("Investigación medica (MEDICAL_RESEARCH LRD)", () => {
-  it("buildMedicalResearchInput genera configuracion correcta", () => {
-    const lrd = buildMedicalResearchInput(["d1", "d2"], ["VIH", "Gripe"], BALANCE.COST_REFERENCE_POPULATION);
+  it("createNewDecisions genera la configuracion correcta de la investigacion", () => {
+    const state = crearEstadoBase();
+    const ids = state.diseases.slice(0, 2).map((d) => d.id);
+    const { decisions } = createNewDecisions(state, {
+      newLongRunningDecisions: [{ type: "MEDICAL_RESEARCH", parameters: { diseaseIds: ids } }],
+    });
+    const lrd = decisions[0];
     expect(lrd.type).toBe("MEDICAL_RESEARCH");
-    expect(lrd.name).toContain("VIH");
+    expect(lrd.name).toContain(state.diseases[0].name);
     expect(lrd.totalMonths).toBe(BALANCE.MEDICAL_RESEARCH_DURATION);
     expect(lrd.monthlyCost).toBe(BALANCE.MEDICAL_RESEARCH_COST);
-    expect(lrd.parameters.diseaseIds).toEqual(["d1", "d2"]);
+    expect(lrd.parameters.diseaseIds).toEqual(ids);
   });
 
   it("al completarse, desbloquea vacuna para enfermedad sin hasVaccine", () => {

@@ -35,6 +35,14 @@ export const BALANCE = {
    */
   LAW_COST_REFERENCE_POPULATION: 50_000_000,
 
+  /**
+   * Rango del presupuesto mensual de un organismo creable, a la población de
+   * referencia de leyes (se escala por población). El motor lo impone aunque el
+   * cliente envíe otro valor: un presupuesto negativo sumaría dinero cada mes.
+   */
+  ORGANISM_BUDGET_MIN: 50_000_000,
+  ORGANISM_BUDGET_MAX: 500_000_000,
+
   /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
   INFLATION_DEFICIT_FACTOR: 0.02,
 

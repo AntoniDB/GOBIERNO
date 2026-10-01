@@ -4,10 +4,6 @@ import { useState } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { BALANCE } from "@/lib/balance";
 import { scaleCost } from "@/lib/engine/cost-scale";
-import {
-  buildHospitalConstructionInput,
-  buildMedicalResearchInput,
-} from "@/lib/engine/long-running-decisions";
 
 const FF = "var(--font-barlow-condensed,'Barlow Condensed',sans-serif)";
 const FFM = "var(--font-share-tech-mono,'Share Tech Mono',monospace)";
@@ -38,7 +34,6 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
 
   if (!gameState) return null;
 
-  const population = gameState.population;
   const diseases = (gameState.diseases ?? []) as unknown as DiseaseLite[];
   const vaccineOptions = diseases.filter((d) => d.hasVaccine);
   const regions = gameState.regions ?? [];
@@ -66,9 +61,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
 
   function launchHospital() {
     if (!hospitalRegionId) return;
-    const region = regions.find((r) => r.id === hospitalRegionId);
-    const lrd = buildHospitalConstructionInput(hospitalRegionId, hospitalLevel, region?.name ?? "", population);
-    startLRD(lrd.type, lrd.name, lrd.totalMonths, lrd.monthlyCost, lrd.parameters);
+    startLRD("HOSPITAL_CONSTRUCTION", { regionId: hospitalRegionId, level: hospitalLevel });
     onClose();
   }
 
@@ -80,9 +73,7 @@ export function ProgramLaunchModal({ onClose }: { onClose: () => void }) {
 
   function launchResearch() {
     if (researchDiseaseIds.length === 0) return;
-    const names = researchDiseaseIds.map((id) => diseases.find((d) => d.id === id)?.name ?? id);
-    const lrd = buildMedicalResearchInput(researchDiseaseIds, names, population);
-    startLRD(lrd.type, lrd.name, lrd.totalMonths, lrd.monthlyCost, lrd.parameters);
+    startLRD("MEDICAL_RESEARCH", { diseaseIds: researchDiseaseIds });
     onClose();
   }
 

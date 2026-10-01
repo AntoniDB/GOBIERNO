@@ -112,18 +112,34 @@ preset con su población. Es parte de la recalibración del sistema de salud.
 
 ---
 
-## 6. LRD: el costo mensual lo define el cliente
+## 6. ~~LRD: el costo mensual lo define el cliente~~ — RESUELTO
 
-**Descripción:** `newLongRunningDecisions[].monthlyCost` viaja desde el cliente
-(`buildHospitalConstructionInput` corre en el navegador) y el motor lo usa tal cual
-(`long-running-decisions.ts`, creación de LRD). Un cliente manipulado podría enviar
-un costo menor. Contradice la regla de que el motor no es manipulable desde el
-cliente. Lo mismo ocurre con los programas: `createProgram` usa el `monthlyCost`
-recibido si existe y solo calcula el costo por defecto cuando no llega.
+**Problema original:** `newLongRunningDecisions` y `newPrograms` llegaban con `name`, `totalMonths`
+y `monthlyCost` (y `effectOnCompletion`) definidos por el navegador, y el motor los usaba tal cual.
+Un cliente manipulado podía abaratar o acortar una obra, o enviar un costo **negativo** (el motor
+resta `totalCost` del tesoro cada mes, así que sumaba dinero). Lo mismo con el presupuesto de un
+organismo nuevo.
 
-**Propuesta:** que el motor ignore el `monthlyCost` recibido para
-`HOSPITAL_CONSTRUCTION`, `MEDICAL_RESEARCH` y programas, y lo calcule siempre
-con el estado (población). La UI ya no necesitaría enviarlo.
+**Solución — el cliente solo elige tipo y parámetros; el motor decide el resto:**
+- `buildDecision` / `createNewDecisions` (`long-running-decisions.ts`): `HOSPITAL_CONSTRUCTION`
+  `{regionId, level}` y `MEDICAL_RESEARCH` `{diseaseIds}` (1–2). Nombre, duración y costo salen de
+  `BALANCE` y del estado (costo escalado por población); los parámetros se reconstruyen desde el
+  estado. Se rechazan tipos desconocidos (incluido `OBRA_DE_PRUEBA`, que quedó solo como no-op
+  interno), niveles inválidos, regiones/enfermedades inexistentes y más de 2 enfermedades.
+- `createNewPrograms` (`programs.ts`): el costo siempre es `defaultCostFor`; la vacunación exige una
+  enfermedad existente con vacuna y toma el nombre del estado.
+- Presupuesto de organismos: `clampOrganismBudget` lo acota al rango `[50M, 500M]` escalado por
+  población (`ORGANISM_BUDGET_MIN/MAX`); el slider de la UI usa el mismo rango.
+- Lo rechazado se descarta y el jugador recibe una notificación ("Decisión/Programa rechazado").
+- API honesta: `TurnInput` ya no tiene `name`/`totalMonths`/`monthlyCost`/`effectOnCompletion`;
+  el store envía `startLongRunningDecision(type, parameters)` y `startProgram(type, parameters)`;
+  se eliminaron `buildHospitalConstructionInput` y `buildMedicalResearchInput`.
+- `effectOnCompletion` se guardaba pero ningún código lo leía; ahora siempre es `{}`.
+
+**Verificación:** tests unitarios y de `processTurn` (con mutación comprobada) y prueba de punta a
+punta contra Postgres 16 real con un cliente hostil (costo −9e12, 1 mes, región inexistente, tipo
+`OBRA_DE_PRUEBA`, vacuna inexistente, presupuesto −5e12): en la base quedó la obra a 64M × 24 meses,
+el programa a 24M, el organismo a 80M y 3 rechazos avisados.
 
 ---
 
@@ -175,3 +191,20 @@ con costo mensual o sin costo), el snapshot persistido lo refleja y la re-aproba
 ≈6,7% del ingreso, salarios) produce déficit desde el turno 1 en los cuatro presets.
 No es un bug: el jugador debe redistribuir presupuesto. Se anota porque condiciona
 cualquier recalibración de costos (la holgura fiscal inicial es cero por diseño).
+
+---
+
+## 9. `subDecisionChanges` se acepta sin validar
+
+**Descripción:** `processTurn` (PASO 1b) escribe cualquier clave y valor que envíe el cliente en
+`ministry.subDecisions` (`ministry.subDecisions[subKey] = value`). Las demás entradas que mueven
+dinero sí están acotadas (`budgetAdjustments` a 2%–40%, `tradeFlowDecisions` ≥ 0, costos de
+contratación y medios calculados en el motor), pero aquí no hay lista de claves válidas ni rangos.
+
+**Impacto:** un cliente manipulado podría fijar valores fuera de rango (p. ej. `salarioMinimo`
+enorme) en fórmulas que los leen, o ensuciar el JSON persistido con claves arbitrarias. No se
+auditó qué fórmulas leen cada sub-decisión.
+
+**Propuesta:** definir por ministerio las sub-decisiones válidas con su tipo y rango (los valores
+iniciales ya están en `generateMinistries`) y descartar lo demás con aviso, igual que en el #6.
+Aparte: `budgetAdjustments` con `NaN` no se rechaza (`Math.max/min` propagan `NaN`).

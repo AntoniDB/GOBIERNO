@@ -405,20 +405,22 @@ export interface TurnInput {
   dissolveOrganismIds?: string[];
   /** IDs de LRD a cancelar este mes */
   cancelDecisionIds?: string[];
-  /** Nuevas LRD a iniciar este mes */
+  /**
+   * Nuevas LRD a iniciar este mes. Solo tipo y parámetros: el motor fija nombre,
+   * duración y costo (el cliente no es de fiar) y rechaza lo inválido.
+   * HOSPITAL_CONSTRUCTION: { regionId, level }. MEDICAL_RESEARCH: { diseaseIds } (1-2).
+   */
   newLongRunningDecisions?: Array<{
-    type: string;
-    name: string;
-    totalMonths: number;
-    monthlyCost: number;
+    type: "HOSPITAL_CONSTRUCTION" | "MEDICAL_RESEARCH";
     parameters?: Record<string, unknown>;
-    effectOnCompletion?: Record<string, unknown>;
   }>;
-  /** Nuevos programas operativos (Salud-3A) */
+  /**
+   * Nuevos programas operativos (Salud-3A). El costo lo fija el motor.
+   * VACCINATION_CAMPAIGN: { diseaseId } de una enfermedad con vacuna.
+   */
   newPrograms?: Array<{
     type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM";
     parameters?: Record<string, unknown>;
-    monthlyCost?: number;
   }>;
   cancelProgramIds?: string[];
   /** Decisiones de comercio exterior: tradeFlowId → targetVolume */

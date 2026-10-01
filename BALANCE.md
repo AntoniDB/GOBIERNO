@@ -261,3 +261,7 @@ Leyes: `effectsJson.monthlyCost` se cobra cada mes; `cost` es un costo único al
 Para ajustar: subir `LAW_COST_REFERENCE_POPULATION` abarata todas las leyes y organismos a la
 vez (a 50M la ley mediana de 400M/mes pesa ≈18% del ingreso mensual y la más cara ≈40%).
 
+Presupuesto de organismos creables: `ORGANISM_BUDGET_MIN/MAX` (50M–500M a la población de
+referencia de leyes, escalado por población). El motor acota el valor pedido por el cliente
+(`clampOrganismBudget`); un presupuesto negativo sumaría dinero cada mes.
+
