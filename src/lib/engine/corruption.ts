@@ -3,6 +3,7 @@
 
 import type { OfficialState, GameState } from "./types";
 import { BALANCE } from "../balance";
+import { subDecisionIndicator } from "./sub-decision-effects";
 
 /**
  * Calcula el nuevo nivel de corrupción de un official después de un turno.
@@ -83,6 +84,9 @@ export function updateOfficialCorruption(
       reduction += Math.abs(corrMod);
     }
   }
+
+  // Sub-decisiones de Justicia (jueces contratados, prioridad a la corrupción)
+  reduction += subDecisionIndicator(state, "corruptionReduction");
 
   // ── Resultado ────────────────────────────────────────────────────────────
 

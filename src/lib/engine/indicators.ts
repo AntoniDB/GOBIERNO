@@ -14,6 +14,7 @@ import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } 
 import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDiseaseMortality } from "./diseases";
 import { calculateHospitalOperationalFactor } from "./medical-professionals";
 import { isMedicationShortage } from "./trade";
+import { subDecisionIndicator } from "./sub-decision-effects";
 import type { DiseaseState } from "./diseases";
 
 /**
@@ -76,7 +77,7 @@ export function calculatePoverty(state: GameState): number {
     BALANCE.POVERTY_INFLATION_FACTOR * inflation +
     BALANCE.POVERTY_BASE;
 
-  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "povertyRate")));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "povertyRate") + subDecisionIndicator(state, "povertyRate")));
 }
 
 /**
@@ -91,7 +92,7 @@ export function calculateUnemployment(state: GameState): number {
     BALANCE.UNEMPLOYMENT_ECONOMY_FACTOR * economyEfficiency +
     BALANCE.UNEMPLOYMENT_BASE;
 
-  return Math.max(2, Math.min(50, raw + sumLawEffects(state, "unemploymentRate")));
+  return Math.max(2, Math.min(50, raw + sumLawEffects(state, "unemploymentRate") + subDecisionIndicator(state, "unemploymentRate")));
 }
 
 /**
@@ -105,7 +106,7 @@ export function calculateHealth(state: GameState): number {
   const raw =
     BALANCE.SICK_HEALTH_FACTOR * healthEfficiency + BALANCE.SICK_BASE;
 
-  return Math.max(0, Math.min(50, raw + sumLawEffects(state, "sickRate")));
+  return Math.max(0, Math.min(50, raw + sumLawEffects(state, "sickRate") + subDecisionIndicator(state, "sickRate")));
 }
 
 /**
@@ -120,7 +121,7 @@ export function calculateFoodSecurity(state: GameState): number {
     BALANCE.FOOD_AGRICULTURE_FACTOR * agricultureEfficiency +
     BALANCE.FOOD_BASE;
 
-  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "foodSecurity")));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "foodSecurity") + subDecisionIndicator(state, "foodSecurity")));
 }
 
 /**
@@ -141,7 +142,7 @@ export function calculateCrime(state: GameState): number {
     BALANCE.CRIME_UNEMPLOYMENT_FACTOR * unemployment +
     BALANCE.CRIME_BASE;
 
-  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "crimeRate")));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "crimeRate") + subDecisionIndicator(state, "crimeRate")));
 }
 
 /**
@@ -155,7 +156,7 @@ export function calculateEducation(state: GameState): number {
   const raw =
     BALANCE.EDUCATION_EDU_FACTOR * educationEfficiency + BALANCE.EDUCATION_BASE;
 
-  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "educationLevel")));
+  return Math.max(0, Math.min(100, raw + sumLawEffects(state, "educationLevel") + subDecisionIndicator(state, "educationLevel")));
 }
 
 /**
@@ -180,7 +181,7 @@ export function calculateGini(
     }
   }
 
-  gini += sumLawEffects(state, "gini");
+  gini += sumLawEffects(state, "gini") + subDecisionIndicator(state, "gini");
 
   return Math.max(20, Math.min(70, gini));
 }
@@ -192,7 +193,7 @@ export function calculateGini(
 export function calculateInflationSimple(state: GameState): number {
   const income = calculateIncome(state);
   const expenses = calculateExpenses(state);
-  return calculateInflation(state, expenses, income);
+  return Math.max(0, calculateInflation(state, expenses, income) + subDecisionIndicator(state, "inflation"));
 }
 
 /**
@@ -393,7 +394,7 @@ export function calculateHealthRegional(state: GameState): number {
         state.diseases as unknown as DiseaseState[],
         shortageMultipliers,
       );
-      return sickFromDiseases;
+      return Math.max(0, Math.min(100, sickFromDiseases + subDecisionIndicator(state, "sickRate")));
     }
   }
 
@@ -432,7 +433,7 @@ export function calculateHealthRegional(state: GameState): number {
     weightedSickRate += regionSickRate * weight;
   }
 
-  return Math.max(0, Math.min(100, weightedSickRate));
+  return Math.max(0, Math.min(100, weightedSickRate + subDecisionIndicator(state, "sickRate")));
 }
 
 /**

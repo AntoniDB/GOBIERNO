@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { BALANCE } from "../balance";
 import { calculatePoverty, calculateInflationSimple } from "./indicators";
+import { subDecisionDeltas } from "./sub-decision-effects";
 
 /**
  * Determina si un tipo de evento es considerado negativo para la aprobación.
@@ -52,6 +53,11 @@ export function calculateApprovalByClass(
       }
     }
   }
+
+  // ── Modificadores por sub-decisiones de ministerio ──────────────────────
+  // Cada sub-decisión se aparta de su valor sembrado y mueve la aprobación de
+  // las clases a las que beneficia o perjudica (tabla en balance.ts).
+  approval += (subDecisionDeltas(state.ministries, state.population).approval as Record<string, number>)[socialClass.key] ?? 0;
 
   // ── Modificadores por eventos del mes ───────────────────────────────────
   // Cada tipo de evento afecta de forma diferenciada a cada clase social.

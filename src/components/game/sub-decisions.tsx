@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { numberRange } from "@/lib/engine/sub-decisions";
+import { subDecisionDeltas, describeSubDecisionEffects } from "@/lib/engine/sub-decision-effects";
 
 interface SubDecisionsProps {
   ministryKey: string;
@@ -447,6 +448,20 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
     onSubDecisionChange(ministryKey, key, value);
   };
 
+  // Efecto de la configuración actual de este ministerio respecto del punto de partida
+  const population = useGameStore((s) => s.gameState?.population);
+  const effects = useMemo(
+    () =>
+      population
+        ? describeSubDecisionEffects(subDecisionDeltas([{ key: ministryKey, subDecisions: effectiveSubDecisions }], population))
+        : [],
+    [ministryKey, effectiveSubDecisions, population],
+  );
+  const fmtEffect = (e: { value: number; kind: string }) =>
+    e.kind === "cost"
+      ? `${e.value > 0 ? "+" : "−"}M$ ${(Math.abs(e.value) / 1_000_000).toFixed(1)}/mes`
+      : `${e.value > 0 ? "+" : "−"}${Math.abs(e.value).toFixed(e.kind === "indicator" && Math.abs(e.value) < 0.1 ? 3 : 1)}`;
+
   const renderDecisions = () => {
     switch (ministryKey) {
       case "HEALTH":
@@ -474,6 +489,23 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <h3 className="text-sm font-heading font-medium text-foreground">Decisiones de política</h3>
       {renderDecisions()}
+      <div className="border-t border-border pt-3 space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Efecto de esta configuración (respecto del punto de partida)
+        </p>
+        {effects.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sin cambios: los indicadores no se alteran.</p>
+        ) : (
+          <ul className="grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
+            {effects.map((e) => (
+              <li key={e.label} className="flex justify-between gap-2">
+                <span>{e.label}</span>
+                <span className="font-mono tabular-nums">{fmtEffect(e)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

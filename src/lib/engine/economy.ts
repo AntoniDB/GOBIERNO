@@ -4,6 +4,7 @@
 import type { GameState, LawCatalogEntry } from "./types";
 import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
+import { subDecisionDeltas } from "./sub-decision-effects";
 
 /**
  * Ingresos fiscales = poblaciónActiva * ingresoPerCápita * tasaImpositiva.
@@ -69,7 +70,10 @@ export function calculateExpenses(state: GameState): number {
     }
   }
 
-  const total = ministryExpenses + officialSalaries + organismExpenses + lawCosts;
+  // Costo (o ahorro) de las sub-decisiones respecto de su valor sembrado
+  const subDecisionCost = subDecisionDeltas(state.ministries, state.population).cost;
+
+  const total = ministryExpenses + officialSalaries + organismExpenses + lawCosts + subDecisionCost;
 
   // ── DEBUG: Desglose de gastos del turno ──
   const fmt = (n: number) => n >= 1e9 ? `${(n/1e9).toFixed(2)}B` : `${(n/1e6).toFixed(2)}M`;
@@ -88,6 +92,7 @@ export function calculateExpenses(state: GameState): number {
   for (const l of lawDetails) {
     console.log(`    ${l.key}: ${fmt(l.cost)} AKN/mes`);
   }
+  console.log(`  Sub-decisiones:           ${fmt(subDecisionCost)} AKN`);
   console.log(`  ────────────────────────────────────`);
   console.log(`  GASTO TOTAL:             ${fmt(total)} AKN`);
   console.log(`  DÉFICIT/SUPERÁVIT:       ${fmt(income - total)} AKN`);
@@ -189,6 +194,9 @@ export function calculateGDP(state: GameState): number {
       gdp += gdp * (gdpMod / 100);
     }
   }
+
+  // Sub-decisiones (STEM, tasa de interés, apertura...): modificador en % del PIB
+  gdp += gdp * (subDecisionDeltas(state.ministries, state.population).indicators.gdpPct / 100);
 
   return Math.max(0, gdp);
 }

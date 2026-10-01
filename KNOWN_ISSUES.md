@@ -219,23 +219,33 @@ mutación comprobada).
 
 ---
 
-## 10. Las sub-decisiones no afectan a la simulación
+## 10. ~~Las sub-decisiones no afectan a la simulación~~ — RESUELTO (propuesta de balance)
 
-**Descripción:** al auditar el #9 se comprobó que **ninguna fórmula del motor lee `subDecisions`**:
-solo se escriben en `processTurn` (PASO 1b), se persisten y se muestran en la UI
-(`sub-decisions.tsx`). Mover un slider de "Dureza penal" o "Tasa de interés" no cambia ningún
-indicador. `SPEC.md:270` dice lo contrario: *"Cada cambio en una sub-decisión modifica los
-indicadores correspondientes el siguiente mes"* (y la Sesión 2 pide "sub-decisiones funcionales").
+**Problema original:** ninguna fórmula del motor leía `subDecisions`; mover "Dureza penal" o
+"Tasa de interés" no cambiaba nada, contra `SPEC.md:270`.
 
-**Impacto:** una parte central del juego es decorativa: el jugador cree decidir políticas
-(vacunación, servicio militar, política antidrogas…) sin ningún efecto. Las únicas decisiones
-reales hoy son presupuesto, leyes, nombramientos, organismos, programas/obras de Salud y comercio.
+**Solución:** `engine/sub-decision-effects.ts` aplica la tabla `SUB_DECISION_EFFECTS` (`balance.ts`):
+cada sub-decisión es un efecto lineal respecto de su valor sembrado sobre indicadores, aprobación por
+clase y costo mensual (detalle, fórmula y tabla completa en `BALANCE.md`). Con los valores iniciales el
+efecto es 0, así que una partida nueva no cambia. Los grupos que el SPEC define como "suma 100"
+(etapas de educación, prioridades sociales) se normalizan, lo que además cierra el hueco de que fueran
+sliders independientes. La UI muestra bajo los sliders el efecto de la configuración actual.
 
-**Matices:** `vacunacion` y `saludMental` (Salud) se solapan con los programas de Salud-3A, que sí
-funcionan. El SPEC pide además que primaria/secundaria/superior (Educación) sumen 100; hoy son tres
-sliders independientes (0–100 cada uno) sin esa restricción.
+**Los coeficientes son una propuesta mía, no una decisión del SPEC** (que solo dice que modifican
+"los indicadores correspondientes"). Se eligieron con magnitudes moderadas (un extremo mueve el
+indicador principal ~1–3 puntos) y se ajustan en un solo sitio; `SUBDECISION_EFFECT_SCALE` los
+atenúa o desactiva todos a la vez. Conviene que el diseñador los revise.
 
-**Propuesta:** decidir, ministerio por ministerio, qué indicador mueve cada sub-decisión y con qué
-fórmula (a documentar en `BALANCE.md`, con constantes en `balance.ts` y tests), probablemente
-dentro de las sesiones de profundización de cada ministerio. Con la validación del #9 ya en su sitio,
-los valores que lleguen a esas fórmulas están acotados.
+**No cubierto:**
+- Solapes con otros sistemas, sin deduplicar: `vacunacion`/`saludMental` con los programas de
+  Salud-3A, `servicioMilitar` con la ley `servicio-militar-obligatorio` y `becas` con `becas-merito`.
+  Los efectos se suman.
+- No hay efecto sobre las métricas de régimen (`regime.ts`) ni sobre eventos o fin de partida;
+  Defensa solo toca empleo, crimen, aprobación y costo.
+- Las decisiones aplican el mismo mes (los indicadores se recalculan de cero cada turno); no hay
+  inercia ni demora.
+- Los números de inflación y corrupción mensual del motor son pequeños, así que esos canales pesan poco.
+
+**Verificación:** 33 tests de la tabla y de las fórmulas (con mutación comprobada) y 4 de `processTurn`;
+prueba en navegador real (Playwright + Postgres): sin cambios al iniciar, efectos visibles al mover el
+salario mínimo, valor escrito a mano acotado a 10.000 y turno avanzado con la decisión persistida.

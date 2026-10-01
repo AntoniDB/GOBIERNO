@@ -648,6 +648,116 @@ export const BALANCE = {
   BREAKTHROUGH_EFFICIENCY_STREAK: 3,           // meses consecutivos necesarios
   BREAKTHROUGH_MORTALITY_REDUCTION: 0.8,       // factor multiplicativo (1 - 0.8 = 20% reduccion)
   BREAKTHROUGH_MORTALITY_FLOOR_RATIO: 0.05,    // piso: mortalityRate no baja de 5% del original
+
+  // ─── Sub-decisiones de ministerio (ver SUB_DECISION_EFFECTS abajo) ───────────
+
+  /**
+   * Multiplicador global de los efectos de las sub-decisiones sobre indicadores y
+   * aprobación (no sobre costos). 1 = tabla tal cual; 0 las desactiva; 0.5 las
+   * reduce a la mitad. Es el único mando para endurecer o suavizar todas a la vez.
+   */
+  SUBDECISION_EFFECT_SCALE: 1,
 } as const;
 
 export type BalanceConfig = typeof BALANCE;
+
+// ─── Efectos de las sub-decisiones ───────────────────────────────────────────
+// SPEC 4.1: "cada cambio en una sub-decisión modifica los indicadores
+// correspondientes". Cada sub-decisión es un ajuste LINEAL respecto de su valor
+// sembrado (neutral): con el valor inicial el efecto es exactamente 0, así que
+// una partida nueva no cambia; solo cambia lo que el jugador mueve.
+//
+//   numéricas:  efecto = coeficiente × (valor acotado a `range` − neutral)
+//   booleanas:  efecto = coeficiente (completo) si el valor ≠ neutral, 0 si no
+//   `group`:    los valores del grupo se normalizan a suma 100 antes de calcular
+//               (SPEC: las etapas de educación suman 100; así subir una exige bajar otra)
+//
+// `indicators` suma al indicador (puntos; `gdpPct` en % del PIB; `corruptionReduction`
+// en puntos de corrupción por mes y funcionario), `approval` a la aprobación de cada
+// clase (puntos) y `cost` al gasto mensual (USD a COST_REFERENCE_POPULATION, escalado
+// por población; negativo = ahorro). Las decisiones de "más es mejor" llevan un costo y
+// las de tipo "X vs Y" un efecto contrario en otro indicador o clase, para que ninguna
+// domine. Los polos de los sliders son los de la UI (components/game/sub-decisions.tsx).
+// Magnitudes: un extremo del slider mueve el indicador principal ~1-3 puntos (el
+// crimen, la pobreza y el desempleo oscilan en decenas de puntos) y la aprobación 1-2.
+// Son una PROPUESTA de balance: ajustar aquí y en BALANCE.md.
+
+export type SubDecisionTarget =
+  | "povertyRate" | "unemploymentRate" | "sickRate" | "foodSecurity" | "crimeRate"
+  | "educationLevel" | "gini" | "inflation" | "gdpPct" | "corruptionReduction";
+
+export type SubDecisionClass = "EXTREME_POVERTY" | "POVERTY" | "MIDDLE" | "ELITE";
+
+export interface SubDecisionEffect {
+  /** Valor sembrado: con él el efecto es 0 (para booleanas, el estado sin efecto) */
+  neutral: number | boolean;
+  /** Numéricas: intervalo en que actúa el efecto (el valor se acota antes de restar neutral) */
+  range?: readonly [number, number];
+  /** Grupo cuyos valores se normalizan a suma 100 */
+  group?: string;
+  indicators?: Partial<Record<SubDecisionTarget, number>>;
+  approval?: Partial<Record<SubDecisionClass, number>>;
+  cost?: number;
+}
+
+export const SUB_DECISION_EFFECTS: Record<string, Record<string, SubDecisionEffect>> = {
+  HEALTH: {
+    // 0 = 100% privado, 100 = 100% público: más acceso para los pobres, cuesta más, molesta a la élite
+    hospitalesPublicos: { neutral: 50, range: [0, 100], indicators: { sickRate: -0.03 }, approval: { EXTREME_POVERTY: 0.03, POVERTY: 0.03, ELITE: -0.02 }, cost: 40_000 },
+    // Apagar la vacunación general ahorra dinero y sube los enfermos (se solapa con las campañas de Salud-3A)
+    vacunacion: { neutral: true, indicators: { sickRate: 1.5 }, approval: { POVERTY: -1, MIDDLE: -1 }, cost: -1_000_000 },
+    saludMental: { neutral: false, indicators: { sickRate: -1 }, approval: { MIDDLE: 1, POVERTY: 0.5 }, cost: 1_000_000 },
+  },
+  EDUCATION: {
+    // Etapas (suman 100): la primaria rinde más en educación y pobreza; la superior en PIB y desigualdad
+    primaria: { neutral: 40, group: "etapas", indicators: { educationLevel: 0.05, povertyRate: -0.02 } },
+    secundaria: { neutral: 35, group: "etapas", indicators: { educationLevel: 0.03, unemploymentRate: -0.03 } },
+    superior: { neutral: 25, group: "etapas", indicators: { educationLevel: 0.02, gdpPct: 0.08, gini: 0.02 } },
+    // 0 = humanidades, 100 = STEM: más PIB y empleo, menos formación general
+    enfoqueSTEM: { neutral: 60, range: [0, 100], indicators: { gdpPct: 0.04, unemploymentRate: -0.012, educationLevel: -0.015 } },
+    becas: { neutral: true, indicators: { educationLevel: -1 }, approval: { EXTREME_POVERTY: -1, POVERTY: -1.5, MIDDLE: -1 }, cost: -1_500_000 },
+  },
+  ECONOMY: {
+    // Tasa alta: menos inflación (la inflación del motor es pequeña: ~0.2-0.5), más desempleo, menos PIB
+    tasaInteres: { neutral: 4.5, range: [1, 20], indicators: { inflation: -0.01, unemploymentRate: 0.1, gdpPct: -0.35 } },
+    // Rango útil 100-1000 USD: menos pobreza y más aprobación de los pobres, más desempleo e inflación
+    salarioMinimo: { neutral: 350, range: [100, 1000], indicators: { povertyRate: -0.005, unemploymentRate: 0.004, inflation: 0.0003 }, approval: { POVERTY: 0.004, EXTREME_POVERTY: 0.003, ELITE: -0.003 } },
+    // 0 = proteccionismo, 100 = apertura total: más PIB y élite contenta, más desempleo y desigualdad
+    politicaIndustrial: { neutral: 50, range: [0, 100], indicators: { gdpPct: 0.03, unemploymentRate: 0.02, gini: 0.03 }, approval: { POVERTY: -0.02, ELITE: 0.02 } },
+  },
+  DEFENSE: {
+    // Cabezas de tropa (rango 10.000-200.000): absorben desempleo y crimen; cuestan 150 USD/soldado/mes
+    tropasActivas: { neutral: 50_000, range: [10_000, 200_000], indicators: { unemploymentRate: -0.000008, crimeRate: -0.000005 }, approval: { ELITE: 0.000008 }, cost: 150 },
+    gastoEquipamiento: { neutral: 40, range: [0, 100], indicators: { crimeRate: -0.01 }, approval: { ELITE: 0.02 }, cost: 50_000 },
+    // Se solapa con la ley "servicio-militar-obligatorio"
+    servicioMilitar: { neutral: false, indicators: { unemploymentRate: -0.8, crimeRate: -0.3 }, approval: { EXTREME_POVERTY: -1.5, POVERTY: -2, MIDDLE: -2, ELITE: 1 }, cost: 1_000_000 },
+  },
+  SECURITY: {
+    // 0 = rural, 100 = urbano: menos crimen nacional (más gente en las ciudades), abandona al campo
+    patrullajeUrbano: { neutral: 60, range: [0, 100], indicators: { crimeRate: -0.02 }, approval: { EXTREME_POVERTY: -0.02, ELITE: 0.02 } },
+    // 0 = represiva, 100 = preventiva: menos enfermos (adicciones) y más apoyo popular, más crimen a corto plazo
+    politicaDrogas: { neutral: 50, range: [0, 100], indicators: { crimeRate: 0.012, sickRate: -0.012 }, approval: { POVERTY: 0.02, EXTREME_POVERTY: 0.02, ELITE: -0.01, MIDDLE: -0.01 } },
+    inversionCarceles: { neutral: 30, range: [0, 100], indicators: { crimeRate: -0.015 }, approval: { MIDDLE: 0.01 }, cost: 60_000 },
+  },
+  JUSTICE: {
+    // Jueces y fiscales (rango 0-1000): menos crimen y más disuasión de la corrupción; 10.000 USD/mes cada uno
+    juecesContratados: { neutral: 200, range: [0, 1000], indicators: { crimeRate: -0.002, corruptionReduction: 0.0005 }, cost: 10_000 },
+    // 0 = crimen común, 100 = corrupción: más disuasión de la corrupción, menos atención al crimen común
+    prioridadCorrupcion: { neutral: 60, range: [0, 100], indicators: { crimeRate: 0.015, corruptionReduction: 0.01 }, approval: { MIDDLE: 0.02 } },
+    // 0 = garantista, 100 = punitiva máxima: disuade el crimen, castiga a los pobres, llena las cárceles
+    durezaPenal: { neutral: 50, range: [0, 100], indicators: { crimeRate: -0.012 }, approval: { ELITE: 0.01, MIDDLE: 0.01, POVERTY: -0.02, EXTREME_POVERTY: -0.02 }, cost: 30_000 },
+  },
+  AGRICULTURE: {
+    // 0 = grandes empresas, 100 = pequeño productor: más alimento local y menos desigualdad, algo menos de escala
+    subsidioPequenoProductor: { neutral: 70, range: [0, 100], indicators: { foodSecurity: 0.02, gini: -0.02, gdpPct: -0.01 }, approval: { EXTREME_POVERTY: 0.02, POVERTY: 0.02, ELITE: -0.02 } },
+    infraestructuraRural: { neutral: 40, range: [0, 100], indicators: { foodSecurity: 0.03, povertyRate: -0.01 }, cost: 40_000 },
+  },
+  SOCIAL_DEVELOPMENT: {
+    // 0 = focalizado, 100 = universal: aprueba la clase media, cuesta más y es menos eficiente contra la pobreza
+    focalizacion: { neutral: 60, range: [0, 100], indicators: { povertyRate: 0.015 }, approval: { MIDDLE: 0.03, ELITE: 0.01 }, cost: 50_000 },
+    // Prioridades (suman 100)
+    prioridadNinos: { neutral: 40, group: "prioridades", indicators: { educationLevel: 0.015, povertyRate: -0.01 }, approval: { MIDDLE: 0.01 } },
+    prioridadAdultosMayores: { neutral: 35, group: "prioridades", indicators: { sickRate: -0.01 }, approval: { POVERTY: 0.02, EXTREME_POVERTY: 0.02 } },
+    prioridadMujeres: { neutral: 25, group: "prioridades", indicators: { unemploymentRate: -0.01, gini: -0.015 }, approval: { MIDDLE: 0.015 } },
+  },
+};

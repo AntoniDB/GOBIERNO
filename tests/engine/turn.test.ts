@@ -261,3 +261,42 @@ describe("processTurn — sub-decisiones y presupuestos inválidos", () => {
     expect(Number.isFinite(out.newState.treasury)).toBe(true);
   });
 });
+
+describe("processTurn — las sub-decisiones mueven los indicadores del mes", () => {
+  const conEconomia = () => {
+    const base = crearEstadoBase();
+    return crearEstadoBase({
+      ministries: [{ ...base.ministries[0], key: "ECONOMY", subDecisions: { salarioMinimo: 350, tasaInteres: 4.5 } }, ...base.ministries.slice(1)],
+    });
+  };
+  const turno = (input: TurnInput) => processTurn(conEconomia(), input, createRNG("sub-decisiones"));
+
+  it("subir el salario mínimo baja la pobreza y sube el desempleo del snapshot", () => {
+    const sin = turno({});
+    const con = turno({ subDecisionChanges: { ECONOMY: { salarioMinimo: 900 } } });
+    expect(con.monthSnapshot.unemploymentRate).toBeGreaterThan(sin.monthSnapshot.unemploymentRate);
+    expect(con.monthSnapshot.povertyRate).toBeLessThan(sin.monthSnapshot.povertyRate);
+  });
+
+  it("una tasa de interés alta reduce el PIB y sube el desempleo", () => {
+    const sin = turno({});
+    const con = turno({ subDecisionChanges: { ECONOMY: { tasaInteres: 18 } } });
+    expect(con.monthSnapshot.gdp).toBeLessThan(sin.monthSnapshot.gdp);
+    expect(con.monthSnapshot.unemploymentRate).toBeGreaterThan(sin.monthSnapshot.unemploymentRate);
+  });
+
+  it("dejar las sub-decisiones como están no cambia nada (determinista)", () => {
+    const a = turno({});
+    const b = turno({ subDecisionChanges: { ECONOMY: { salarioMinimo: 350, tasaInteres: 4.5 } } });
+    expect(b.monthSnapshot.povertyRate).toBe(a.monthSnapshot.povertyRate);
+    expect(b.monthSnapshot.gdp).toBe(a.monthSnapshot.gdp);
+    expect(b.newState.treasury).toBe(a.newState.treasury);
+  });
+
+  it("un valor manipulado (fuera de rango) no desborda los indicadores", () => {
+    const con = turno({ subDecisionChanges: { ECONOMY: { salarioMinimo: 1e12 } } as never });
+    const tope = turno({ subDecisionChanges: { ECONOMY: { salarioMinimo: 10_000 } } });
+    expect(con.monthSnapshot.povertyRate).toBe(tope.monthSnapshot.povertyRate);
+    expect(con.monthSnapshot.povertyRate).toBeGreaterThanOrEqual(0);
+  });
+});

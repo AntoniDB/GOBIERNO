@@ -265,3 +265,65 @@ Presupuesto de organismos creables: `ORGANISM_BUDGET_MIN/MAX` (50M–500M a la p
 referencia de leyes, escalado por población). El motor acota el valor pedido por el cliente
 (`clampOrganismBudget`); un presupuesto negativo sumaría dinero cada mes.
 
+## Sub-decisiones de ministerio (Issue 10)
+
+SPEC 4.1: *"cada cambio en una sub-decisión modifica los indicadores correspondientes"*. Antes
+eran decorativas (solo la UI las leía). Ahora cada una desplaza indicadores, aprobación por clase
+y costo. **Es una propuesta de balance**: la fuente de verdad son `SUB_DECISION_EFFECTS` y
+`BALANCE.SUBDECISION_EFFECT_SCALE` en `balance.ts` (esta tabla se generó de ahí); el cálculo está en
+`engine/sub-decision-effects.ts`.
+
+```
+numérica:  efecto = coeficiente × (clamp(valor, rango) − neutral)
+booleana:  efecto = coeficiente (completo) si el valor ≠ neutral, 0 si no
+grupo:     valor_i = valor_i / Σ valores del grupo × 100        (suma 100, como pide el SPEC)
+indicador = fórmula existente (ministerios, leyes...) + Σ efectos de sub-decisiones
+costo     = Σ (coeficiente × unidades), escalado por población (COST_REFERENCE_POPULATION)
+```
+
+- **Neutral = valor sembrado** (`generateMinistries`; `hospitalesPublicos`, que no se siembra, usa 50):
+  con los valores iniciales el efecto es exactamente 0, así que una partida nueva no cambia.
+- Efectos **lineales y acotados** al rango: un valor extremo (o manipulado) no dispara un indicador.
+  Un test fija que ningún extremo supera 6 puntos de indicador, 3 de aprobación ni el 10% del ingreso.
+- Dónde se aplican: `indicators.ts` (pobreza, desempleo, enfermos, alimentación, crimen, educación,
+  Gini, inflación), `economy.ts` (PIB en % y gasto), `approval.ts` (por clase) y `corruption.ts`
+  (reducción mensual de corrupción). Hay efectos de segundo orden esperables: p. ej. más desempleo
+  sube la pobreza (0,5) y el costo de una decisión amplía el déficit, que sube la inflación.
+- Para que ninguna decisión domine, las de "más es mejor" llevan **costo** y las "X vs Y" un efecto
+  contrario en otro indicador o clase.
+- `BALANCE.SUBDECISION_EFFECT_SCALE` (1) multiplica indicadores y aprobación (no costos): 0 las
+  desactiva, 0.5 las reduce a la mitad.
+
+| Ministerio | Decisión | Neutral | Rango | Indicadores (por unidad) | Aprobación (por unidad) | Costo/mes a 10M (por unidad) |
+|---|---|---|---|---|---|---|
+| Salud | `hospitalesPublicos` | 50 | 0–100 | enfermos -0.03 | pob. extrema +0.03, pobreza +0.03, élite -0.02 | +40.000 |
+| Salud | `vacunacion` | sí | al cambiar | enfermos +1.5 | pobreza -1, media -1 | -1.000.000 |
+| Salud | `saludMental` | no | al cambiar | enfermos -1 | media +1, pobreza +0.5 | +1.000.000 |
+| Educación | `primaria` | 40 | grupo etapas (suma 100) | educación +0.05, pobreza -0.02 | — | — |
+| Educación | `secundaria` | 35 | grupo etapas (suma 100) | educación +0.03, desempleo -0.03 | — | — |
+| Educación | `superior` | 25 | grupo etapas (suma 100) | educación +0.02, PIB % +0.08, Gini +0.02 | — | — |
+| Educación | `enfoqueSTEM` | 60 | 0–100 | PIB % +0.04, desempleo -0.012, educación -0.015 | — | — |
+| Educación | `becas` | sí | al cambiar | educación -1 | pob. extrema -1, pobreza -1.5, media -1 | -1.500.000 |
+| Economía | `tasaInteres` | 4.5 | 1–20 | inflación -0.01, desempleo +0.1, PIB % -0.35 | — | — |
+| Economía | `salarioMinimo` | 350 | 100–1000 | pobreza -0.005, desempleo +0.004, inflación +0.0003 | pobreza +0.004, pob. extrema +0.003, élite -0.003 | — |
+| Economía | `politicaIndustrial` | 50 | 0–100 | PIB % +0.03, desempleo +0.02, Gini +0.03 | pobreza -0.02, élite +0.02 | — |
+| Defensa | `tropasActivas` | 50000 | 10000–200000 | desempleo -0.000008, crimen -0.000005 | élite +0.000008 | +150 |
+| Defensa | `gastoEquipamiento` | 40 | 0–100 | crimen -0.01 | élite +0.02 | +50.000 |
+| Defensa | `servicioMilitar` | no | al cambiar | desempleo -0.8, crimen -0.3 | pob. extrema -1.5, pobreza -2, media -2, élite +1 | +1.000.000 |
+| Seguridad | `patrullajeUrbano` | 60 | 0–100 | crimen -0.02 | pob. extrema -0.02, élite +0.02 | — |
+| Seguridad | `politicaDrogas` | 50 | 0–100 | crimen +0.012, enfermos -0.012 | pobreza +0.02, pob. extrema +0.02, élite -0.01, media -0.01 | — |
+| Seguridad | `inversionCarceles` | 30 | 0–100 | crimen -0.015 | media +0.01 | +60.000 |
+| Justicia | `juecesContratados` | 200 | 0–1000 | crimen -0.002, reducción corrupción +0.0005 | — | +10.000 |
+| Justicia | `prioridadCorrupcion` | 60 | 0–100 | crimen +0.015, reducción corrupción +0.01 | media +0.02 | — |
+| Justicia | `durezaPenal` | 50 | 0–100 | crimen -0.012 | élite +0.01, media +0.01, pobreza -0.02, pob. extrema -0.02 | +30.000 |
+| Agricultura | `subsidioPequenoProductor` | 70 | 0–100 | seg. alimentaria +0.02, Gini -0.02, PIB % -0.01 | pob. extrema +0.02, pobreza +0.02, élite -0.02 | — |
+| Agricultura | `infraestructuraRural` | 40 | 0–100 | seg. alimentaria +0.03, pobreza -0.01 | — | +40.000 |
+| Desarrollo social | `focalizacion` | 60 | 0–100 | pobreza +0.015 | media +0.03, élite +0.01 | +50.000 |
+| Desarrollo social | `prioridadNinos` | 40 | grupo prioridades (suma 100) | educación +0.015, pobreza -0.01 | media +0.01 | — |
+| Desarrollo social | `prioridadAdultosMayores` | 35 | grupo prioridades (suma 100) | enfermos -0.01 | pobreza +0.02, pob. extrema +0.02 | — |
+| Desarrollo social | `prioridadMujeres` | 25 | grupo prioridades (suma 100) | desempleo -0.01, Gini -0.015 | media +0.015 | — |
+
+Unidades: "por unidad" es por punto del slider (o por USD / soldado / juez en las que no son 0–100);
+las booleanas aplican el coeficiente completo al cambiar de valor. `inflación` y `reducción corrupción`
+son pequeñas porque esas escalas del motor lo son (inflación ≈ 0,2–0,5; corrupción ±1–3 pts/mes).
+
