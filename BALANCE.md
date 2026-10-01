@@ -327,3 +327,16 @@ Unidades: "por unidad" es por punto del slider (o por USD / soldado / juez en la
 las booleanas aplican el coeficiente completo al cambiar de valor. `inflación` y `reducción corrupción`
 son pequeñas porque esas escalas del motor lo son (inflación ≈ 0,2–0,5; corrupción ±1–3 pts/mes).
 
+## Presupuesto inicial y equilibrio fiscal (Issue 8)
+
+Los 8 ministerios reciben `% del ingreso` (`ingreso = 45 × población`). Fuera de ellos hay gasto
+comprometido: Contraloría (`INITIAL_COMPTROLLER_BUDGET`, 6,7% del ingreso en cualquier país),
+sueldos (`BASE_SALARY_PER_MINISTER` × funcionarios activos), leyes, sub-decisiones, obras, programas
+e importaciones. Una partida nueva reparte `100% − gastos fijos de arranque` (93,3%) entre los
+ministerios con los pesos 14/16/18/10/12/8/10/12, así que el primer mes cierra en equilibrio
+(`initialMinistryBudgetTotal`, `generateMinistries(total)`). La UI mide "Restante"/"Déficit" contra
+`100% − calculateCommittedSpendingPercent`.
+
+Para ajustar: cambiar `INITIAL_COMPTROLLER_BUDGET` o `BASE_SALARY_PER_MINISTER` mueve la suma inicial
+(el reparto se recalcula solo); los pesos relativos están en `generateMinistries`.
+

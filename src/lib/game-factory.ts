@@ -2,6 +2,10 @@
 // Segun preset y dificultad. Usado por el wizard de nueva partida.
 // Nombres en espaniol, ideologias realistas, sin dependencia de DB.
 
+import { BALANCE } from "./balance";
+import { scaleLawCost } from "./engine/cost-scale";
+import { baseMonthlyIncome } from "./engine/economy";
+
 export interface PresetConfig {
   treasury: number;
   population: number;
@@ -309,17 +313,53 @@ export interface MinistryData {
   subDecisions: Record<string, number | boolean>;
 }
 
-export function generateMinistries(): MinistryData[] {
-  return [
-    { key: "HEALTH", budgetPercent: 14, subDecisions: { vacunacion: true, saludMental: false } },
-    { key: "EDUCATION", budgetPercent: 16, subDecisions: { primaria: 40, secundaria: 35, superior: 25, enfoqueSTEM: 60, becas: true } },
-    { key: "ECONOMY", budgetPercent: 18, subDecisions: { tasaInteres: 4.5, salarioMinimo: 350, politicaIndustrial: 50 } },
-    { key: "DEFENSE", budgetPercent: 10, subDecisions: { tropasActivas: 50000, gastoEquipamiento: 40, servicioMilitar: false } },
-    { key: "SECURITY", budgetPercent: 12, subDecisions: { patrullajeUrbano: 60, politicaDrogas: 50, inversionCarceles: 30 } },
-    { key: "JUSTICE", budgetPercent: 8, subDecisions: { juecesContratados: 200, prioridadCorrupcion: 60, durezaPenal: 50 } },
-    { key: "AGRICULTURE", budgetPercent: 10, subDecisions: { subsidioPequenoProductor: 70, infraestructuraRural: 40 } },
-    { key: "SOCIAL_DEVELOPMENT", budgetPercent: 12, subDecisions: { focalizacion: 60, prioridadNinos: 40, prioridadAdultosMayores: 35, prioridadMujeres: 25 } },
+/**
+ * Reparte `totalPercent` entre los pesos base en décimas de punto, por el método
+ * del mayor resto, de modo que la suma sea exactamente floor(total × 10) / 10.
+ */
+function distributePercent(weights: number[], totalPercent: number): number[] {
+  const targetTenths = Math.floor(totalPercent * 10 + 1e-9);
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const raw = weights.map((w) => (w / weightSum) * targetTenths);
+  const tenths = raw.map(Math.floor);
+  const byRemainder = raw.map((r, i) => ({ i, rest: r - Math.floor(r) })).sort((a, b) => b.rest - a.rest);
+  const leftover = targetTenths - tenths.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < leftover; k++) tenths[byRemainder[k].i] += 1;
+  return tenths.map((t) => t / 10);
+}
+
+/**
+ * Los 8 ministerios iniciales. Los pesos base suman 100; `totalPercent` es la
+ * suma de los presupuestos iniciales (por defecto 100). Las partidas nuevas
+ * usan initialMinistryBudgetTotal() para dejar lugar a los gastos fijos.
+ */
+export function generateMinistries(totalPercent = 100): MinistryData[] {
+  const base: Array<Omit<MinistryData, "budgetPercent"> & { weight: number }> = [
+    { key: "HEALTH", weight: 14, subDecisions: { vacunacion: true, saludMental: false } },
+    { key: "EDUCATION", weight: 16, subDecisions: { primaria: 40, secundaria: 35, superior: 25, enfoqueSTEM: 60, becas: true } },
+    { key: "ECONOMY", weight: 18, subDecisions: { tasaInteres: 4.5, salarioMinimo: 350, politicaIndustrial: 50 } },
+    { key: "DEFENSE", weight: 10, subDecisions: { tropasActivas: 50000, gastoEquipamiento: 40, servicioMilitar: false } },
+    { key: "SECURITY", weight: 12, subDecisions: { patrullajeUrbano: 60, politicaDrogas: 50, inversionCarceles: 30 } },
+    { key: "JUSTICE", weight: 8, subDecisions: { juecesContratados: 200, prioridadCorrupcion: 60, durezaPenal: 50 } },
+    { key: "AGRICULTURE", weight: 10, subDecisions: { subsidioPequenoProductor: 70, infraestructuraRural: 40 } },
+    { key: "SOCIAL_DEVELOPMENT", weight: 12, subDecisions: { focalizacion: 60, prioridadNinos: 40, prioridadAdultosMayores: 35, prioridadMujeres: 25 } },
   ];
+  const percents = distributePercent(base.map((m) => m.weight), totalPercent);
+  return base.map((m, i) => ({ key: m.key, budgetPercent: percents[i], subDecisions: m.subDecisions }));
+}
+
+/**
+ * Suma (en %) de los presupuestos ministeriales iniciales para que el primer mes
+ * cierre en equilibrio: 100 menos el peso de los gastos fijos de arranque
+ * (Contraloría sembrada y sueldos de los funcionarios activos) sobre el ingreso.
+ * Se redondea hacia abajo a décimas, así que el balance inicial es 0 o un
+ * superávit de menos de 0,1% del ingreso.
+ */
+export function initialMinistryBudgetTotal(population: number, activeOfficials: number): number {
+  const fixed =
+    scaleLawCost(BALANCE.INITIAL_COMPTROLLER_BUDGET, population) +
+    activeOfficials * BALANCE.BASE_SALARY_PER_MINISTER;
+  return Math.floor((100 - (fixed / baseMonthlyIncome(population)) * 100) * 10 + 1e-9) / 10;
 }
 
 /**

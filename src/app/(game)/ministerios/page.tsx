@@ -4,6 +4,7 @@ import { useGameStore } from "@/lib/store/game-store";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { MinistryState } from "@/lib/engine/types";
+import { calculateCommittedSpendingPercent } from "@/lib/engine/economy";
 
 /* ── Configuración visual ───────────────────────────────────────────────────── */
 const MIN_CFG: Record<
@@ -277,12 +278,13 @@ function MetricBox({
 }
 
 /* ── Barra de distribución de presupuesto ──────────────────────────────────── */
-function BudgetBar({ ministries }: { ministries: MinistryState[] }) {
+function BudgetBar({ ministries, committed }: { ministries: MinistryState[]; committed: number }) {
   const total = useMemo(
     () => ministries.reduce((s, m) => s + m.budgetPercent, 0),
     [ministries]
   );
-  const overflow = total > 100 ? total - 100 : 0;
+  // El equilibrio fiscal está en 100% menos los gastos fijos comprometidos
+  const overflow = total + committed > 100 ? total + committed - 100 : 0;
 
   return (
     <div
@@ -307,6 +309,9 @@ function BudgetBar({ ministries }: { ministries: MinistryState[] }) {
           }}
         >
           {total.toFixed(1)}%
+          {committed >= 0.05 && (
+            <span style={{ fontSize: 11, color: "#666", marginLeft: 8 }}>+ {committed.toFixed(1)}% gastos fijos</span>
+          )}
         </span>
       </div>
 
@@ -421,7 +426,7 @@ export default function MinisteriosPage() {
         </div>
       ) : (
         <>
-          <BudgetBar ministries={ministries} />
+          <BudgetBar ministries={ministries} committed={gameState ? calculateCommittedSpendingPercent(gameState) : 0} />
 
           {/* Grid de tarjetas */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 0 }}>

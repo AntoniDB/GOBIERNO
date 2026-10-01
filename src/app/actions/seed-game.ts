@@ -6,12 +6,14 @@ import type { PresetKey, Difficulty } from "@/lib/game-factory";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
 import { defaultTradeFlowParams } from "@/lib/engine/trade";
 import { scaleLawCost } from "@/lib/engine/cost-scale";
+import { BALANCE } from "@/lib/balance";
 import {
   generateSeed,
   getPresetConfig,
   generateParties,
   generateOfficials,
   generateMinistries,
+  initialMinistryBudgetTotal,
   generateSocialClasses,
   generateMedia,
   generateRegions,
@@ -98,7 +100,11 @@ export async function createInitialGame(
   }
 
   // ── Ministerios ───────────────────────────────────────────────────────
-  const ministryData = generateMinistries();
+  // Presupuestos que suman 100% menos los gastos fijos de arranque (Contraloría y
+  // sueldos: lideres de partido y contralor se crean abajo), para que el primer
+  // mes cierre en equilibrio y no en deficit estructural.
+  const activeOfficials = officials.length + 5 + 1;
+  const ministryData = generateMinistries(initialMinistryBudgetTotal(cfg.population, activeOfficials));
   for (let i = 0; i < ministryData.length; i++) {
     const m = ministryData[i];
     await prismaClient.ministry.create({
@@ -158,7 +164,7 @@ export async function createInitialGame(
     data: {
       gameId, type: "COMPTROLLER",
       name: "Contraloria General de la Republica",
-      monthlyBudget: scaleLawCost(150_000_000, cfg.population), staff: 30, effectiveness: 40,
+      monthlyBudget: scaleLawCost(BALANCE.INITIAL_COMPTROLLER_BUDGET, cfg.population), staff: 30, effectiveness: 40,
       autonomyLevel: cfg.regimeMetrics.transparency > 50 ? 70 : 40,
       headOfficialId: contralor.id,
     },

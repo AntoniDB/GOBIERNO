@@ -13,7 +13,7 @@ import { subDecisionDeltas } from "./sub-decision-effects";
  * - tasaImpositiva = BALANCE.TAX_RATE_BASE + suma de modificadores de leyes activas
  */
 export function calculateIncome(state: GameState): number {
-  const activePopulation = state.population * 0.6;
+  const activePopulation = state.population * BALANCE.ACTIVE_POPULATION_SHARE;
   const incomePerCapita = BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA;
 
   // Tasa impositiva base + modificadores de leyes activas
@@ -34,18 +34,19 @@ export function calculateIncome(state: GameState): number {
 }
 
 /**
- * Gastos = presupuestos ministeriales (% del ingreso) + salarios officials
- *          + presupuestos de organismos + costo de leyes activas.
+ * Ingreso mensual de un país sin leyes que cambien la tasa impositiva.
+ * Sirve para dimensionar los presupuestos iniciales de una partida nueva.
  */
-export function calculateExpenses(state: GameState): number {
-  const income = calculateIncome(state);
+export function baseMonthlyIncome(population: number): number {
+  return population * BALANCE.ACTIVE_POPULATION_SHARE * BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA * BALANCE.TAX_RATE_BASE;
+}
 
-  // Presupuestos ministeriales: cada ministerio recibe budgetPercent % del ingreso
-  let ministryExpenses = 0;
-  for (const ministry of state.ministries) {
-    ministryExpenses += (ministry.budgetPercent / 100) * income;
-  }
-
+/**
+ * Gastos que no dependen del presupuesto de los ministerios (se cobran aunque
+ * estos reciban 0): salarios de funcionarios activos, presupuestos de organismos,
+ * costo mensual de leyes activas y costo (o ahorro) de las sub-decisiones.
+ */
+function fixedExpenseBreakdown(state: GameState) {
   // Salarios de officials (cada official activo cobra salario base)
   const activeOfficialCount = state.officials.filter((o) => o.status === "ACTIVE").length;
   const officialSalaries = activeOfficialCount * BALANCE.BASE_SALARY_PER_MINISTER;
@@ -73,7 +74,64 @@ export function calculateExpenses(state: GameState): number {
   // Costo (o ahorro) de las sub-decisiones respecto de su valor sembrado
   const subDecisionCost = subDecisionDeltas(state.ministries, state.population).cost;
 
-  const total = ministryExpenses + officialSalaries + organismExpenses + lawCosts + subDecisionCost;
+  return {
+    activeOfficialCount,
+    officialSalaries,
+    organismExpenses,
+    lawCosts,
+    lawDetails,
+    subDecisionCost,
+    total: officialSalaries + organismExpenses + lawCosts + subDecisionCost,
+  };
+}
+
+/**
+ * Gasto mensual comprometido fuera de los ministerios: los gastos fijos de
+ * calculateExpenses más lo que el motor cobra aparte cada mes (obras y programas
+ * en curso e importaciones activas). Es lo que reduce el presupuesto ministerial
+ * con el que el país llega al equilibrio.
+ */
+export function calculateCommittedSpending(state: GameState): number {
+  const fixed = fixedExpenseBreakdown(state).total;
+  const lrd = (state.longRunningDecisions ?? [])
+    .filter((d) => d.status === "IN_PROGRESS")
+    .reduce((sum, d) => sum + d.monthlyCost, 0);
+  const programs = (state.programs ?? [])
+    .filter((p) => p.status === "ACTIVE")
+    .reduce((sum, p) => sum + p.monthlyCost, 0);
+  const imports = (state.tradeFlows ?? [])
+    .filter((f) => f.isActive && f.direction === "IMPORT")
+    .reduce((sum, f) => sum + f.monthlyCost, 0);
+  return fixed + lrd + programs + imports;
+}
+
+/**
+ * Gasto comprometido como % del ingreso mensual. El presupuesto de los ministerios
+ * solo puede sumar `100 − este valor` para que el mes cierre en equilibrio.
+ */
+export function calculateCommittedSpendingPercent(state: GameState): number {
+  const income = calculateIncome(state);
+  return income > 0 ? (calculateCommittedSpending(state) / income) * 100 : 0;
+}
+
+/**
+ * Gastos = presupuestos ministeriales (% del ingreso) + salarios officials
+ *          + presupuestos de organismos + costo de leyes activas
+ *          + costo de sub-decisiones.
+ */
+export function calculateExpenses(state: GameState): number {
+  const income = calculateIncome(state);
+
+  // Presupuestos ministeriales: cada ministerio recibe budgetPercent % del ingreso
+  let ministryExpenses = 0;
+  for (const ministry of state.ministries) {
+    ministryExpenses += (ministry.budgetPercent / 100) * income;
+  }
+
+  const fixed = fixedExpenseBreakdown(state);
+  const { activeOfficialCount, officialSalaries, organismExpenses, lawCosts, lawDetails, subDecisionCost } = fixed;
+
+  const total = ministryExpenses + fixed.total;
 
   // ── DEBUG: Desglose de gastos del turno ──
   const fmt = (n: number) => n >= 1e9 ? `${(n/1e9).toFixed(2)}B` : `${(n/1e6).toFixed(2)}M`;

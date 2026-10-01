@@ -184,13 +184,43 @@ con costo mensual o sin costo), el snapshot persistido lo refleja y la re-aproba
 
 ---
 
-## 8. Déficit estructural desde el primer turno
+## 8. ~~Déficit estructural desde el primer turno~~ — RESUELTO
 
-**Descripción:** los 8 ministerios iniciales suman exactamente 100% del ingreso
-(`generateMinistries`: 14+16+18+10+12+8+10+12), así que cualquier gasto fijo (Contraloría
-≈6,7% del ingreso, salarios) produce déficit desde el turno 1 en los cuatro presets.
-No es un bug: el jugador debe redistribuir presupuesto. Se anota porque condiciona
-cualquier recalibración de costos (la holgura fiscal inicial es cero por diseño).
+**Problema original:** los 8 ministerios iniciales sumaban exactamente 100% del ingreso, así que
+cualquier gasto fijo (la Contraloría sembrada pesa el 6,7% del ingreso en todos los presets, más los
+sueldos) producía déficit desde el turno 1: −75M a −240M al mes según el preset, con tesoros de
+500M a 8.000M (el preset `crisis_economica`, con 500M, se quedaba sin fondos en ~5 meses sin tocar
+nada). Además la UI definía "Restante" y "Déficit" contra el 100% de los ministerios e ignoraba los
+gastos fijos, así que el 100% que mostraba no era el equilibrio real.
+
+**Solución:**
+- `initialMinistryBudgetTotal(población, funcionarios)` (`game-factory.ts`) calcula la suma de los
+  presupuestos iniciales como `100% − gastos fijos de arranque / ingreso` (93,3% en todos los presets,
+  porque la Contraloría escala con la población) y `generateMinistries(total)` reparte ese total entre
+  los 8 ministerios en décimas, por el método del mayor resto y con los mismos pesos relativos. Se
+  redondea hacia abajo, así que el balance inicial es 0 o un superávit de menos de 0,1% del ingreso.
+- `calculateCommittedSpending[Percent]` (`economy.ts`): gasto comprometido fuera de los ministerios
+  (salarios, organismos, leyes, sub-decisiones, obras y programas en curso, importaciones activas).
+  `calculateExpenses` se refactorizó para exponer ese gasto fijo sin cambiar su resultado.
+- UI (`budget-slider.tsx`, `ministerios/page.tsx`): "Restante" y "Déficit" se miden contra
+  `100% − gastos fijos`, y se muestra el porcentaje de gastos fijos comprometidos.
+- `BALANCE.INITIAL_COMPTROLLER_BUDGET` y `BALANCE.ACTIVE_POPULATION_SHARE` sustituyen dos literales.
+
+**Efectos a tener en cuenta:**
+- Solo afecta a partidas **nuevas**: los presupuestos de las existentes están persistidos y siguen
+  sumando 100% (con la UI corregida ahora ven su déficit real).
+- Al bajar cada presupuesto ~6,7%, los indicadores de arranque se mueven menos de 1 punto (pobreza
+  +0,8, crimen +0,9, educación −0,6, seguridad alimentaria −0,5, desempleo +0,3) y la inflación baja
+  de 0,33 a 0,20 porque desaparece el déficit. El PIB no cambia (depende de la eficiencia).
+- La holgura fiscal inicial es 0 por diseño: cualquier gasto nuevo (ley, programa, obra, organismo)
+  genera déficit salvo que el jugador recorte ministerios. Los gastos fijos que el jugador añada
+  después se reflejan solos en la UI.
+
+**Verificación:** 30 tests (reparto exacto, balance inicial ≥ 0 y < 0,1% para cada preset y 30–60
+funcionarios, gasto comprometido; con mutación comprobada); prueba contra Postgres 16 real con los 4
+presets (balance +0,02–0,03% del ingreso, variación del tesoro del primer turno de +0,2M a +1,0M en
+vez de −75M a −240M) y prueba en navegador (barra "93,3% + 6,7% gastos fijos" sin aviso de déficit;
+al subir Economía +8 aparece "Déficit: 8,2%").
 
 ---
 

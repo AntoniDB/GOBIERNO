@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useGameStore } from "@/lib/store/game-store";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { calculateCommittedSpendingPercent } from "@/lib/engine/economy";
 // Límites del slider: deben coincidir con BALANCE.MIN_BUDGET_PERCENT / MAX_BUDGET_PERCENT
 // definidos en src/lib/balance.ts. El motor clampa a [2, 40] en turn.ts.
 const BUDGET_MIN = 2;
@@ -57,7 +58,13 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
     }, 0);
   }, [allMinistries, ministryKey, effectiveBudget, pendingInput.budgetAdjustments]);
 
-  const remaining = 100 - totalBudget;
+  // Gastos fijos (organismos, sueldos, leyes, obras...) que se pagan antes que los ministerios:
+  // el equilibrio fiscal está en 100% menos esto, no en 100%.
+  const committed = useMemo(
+    () => (gameState ? calculateCommittedSpendingPercent(gameState) : 0),
+    [gameState],
+  );
+  const remaining = 100 - committed - totalBudget;
 
   function getBudgetLevelColor(value: number) {
     if (value < 20) return "bg-accent";
@@ -103,6 +110,9 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
           <p className="text-xs text-muted-foreground">
             Restante para otros ministerios:{" "}
             <span className="font-medium text-foreground">{remaining.toFixed(1)}%</span>
+            {committed >= 0.05 && (
+              <span> · gastos fijos {committed.toFixed(1)}% del ingreso</span>
+            )}
           </p>
         ) : (
           <p className="text-xs">
@@ -110,7 +120,7 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
               Déficit: {Math.abs(remaining).toFixed(1)}%
             </span>
             <span className="text-muted-foreground">
-              {" "}— El presupuesto total supera el 100%
+              {" "}— Los ministerios más los gastos fijos ({committed.toFixed(1)}%) superan el 100% del ingreso
             </span>
           </p>
         )}
@@ -131,6 +141,13 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
                 />
               );
             })}
+            {committed >= 0.05 && (
+              <div
+                className="h-full bg-foreground/40"
+                style={{ width: `${committed}%` }}
+                title={`Gastos fijos: ${committed.toFixed(1)}%`}
+              />
+            )}
             {remaining > 0 && (
               <div
                 className="h-full bg-muted-foreground/20"
@@ -154,6 +171,12 @@ export function BudgetSlider({ ministryKey, currentBudget, onBudgetChange }: Bud
                 </div>
               );
             })}
+            {committed >= 0.05 && (
+              <div className="flex items-center gap-1 text-xs">
+                <span className="inline-block size-2 rounded-full bg-foreground/40" />
+                <span className="text-muted-foreground">Gastos fijos {committed.toFixed(1)}%</span>
+              </div>
+            )}
             {remaining > 0 && (
               <div className="flex items-center gap-1 text-xs">
                 <span className="inline-block size-2 rounded-full bg-muted-foreground/20" />

@@ -12,6 +12,9 @@ export const BALANCE = {
   /** Ingreso mensual per cápita base en USD */
   BASE_MONTHLY_INCOME_PER_CAPITA: 500,
 
+  /** Fracción de la población que tributa (población activa) */
+  ACTIVE_POPULATION_SHARE: 0.6,
+
   /**
    * Población con la que se calibraron los costos fijos en USD (programas,
    * hospitales, investigación, contratación, compra de afinidad). A esa
@@ -41,6 +44,9 @@ export const BALANCE = {
    * cliente envíe otro valor: un presupuesto negativo sumaría dinero cada mes.
    */
   ORGANISM_BUDGET_MIN: 50_000_000,
+
+  /** Presupuesto mensual de la Contraloría sembrada al crear la partida (a la población de referencia de leyes) */
+  INITIAL_COMPTROLLER_BUDGET: 150_000_000,
   ORGANISM_BUDGET_MAX: 500_000_000,
 
   /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
