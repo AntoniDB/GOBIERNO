@@ -227,3 +227,37 @@ describe("processTurn — el cliente no define costos", () => {
     },
   );
 });
+
+describe("processTurn — sub-decisiones y presupuestos inválidos", () => {
+  const conEconomia = () => {
+    const base = crearEstadoBase();
+    return crearEstadoBase({
+      ministries: [{ ...base.ministries[0], key: "ECONOMY", subDecisions: { tasaInteres: 4.5 } }, ...base.ministries.slice(1)],
+    });
+  };
+
+  it("aplica una sub-decisión válida y acota la que se sale de rango", () => {
+    const out = processTurn(conEconomia(), { subDecisionChanges: { ECONOMY: { tasaInteres: 99, politicaIndustrial: 70 } } }, createRNG("sd"));
+    const eco = out.newState.ministries.find((m) => m.key === "ECONOMY")!;
+    expect(eco.subDecisions).toEqual({ tasaInteres: 20, politicaIndustrial: 70 });
+    expect(out.notifications.some((n) => n.title === "Sub-decisión rechazada")).toBe(false);
+  });
+
+  it("descarta lo inválido y avisa al jugador", () => {
+    const input = { subDecisionChanges: { ECONOMY: { tasaInteres: "alta", dineroGratis: 1e12, politicaIndustrial: NaN } } } as unknown as TurnInput;
+    const out = processTurn(conEconomia(), input, createRNG("sd"));
+    const eco = out.newState.ministries.find((m) => m.key === "ECONOMY")!;
+    expect(eco.subDecisions).toEqual({ tasaInteres: 4.5 });
+    const avisos = out.notifications.filter((n) => n.title === "Sub-decisión rechazada");
+    expect(avisos).toHaveLength(3);
+    expect(avisos.some((n) => n.description.includes("dineroGratis"))).toBe(true);
+  });
+
+  it.each([NaN, Infinity, "10", null, undefined])("un ajuste de presupuesto %s se rechaza y no corrompe el presupuesto", (valor) => {
+    const out = processTurn(crearEstadoBase(), { budgetAdjustments: { economia: valor } } as unknown as TurnInput, createRNG("bp"));
+    const min = out.newState.ministries.find((m) => m.key === "economia")!;
+    expect(min.budgetPercent).toBe(10);
+    expect(out.notifications.some((n) => n.title === "Ajuste de presupuesto rechazado")).toBe(true);
+    expect(Number.isFinite(out.newState.treasury)).toBe(true);
+  });
+});

@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { numberRange } from "@/lib/engine/sub-decisions";
 
 interface SubDecisionsProps {
   ministryKey: string;
@@ -86,12 +87,14 @@ function NumberInputControl({
   label,
   value,
   min,
+  max,
   step,
   onChange,
 }: {
   label: string;
   value: number;
   min?: number;
+  max?: number;
   step?: number;
   onChange: (v: number) => void;
 }) {
@@ -101,11 +104,13 @@ function NumberInputControl({
       <Input
         type="number"
         min={min}
+        max={max}
         step={step ?? 1}
         value={value}
         onChange={(e) => {
           const parsed = parseFloat(e.target.value);
-          if (!isNaN(parsed)) onChange(parsed);
+          // Lo escrito a mano puede salirse del rango: se acota igual que en el motor
+          if (!isNaN(parsed)) onChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, parsed)));
         }}
       />
     </div>
@@ -227,8 +232,7 @@ function EconomyDecisions({
       <NumberInputControl
         label="Salario mínimo (USD)"
         value={(subDecisions.salarioMinimo as number) ?? 300}
-        min={1}
-        step={10}
+        {...numberRange("ECONOMY", "salarioMinimo")}
         onChange={(v) => onChange("salarioMinimo", v)}
       />
       <SliderControl
@@ -256,8 +260,7 @@ function DefenseDecisions({
       <NumberInputControl
         label="Tropas activas"
         value={(subDecisions.tropasActivas as number) ?? 50000}
-        min={0}
-        step={1000}
+        {...numberRange("DEFENSE", "tropasActivas")}
         onChange={(v) => onChange("tropasActivas", v)}
       />
       <SliderControl
@@ -328,8 +331,7 @@ function JusticeDecisions({
       <NumberInputControl
         label="Jueces y fiscales contratados"
         value={(subDecisions.juecesContratados as number) ?? 500}
-        min={0}
-        step={10}
+        {...numberRange("JUSTICE", "juecesContratados")}
         onChange={(v) => onChange("juecesContratados", v)}
       />
       <SliderControl

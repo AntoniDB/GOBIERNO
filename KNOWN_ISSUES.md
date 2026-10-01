@@ -194,17 +194,48 @@ cualquier recalibración de costos (la holgura fiscal inicial es cero por diseñ
 
 ---
 
-## 9. `subDecisionChanges` se acepta sin validar
+## 9. ~~`subDecisionChanges` se acepta sin validar~~ — RESUELTO
 
-**Descripción:** `processTurn` (PASO 1b) escribe cualquier clave y valor que envíe el cliente en
-`ministry.subDecisions` (`ministry.subDecisions[subKey] = value`). Las demás entradas que mueven
-dinero sí están acotadas (`budgetAdjustments` a 2%–40%, `tradeFlowDecisions` ≥ 0, costos de
-contratación y medios calculados en el motor), pero aquí no hay lista de claves válidas ni rangos.
+**Problema original:** `processTurn` (PASO 1b) escribía cualquier clave y valor del cliente en
+`ministry.subDecisions`, y `budgetAdjustments` con `NaN` dejaba el presupuesto en `NaN` (`Math.max/min`
+propagan `NaN`) y contaminaba el tesoro de esa partida.
 
-**Impacto:** un cliente manipulado podría fijar valores fuera de rango (p. ej. `salarioMinimo`
-enorme) en fórmulas que los leen, o ensuciar el JSON persistido con claves arbitrarias. No se
-auditó qué fórmulas leen cada sub-decisión.
+**Solución:**
+- `engine/sub-decisions.ts` define las sub-decisiones válidas de cada ministerio con su tipo y rango
+  (`SUB_DECISION_SPECS`), tomados de los que ofrece la UI. El motor acepta solo claves conocidas del
+  ministerio con el tipo correcto, **acota** los números al rango y rechaza lo demás (claves
+  inventadas o heredadas como `constructor`/`__proto__`, tipos incorrectos, `NaN`/`Infinity`,
+  ministerios desconocidos). Cada rechazo llega al jugador como aviso "Sub-decisión rechazada".
+- Los tres numéricos que la UI dejaba sin tope (salario mínimo, tropas activas, jueces y fiscales)
+  tienen ahora un techo holgado (10.000 / 2.000.000 / 50.000, muy por encima de los valores
+  iniciales). Es un valor de diseño arbitrario y se cambia en un solo sitio. La UI toma su rango del
+  motor y acota lo que se escribe a mano.
+- `budgetAdjustments` rechaza valores no numéricos o no finitos con aviso (antes un `NaN` pasaba).
+- Un test lee `sub-decisions.tsx` y falla si algún control de la UI no coincide con los specs
+  (tipo, mínimo, máximo, paso) o si falta alguno, para que no se desalineen.
 
-**Propuesta:** definir por ministerio las sub-decisiones válidas con su tipo y rango (los valores
-iniciales ya están en `generateMinistries`) y descartar lo demás con aviso, igual que en el #6.
-Aparte: `budgetAdjustments` con `NaN` no se rechaza (`Math.max/min` propagan `NaN`).
+**Verificación:** 44 tests nuevos (unitarios, de `processTurn` y de consistencia UI/motor, con
+mutación comprobada).
+
+---
+
+## 10. Las sub-decisiones no afectan a la simulación
+
+**Descripción:** al auditar el #9 se comprobó que **ninguna fórmula del motor lee `subDecisions`**:
+solo se escriben en `processTurn` (PASO 1b), se persisten y se muestran en la UI
+(`sub-decisions.tsx`). Mover un slider de "Dureza penal" o "Tasa de interés" no cambia ningún
+indicador. `SPEC.md:270` dice lo contrario: *"Cada cambio en una sub-decisión modifica los
+indicadores correspondientes el siguiente mes"* (y la Sesión 2 pide "sub-decisiones funcionales").
+
+**Impacto:** una parte central del juego es decorativa: el jugador cree decidir políticas
+(vacunación, servicio militar, política antidrogas…) sin ningún efecto. Las únicas decisiones
+reales hoy son presupuesto, leyes, nombramientos, organismos, programas/obras de Salud y comercio.
+
+**Matices:** `vacunacion` y `saludMental` (Salud) se solapan con los programas de Salud-3A, que sí
+funcionan. El SPEC pide además que primaria/secundaria/superior (Educación) sumen 100; hoy son tres
+sliders independientes (0–100 cada uno) sin esa restricción.
+
+**Propuesta:** decidir, ministerio por ministerio, qué indicador mueve cada sub-decisión y con qué
+fórmula (a documentar en `BALANCE.md`, con constantes en `balance.ts` y tests), probablemente
+dentro de las sesiones de profundización de cada ministerio. Con la validación del #9 ya en su sitio,
+los valores que lleguen a esas fórmulas están acotados.

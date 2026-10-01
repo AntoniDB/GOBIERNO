@@ -51,6 +51,7 @@ import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates, candidateHireCost } from "./candidates";
 import { scaleCost, clampOrganismBudget } from "./cost-scale";
+import { applySubDecisionChanges } from "./sub-decisions";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
 import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
 import { processResourceBalance } from "./resource-balance";
@@ -129,6 +130,15 @@ export function processTurn(
     for (const [ministryKey, newPercent] of Object.entries(
       input.budgetAdjustments
     )) {
+      // Math.max/min propagan NaN: un valor no numérico dejaría el presupuesto en NaN
+      if (typeof newPercent !== "number" || !Number.isFinite(newPercent)) {
+        allNotifications.push({
+          type: "warning",
+          title: "Ajuste de presupuesto rechazado",
+          description: `El presupuesto de ${ministryKey} debe ser un número.`,
+        });
+        continue;
+      }
       const clamped = Math.max(
         BALANCE.MIN_BUDGET_PERCENT,
         Math.min(BALANCE.MAX_BUDGET_PERCENT, newPercent)
@@ -142,20 +152,13 @@ export function processTurn(
     }
   }
 
-  // 1b. Cambios de sub-decisiones por ministerio
-  if (input.subDecisionChanges) {
-    for (const [ministryKey, changes] of Object.entries(
-      input.subDecisionChanges
-    )) {
-      const ministry = newState.ministries.find(
-        (m) => m.key === ministryKey
-      );
-      if (ministry) {
-        for (const [subKey, value] of Object.entries(changes)) {
-          ministry.subDecisions[subKey] = value;
-        }
-      }
-    }
+  // 1b. Cambios de sub-decisiones por ministerio (solo claves y rangos válidos)
+  for (const reason of applySubDecisionChanges(newState.ministries, input.subDecisionChanges)) {
+    allNotifications.push({
+      type: "warning",
+      title: "Sub-decisión rechazada",
+      description: `${reason[0].toUpperCase()}${reason.slice(1)}.`,
+    });
   }
 
   // 1c. Decisiones de comercio exterior: targetVolume de cada TradeFlow
