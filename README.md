@@ -28,7 +28,7 @@ npm install
 # 2. Configurar variables de entorno
 cp .env.example .env
 # Editar .env: DATABASE_URL (local con Docker, o un Postgres remoto: ver "PostgreSQL en un VPS")
-# y AUTH_SECRET / NEXTAUTH_SECRET (cualquier string largo, el mismo en ambas)
+# y AUTH_SECRET (cualquier string largo; tambien se acepta el nombre antiguo NEXTAUTH_SECRET)
 
 # 3. Levantar PostgreSQL (opcion A: Docker; si usas un Postgres remoto, omite este paso)
 docker compose up -d

@@ -2,8 +2,11 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { readAuthSecret } from "@/lib/auth-secret";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Mismo secreto que el middleware (AUTH_SECRET o NEXTAUTH_SECRET)
+  secret: readAuthSecret(),
   providers: [
     Credentials({
       name: "Credenciales",

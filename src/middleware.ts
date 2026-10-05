@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { requireAuthSecret } from "@/lib/auth-secret";
 
 const PROTECTED_ROUTES = [
   "/dashboard",
@@ -25,7 +26,7 @@ export default async function middleware(request: NextRequest) {
   if (isProtected) {
     const token = await getToken({
       req: request,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: requireAuthSecret(),
     });
 
     if (!token?.id) {
