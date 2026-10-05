@@ -3,7 +3,7 @@
 // Nombres en espaniol, ideologias realistas, sin dependencia de DB.
 
 import { BALANCE } from "./balance";
-import { scaleLawCost } from "./engine/cost-scale";
+import { scaleLawCost, costScaleFactor } from "./engine/cost-scale";
 import { baseMonthlyIncome } from "./engine/economy";
 
 export interface PresetConfig {
@@ -394,7 +394,37 @@ export interface RegionData {
  * Genera 4-5 regiones segun el preset del pais.
  * La capital siempre esta presente. Las demas varian por preset.
  */
-export function generateRegions(preset: PresetKey): RegionData[] {
+export function generateRegions(
+  preset: PresetKey,
+  population: number = BALANCE.HEALTH_NETWORK_REFERENCE_POPULATION,
+): RegionData[] {
+  return scaleHealthNetwork(regionTemplates(preset), population);
+}
+
+/**
+ * Las camas y establecimientos de las plantillas están escritos para
+ * HEALTH_NETWORK_REFERENCE_POPULATION (10M). Se escalan a la población del país
+ * para que la capacidad hospitalaria crezca con la demanda; con 10M no cambian.
+ */
+export function scaleHealthNetwork(regions: RegionData[], population: number): RegionData[] {
+  const factor = costScaleFactor(population, BALANCE.HEALTH_NETWORK_REFERENCE_POPULATION);
+  const levels = ["primary", "secondary", "tertiary"] as const;
+  return regions.map((r) => ({
+    ...r,
+    healthCoverage: Object.fromEntries(
+      levels.map((level) => {
+        const hc = r.healthCoverage[level];
+        return [level, {
+          facilities: hc.facilities > 0 ? Math.max(1, Math.round(hc.facilities * factor)) : 0,
+          beds: Math.round(hc.beds * factor),
+          operationalCost: Math.round(hc.operationalCost * factor),
+        }];
+      }),
+    ) as RegionData["healthCoverage"],
+  }));
+}
+
+function regionTemplates(preset: PresetKey): RegionData[] {
   const presets: Record<PresetKey, RegionData[]> = {
     estable_democratico: [
       {

@@ -133,7 +133,7 @@ export async function createInitialGame(
   }
 
   // ── Regiones ──────────────────────────────────────────────────────────
-  const regionData = generateRegions(params.preset);
+  const regionData = generateRegions(params.preset, cfg.population);
   for (const r of regionData) {
     await prismaClient.region.create({
       data: {

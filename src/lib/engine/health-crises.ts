@@ -10,6 +10,7 @@ import type { DiseaseState } from "./diseases";
 import { calculateNationalSaturationMortality } from "./indicators";
 import { isMedicationShortage, calculateImportCoverage } from "./trade";
 import { BALANCE } from "../balance";
+import { regionBeds, regionSaturation } from "./hospital-capacity";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -158,16 +159,9 @@ export function detectHospitalCollapse(
   const saturationHistory = state.consecutiveSaturationMonths ?? {};
 
   for (const region of state.regions) {
-    const beds = (region.healthCoverage?.primary?.beds ?? 0) +
-      (region.healthCoverage?.secondary?.beds ?? 0) +
-      (region.healthCoverage?.tertiary?.beds ?? 0);
+    if (regionBeds(region) <= 0) continue;
 
-    if (beds <= 0) continue;
-
-    const regionalPop = state.population * (region.populationPercent / 100);
-    const sickPop = regionalPop * (sickRate / 100);
-    const sickNeedingBeds = sickPop * 0.08; // 8% necesitan hospitalizacion
-    const saturationRatio = sickNeedingBeds / beds;
+    const saturationRatio = regionSaturation(state.population, sickRate, region);
 
     // Trackear consecutivos
     const prevMonths = saturationHistory[region.id] ?? 0;

@@ -10,7 +10,7 @@
 
 import type { GameState, LongRunningDecisionState, TurnInput } from "./types";
 import { BALANCE } from "../balance";
-import { scaleCost } from "./cost-scale";
+import { scaleCost, costScaleFactor } from "./cost-scale";
 
 /**
  * Avanza todas las LRD activas un mes:
@@ -201,7 +201,9 @@ export function applyDecisionEffects(
         const region = state.regions.find((r) => r.id === regionId);
         if (!region) continue;
         const hc = region.healthCoverage?.[level] ?? { facilities: 0, beds: 0, operationalCost: 0 };
-        hc.beds = (hc.beds ?? 0) + (BALANCE.HOSPITAL_BEDS_ADDED[level] ?? 0);
+        // Camas del hospital escaladas a la población, como la red sembrada y su costo
+        const bedFactor = costScaleFactor(state.population, BALANCE.HEALTH_NETWORK_REFERENCE_POPULATION);
+        hc.beds = (hc.beds ?? 0) + Math.round((BALANCE.HOSPITAL_BEDS_ADDED[level] ?? 0) * bedFactor);
         hc.facilities = (hc.facilities ?? 0) + (BALANCE.HOSPITAL_FACILITIES_ADDED[level] ?? 0);
         // operationalCost se mantiene (el LRD ya pago la construccion)
         if (!region.healthCoverage) region.healthCoverage = {} as GameState["regions"][0]["healthCoverage"];

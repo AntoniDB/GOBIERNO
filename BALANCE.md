@@ -265,6 +265,23 @@ Presupuesto de organismos creables: `ORGANISM_BUDGET_MIN/MAX` (50M–500M a la p
 referencia de leyes, escalado por población). El motor acota el valor pedido por el cliente
 (`clampOrganismBudget`); un presupuesto negativo sumaría dinero cada mes.
 
+## Capacidad hospitalaria y colapso (Issue 5)
+
+Demanda de camas de una región (`engine/hospital-capacity.ts`):
+
+```
+demanda = población × %región × sickRate% × HOSPITALIZATION_SHARE
+saturación = demanda / camas        (colapso si > COLLAPSE_SATURATION_THRESHOLD 3 meses seguidos)
+```
+
+- `HOSPITALIZATION_SHARE` (0,0005): las camas del juego son una unidad abstracta (~160× menos que las
+  reales), así que esta fracción también lo es. Calibrada con `sickRate ≈ 41 %`: red inicial estable
+  0,3–1,2; pobre/crisis 1,4–3,2 en regiones rurales; post-conflicto hasta 10. Subirla vuelve más
+  frágil el sistema; bajarla lo relaja.
+- La red sembrada (camas, establecimientos, costo operativo) se escala con la población, referencia
+  `HEALTH_NETWORK_REFERENCE_POPULATION` (10M). Un hospital construido añade camas con el mismo escalado.
+- El detector de colapso y la mortalidad por saturación (`min(2, (ratio−1)/3)`) usan las mismas funciones.
+
 ## Sub-decisiones de ministerio (Issue 10)
 
 SPEC 4.1: *"cada cambio en una sub-decisión modifica los indicadores correspondientes"*. Antes

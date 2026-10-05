@@ -467,8 +467,29 @@ export const BALANCE = {
 
   // ─── Salud regional ─────────────────────────────────────────────────────
   // Cobertura: coverage_i = min(1.0, (beds / (population * sickRate * 0.01)) * (1 - accessModifier))
-  // Saturación: cuando sickPopulation > totalBeds, mortalidad se multiplica hasta x3.0
-  // mortalityMultiplier = 1 + min(2.0, saturationRatio / 3)
+  // Demanda de camas = población región × sickRate × HOSPITALIZATION_SHARE (engine/hospital-capacity.ts)
+  // Saturación: cuando la demanda supera las camas, mortalidad se multiplica hasta x3.0
+  // mortalityMultiplier = 1 + min(2.0, (demanda − camas) / camas / 3)
+
+  /**
+   * Población para la que se escribieron las camas de generateRegions (3.800 para
+   * "estable_democratico", 1.020 para "post_conflicto"). Al crear una partida las
+   * camas se multiplican por población / esta referencia, y las que añade cada
+   * hospital construido también, para que la red crezca con el país.
+   */
+  HEALTH_NETWORK_REFERENCE_POPULATION: 10_000_000,
+
+  /**
+   * Fracción de los enfermos que ocupa una cama a la vez (demanda de camas =
+   * población de la región × sickRate × esta fracción). Las camas del juego son una
+   * unidad abstracta, ~160 veces menor que la realidad, así que NO es el ~8%
+   * hospitalario real (con el 8% la saturación era de 50× a 1.600× el umbral incluso
+   * a 10M y el colapso hospitalario se disparaba siempre). Se calibró para que con
+   * sickRate ≈ 41% (modelo de enfermedades) la saturación de cada región del
+   * preset sea: estable_democratico 0,3-1,2 (sin colapso al empezar), pobre/crisis
+   * 1,4-3,2 en las regiones rurales y post_conflicto hasta 10 en las más pobres.
+   */
+  HOSPITALIZATION_SHARE: 0.0005,
 
   /** Base de cobertura por instalacion: cuantas personas cubre 1 bed */
   HEALTH_BED_COVERAGE_PER_PERSON: 0.002,
@@ -637,7 +658,7 @@ export const BALANCE = {
   OUTBREAK_DURATION_MAX: 4,                    // meses maximos de duracion
 
   // Crisis 2: Colapso hospitalario (HOSPITAL_COLLAPSE)
-  COLLAPSE_SATURATION_THRESHOLD: 1.5,          // sickNeedingBeds > 1.5x totalBeds
+  COLLAPSE_SATURATION_THRESHOLD: 1.5,          // demanda de camas > 1.5x camas de la región
   COLLAPSE_CONSECUTIVE_MONTHS: 3,              // meses consecutivos necesarios
   COLLAPSE_MORTALITY_FACTOR: 0.01,             // multiplicador de mortalidad por punto de severidad
 

@@ -15,6 +15,7 @@ import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDis
 import { calculateHospitalOperationalFactor } from "./medical-professionals";
 import { isMedicationShortage } from "./trade";
 import { subDecisionIndicator } from "./sub-decision-effects";
+import { regionBeds, regionBedDemand } from "./hospital-capacity";
 import type { DiseaseState } from "./diseases";
 
 /**
@@ -489,16 +490,8 @@ export function calculateNationalSaturationMortality(state: GameState): number {
   for (const region of regions) {
     const weight = region.populationPercent / 100;
 
-    const regionalPopulation = state.population * weight;
-    const sickPopulation = Math.round(regionalPopulation * (sickRate / 100));
-    // Solo ~8% de los enfermos necesitan hospitalizacion (camas)
-    const sickNeedingBeds = Math.round(sickPopulation * 0.08);
-
-    let totalBeds = 0;
-    const levels: Array<"primary" | "secondary" | "tertiary"> = ["primary", "secondary", "tertiary"];
-    for (const level of levels) {
-      totalBeds += region.healthCoverage?.[level]?.beds ?? 0;
-    }
+    const totalBeds = regionBeds(region);
+    const sickNeedingBeds = regionBedDemand(state.population, sickRate, region);
 
     if (totalBeds > 0 && sickNeedingBeds > totalBeds) {
       const saturationRatio = (sickNeedingBeds - totalBeds) / totalBeds;

@@ -92,23 +92,39 @@ tamaño del país) y la capacidad hospitalaria (ver #5).
 
 ---
 
-## 5. Colapso hospitalario saturado siempre (calibración)
+## 5. ~~Colapso hospitalario saturado siempre (calibración)~~ — RESUELTO
 
-**Descripción:** `detectHospitalCollapse` (`health-crises.ts`) calcula
-`sickNeedingBeds = población_región × sickRate% × 8%` y lo compara con las camas
-de la región (`healthCoverage.*.beds`). Con `sickRate ≈ 40%` (incluye crónicas y
-salud mental) la razón de saturación es de 50× a 1.600× el umbral
-(`COLLAPSE_SATURATION_THRESHOLD` = 1,5) **incluso a 10M**, y la severidad queda
-capada en 100. Con la población de los presets es 2,5×–8× mayor, pero como ya
-estaba capada no cambia el resultado.
+**Problema original:** `detectHospitalCollapse` comparaba `población_región × sickRate% × 8%` con las camas
+de la región. Con `sickRate ≈ 40%` (incluye crónicas y salud mental) la saturación era de 50× a 1.600×
+el umbral (`COLLAPSE_SATURATION_THRESHOLD` = 1,5), capada en severidad 100, y las camas de los presets
+no escalaban con la población. El evento `HOSPITAL_COLLAPSE` se disparaba sin parar en cualquier partida
+(medido antes del cambio: 5–6 colapsos en 8 meses en los 4 presets) con su penalización de aprobación y
+de mortalidad, sin responder a las decisiones del jugador.
 
-**Impacto:** el evento `HOSPITAL_COLLAPSE` se dispara de forma sostenida (una región
-cada 3 meses, siempre severidad máxima) en cualquier partida, con su penalización
-de aprobación y de mortalidad. No responde a las decisiones del jugador.
+**Solución:**
+- `engine/hospital-capacity.ts` (nuevo) centraliza `regionBeds`, `regionBedDemand` y `regionSaturation`.
+  El detector de colapso y la mortalidad por saturación (`calculateNationalSaturationMortality`) usan las
+  mismas funciones, de modo que ya no pueden desalinearse.
+- Demanda = población de la región × `sickRate%` × `BALANCE.HOSPITALIZATION_SHARE` (0,0005). Las camas
+  están en "unidades de juego" (~160× menos que las reales), así que la fracción hospitalizada es una
+  unidad abstracta calibrada con `sickRate ≈ 41%`: red inicial estable 0,3–1,2; pobre/crisis 1,4–3,2 en
+  regiones rurales; post-conflicto hasta 10.
+- Las camas, establecimientos y costo operativo de cada preset se escalan con la población
+  (`scaleHealthNetwork`, referencia 10M `HEALTH_NETWORK_REFERENCE_POPULATION`), igual que los demás
+  costos (#4). Construir un hospital añade camas escaladas por la misma razón.
 
-**Propuesta:** dimensionar la demanda de camas sobre la población que realmente
-requiere hospitalización (no `sickRate` agregado) y/o escalar las camas de cada
-preset con su población. Es parte de la recalibración del sistema de salud.
+**Verificación (Postgres real, 4 presets × 8 turnos):** colapsos 0/1/0/3 (estable/pobre/crisis/
+post-conflicto) frente a 6/6/6/5 antes. 24 tests nuevos o reescritos (módulo, escalado, calibración por
+preset, colapso estable = 0 en 12 meses y post-conflicto sí colapsa, construir hospitales alivia).
+
+**Limitaciones:**
+- Las partidas ya creadas conservan sus camas sembradas sin escalar (no hay backfill), por lo que
+  seguirán más saturadas que las nuevas.
+- `HOSPITALIZATION_SHARE` es una calibración de diseño, no un dato real.
+- **Hallazgo preexistente (no causado por este cambio, verificado en el código anterior):** la
+  prevalencia sembrada de enfermedades parte en 0, así que `sickRate` arranca en ~4 % y sube ~3 pts/mes
+  hasta ~26 % al mes 8, y la esperanza de vida cae ~1 año por mes (estable: 77,0 → 70,7 a; antes del
+  cambio 76,1 → 69,8). Es un problema de calibración de epidemiología aparte y no se ha abordado.
 
 ---
 

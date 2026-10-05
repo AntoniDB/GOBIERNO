@@ -167,54 +167,54 @@ describe("calculateNationalSaturationMortality", () => {
     expect(mort).toBe(0);
   });
 
-  it("region con 350 camas sufre saturacion a sickRate 5%", () => {
-    const state = crearEstadoBase({
-      sickRate: 5,
-      regions: [
-        crearRegion({
-          populationPercent: 25,
-          healthCoverage: {
-            primary: { facilities: 5, beds: 200, operationalCost: 500000 },
-            secondary: { facilities: 2, beds: 100, operationalCost: 300000 },
-            tertiary: { facilities: 1, beds: 50, operationalCost: 700000 },
-          },
-        }),
-      ],
+  const region = (populationPercent: number, beds: number, id = "r") =>
+    crearRegion({
+      id, name: id, populationPercent,
+      healthCoverage: {
+        primary: { facilities: 1, beds, operationalCost: 0 },
+        secondary: { facilities: 0, beds: 0, operationalCost: 0 },
+        tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
+      },
     });
-    const mort = calculateNationalSaturationMortality(state);
-    // 25% pop=2.5M, sick=125K, sickNeedingBeds(8%)=10K, beds=350
-    // sat=(10000-350)/350=27.6, limited=2, mult=3, mort=2*0.25=0.5
-    expect(mort).toBeGreaterThan(0.4);
-    expect(mort).toBeLessThan(0.6);
+
+  it("una red con camas de sobra no genera mortalidad por saturación", () => {
+    // pob. 10M, 25% = 2.5M, sick 5% → demanda = 2.5M × 0.05 × HOSPITALIZATION_SHARE = 62.5 camas; hay 350
+    const state = crearEstadoBase({ sickRate: 5, regions: [region(25, 350)] });
+    expect(calculateNationalSaturationMortality(state)).toBe(0);
   });
 
-  it("multiples regiones con saturacion acumulada", () => {
+  it("una región con demanda > camas sufre mortalidad, ponderada por su población", () => {
+    // demanda = 2.5M × 0.05 × 0.0005 = 62.5; camas = 10 → saturación (62.5−10)/10 = 5.25
+    // multiplicador extra = min(2, 5.25/3) = 1.75, ponderado por 25% de la población
+    const state = crearEstadoBase({ sickRate: 5, regions: [region(25, 10)] });
+    const demanda = 2_500_000 * 0.05 * BALANCE.HOSPITALIZATION_SHARE;
+    const esperado = Math.min(2, (demanda - 10) / 10 / 3) * 0.25;
+    expect(calculateNationalSaturationMortality(state)).toBeCloseTo(esperado, 8);
+    expect(esperado).toBeCloseTo(0.4375, 8);
+  });
+
+  it("la mortalidad crece de forma gradual con la saturación (no salta al tope)", () => {
+    const mort = (beds: number) => calculateNationalSaturationMortality(crearEstadoBase({ sickRate: 40, regions: [region(100, beds)] }));
+    // demanda = 10M × 0.4 × 0.0005 = 2000 camas
+    expect(mort(2000)).toBe(0);               // justo suficiente
+    expect(mort(1500)).toBeGreaterThan(0);
+    expect(mort(1500)).toBeLessThan(mort(1000));
+    expect(mort(1000)).toBeLessThan(mort(100));
+    expect(mort(1)).toBe(2);                  // tope (cap del multiplicador)
+  });
+
+  it("múltiples regiones: se suman ponderadas y las que tienen camas de sobra no aportan", () => {
+    // sick 10%: r-sat 40% → demanda 4M×0.1×0.0005 = 200 vs 50 camas → min(2, 150/50/3) = 1 → ×0.4
+    //           r-med 60% → demanda 6M×0.1×0.0005 = 300 vs 8000 camas → 0
     const state = crearEstadoBase({
       sickRate: 10,
-      regions: [
-        crearRegion({
-          id: "r-sat", name: "Saturada", populationPercent: 40,
-          healthCoverage: {
-            primary: { facilities: 1, beds: 50, operationalCost: 50000 },
-            secondary: { facilities: 0, beds: 0, operationalCost: 0 },
-            tertiary: { facilities: 0, beds: 0, operationalCost: 0 },
-          },
-        }),
-        crearRegion({
-          id: "r-med", name: "Media", populationPercent: 60,
-          healthCoverage: {
-            primary: { facilities: 50, beds: 5000, operationalCost: 5000000 },
-            secondary: { facilities: 20, beds: 2000, operationalCost: 3000000 },
-            tertiary: { facilities: 10, beds: 1000, operationalCost: 7000000 },
-          },
-        }),
-      ],
+      regions: [region(40, 50, "r-sat"), region(60, 8000, "r-med")],
     });
-    const mort = calculateNationalSaturationMortality(state);
-    // r-sat: 40% pop=4M, sick=400K, sickNeed=32K, beds=50 → sat extreme → mult=3, mort=2*0.4=0.8
-    // r-med: 60% pop=6M, sick=600K, sickNeed=48K, beds=8000 → sat, mult=3, mort=2*0.6=1.2
-    // total = 2.0
-    expect(mort).toBeGreaterThan(1.5);
-    expect(mort).toBeLessThan(3.0);
+    expect(calculateNationalSaturationMortality(state)).toBeCloseTo(1 * 0.4, 8);
+  });
+
+  it("una región sin camas no se cuenta (evita dividir por cero)", () => {
+    const state = crearEstadoBase({ sickRate: 40, regions: [region(100, 0)] });
+    expect(calculateNationalSaturationMortality(state)).toBe(0);
   });
 });
