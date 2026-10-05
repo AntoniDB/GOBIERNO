@@ -389,7 +389,7 @@ calcula el golpe con un riesgo ponderado. Por decisión del diseñador se actual
 
 ---
 
-## 14. Deriva lenta de la esperanza de vida: causa identificada (sin cambios de código)
+## 14. Deriva lenta de la esperanza de vida — causa identificada, se deja como diseño
 
 **Qué se midió** (Postgres real, 4 presets × 36 turnos sin intervención del jugador): la esperanza de vida baja
 ≈0,1–0,4 años por año (p. ej. estable 72,5 → 71,9, pobre 70,8 → 69,9 en 36 meses).
@@ -405,8 +405,9 @@ calcula el golpe con un riesgo ponderado. Por decisión del diseñador se actual
 
 **Es dinámica coherente con el SPEC §4.4** (la corrupción crece sin vigilancia y se combate con organismos, leyes y
 casos judiciales), no un artefacto numérico. Lo frágil es que el signo dependa de un umbral (`autonomía > 70` con
-autonomía sembrada 70, efectividad 40 vs 50 que daría neto 0). Pendiente de decisión de diseño: dejarlo (el gobierno que no
-hace nada se degrada despacio) o calibrar la siembra de la Contraloría.
+autonomía sembrada 70, efectividad 40 vs 50 que daría neto 0). **Decisión del diseñador: dejarlo como está** (el gobierno que no
+hace nada se degrada despacio; se combate con organismos, leyes y casos judiciales). Alternativas descartadas por ahora: subir la
+efectividad sembrada de la Contraloría a ~50 (neto 0) o hacer gradual el bono de autonomía.
 
 **Otros hallazgos del mismo barrido (no investigados a fondo, sin cambios):**
 - Un desastre cuesta `severidad × población × 2` USD: en el preset estable (tesoro 8 B) uno de severidad 52 se llevó 5,2 B; en
