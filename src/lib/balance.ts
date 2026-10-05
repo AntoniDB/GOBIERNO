@@ -802,3 +802,42 @@ export const SUB_DECISION_EFFECTS: Record<string, Record<string, SubDecisionEffe
     prioridadMujeres: { neutral: 25, group: "prioridades", indicators: { unemploymentRate: -0.01, gini: -0.015 }, approval: { MIDDLE: 0.015 } },
   },
 };
+
+// ─── Solapes de sub-decisiones con programas y leyes (Issue 12) ───────────────
+// Algunas sub-decisiones del SPEC (4.1) modelan lo mismo que un programa de Salud-3A
+// o una ley del catálogo. Sumar ambos contaba el efecto dos veces. Regla de diseño:
+// "lo específico reemplaza a lo genérico": mientras el programa/ley equivalente esté
+// activo, la sub-decisión deja de aplicar los canales indicados en `suppress`
+// (`indicators`, `approval`, `cost`); el resto de sus canales sigue vigente.
+// Es una PROPUESTA de balance: se ajusta aquí y en BALANCE.md.
+
+export type SubDecisionChannel = "indicators" | "approval" | "cost";
+
+export interface SubDecisionOverlap {
+  /** Tipo de programa de Salud (MinistryProgramState.type) que lo reemplaza mientras esté ACTIVE */
+  program?: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM";
+  /** Clave (ActiveLawState.lawKey) de la ley que lo reemplaza mientras esté vigente */
+  law?: string;
+  /** Canales de la sub-decisión que se anulan mientras el reemplazo esté activo */
+  suppress: readonly SubDecisionChannel[];
+  /** Aviso para el jugador (UI) mientras el reemplazo está activo */
+  notice: string;
+}
+
+export const SUB_DECISION_OVERLAPS: Record<string, Record<string, SubDecisionOverlap>> = {
+  HEALTH: {
+    // Una campaña activa es la versión concreta (por enfermedad, con costo propio) de la vacunación general
+    vacunacion: { program: "VACCINATION_CAMPAIGN", suppress: ["indicators", "approval", "cost"], notice: "Campañas de vacunación: sin efecto propio mientras haya una campaña de vacunación activa." },
+    // El programa de salud mental ya baja la prevalencia, da su propio bonus de aprobación y cuesta más
+    saludMental: { program: "MENTAL_HEALTH_PROGRAM", suppress: ["indicators", "approval", "cost"], notice: "Enfoque en salud mental: sin efecto propio mientras haya un programa de salud mental activo." },
+  },
+  EDUCATION: {
+    // La ley de becas universales cubre (y amplía) las becas estudiantiles generales
+    becas: { law: "becas-merito", suppress: ["indicators", "approval", "cost"], notice: "Becas estudiantiles: sin efecto propio mientras esté vigente la ley de Becas Universales por Mérito." },
+  },
+  DEFENSE: {
+    // La ley ya carga el costo de aprobación del servicio obligatorio; el empleo y el crimen
+    // (que la ley no modela) y el costo de cuarteles siguen viniendo de la sub-decisión
+    servicioMilitar: { law: "servicio-militar-obligatorio", suppress: ["approval"], notice: "Servicio militar obligatorio: su efecto en la aprobación ya lo aplica la ley vigente (el empleo, el crimen y el costo siguen)." },
+  },
+};

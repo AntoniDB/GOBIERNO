@@ -282,9 +282,9 @@ indicador principal ~1–3 puntos) y se ajustan en un solo sitio; `SUBDECISION_E
 atenúa o desactiva todos a la vez. Conviene que el diseñador los revise.
 
 **No cubierto:**
-- Solapes con otros sistemas, sin deduplicar: `vacunacion`/`saludMental` con los programas de
-  Salud-3A, `servicioMilitar` con la ley `servicio-militar-obligatorio` y `becas` con `becas-merito`.
-  Los efectos se suman.
+- ~~Solapes con otros sistemas (`vacunacion`/`saludMental` con los programas de Salud-3A, `servicioMilitar`
+  con la ley `servicio-militar-obligatorio` y `becas` con `becas-merito`): los efectos se sumaban.~~
+  Resuelto en #12.
 - No hay efecto sobre las métricas de régimen (`regime.ts`) ni sobre eventos o fin de partida;
   Defensa solo toca empleo, crimen, aprobación y costo.
 - Las decisiones aplican el mismo mes (los indicadores se recalculan de cero cada turno); no hay
@@ -332,3 +332,40 @@ por la rampa). Tests nuevos con mutación comprobada (siembra en 0, objetivo sin
   en notarse en el sickRate (diseño existente, no cambiado).
 - La esperanza de vida sigue bajando levemente con el tiempo (≈0,1–0,4 años en 12 meses) por otros indicadores (pobreza,
   crimen), no por epidemiología.
+
+---
+
+## 12. ~~Sub-decisiones que solapan con programas y leyes~~ — RESUELTO (propuesta de balance)
+
+**Problema original** (anotado en el #10): cuatro sub-decisiones del SPEC modelan lo mismo que un programa de
+Salud-3A o una ley, y sus efectos se sumaban: con un programa de salud mental activo el interruptor
+`saludMental` volvía a restar enfermos, sumar aprobación y cobrar costo; con la ley de Servicio Militar
+Obligatorio el interruptor repetía su golpe de aprobación; lo mismo con `vacunacion` y `becas`.
+
+**Solución:** regla "lo específico reemplaza a lo genérico". `SUB_DECISION_OVERLAPS` (`balance.ts`) declara, para cada
+par, qué programa o ley lo reemplaza y qué canales se anulan mientras esté activo (`engine/sub-decision-effects.ts`):
+
+| Sub-decisión | Reemplazo | Se anula |
+|---|---|---|
+| Salud · `saludMental` | programa `MENTAL_HEALTH_PROGRAM` activo | indicadores, aprobación y costo |
+| Salud · `vacunacion` | programa `VACCINATION_CAMPAIGN` activo (cualquiera) | indicadores, aprobación y costo |
+| Educación · `becas` | ley `becas-merito` vigente | indicadores, aprobación y costo |
+| Defensa · `servicioMilitar` | ley `servicio-militar-obligatorio` vigente | solo la aprobación |
+
+El servicio militar anula solo la aprobación porque la ley no modela empleo ni crimen (`defenseEfficiency` no lo lee
+ningún cálculo) y su costo es otro (la ley es un pago único, el interruptor son cuarteles mensuales). `subDecisionDeltas`
+recibe ahora el contexto (programas y leyes del estado) en los tres enganches (indicadores, gasto/PIB y aprobación) y la
+UI avisa bajo los sliders cuando una sub-decisión no suma efecto propio por este motivo. Un programa CANCELLED o una ley
+no vigente no anulan nada, y con el valor sembrado no hay efecto que anular.
+
+**Es una propuesta de diseño**, no del SPEC. Se ajusta en una sola tabla. Conviene que el diseñador la revise, sobre todo
+que una campaña de una sola enfermedad anule también el castigo de apagar la vacunación general.
+
+**Verificación:** 21 tests nuevos (integridad de la tabla contra el catálogo de leyes y la tabla de efectos, lógica,
+enganches en `calculateHealthRegional`/`calculateEducation`/`calculateExpenses`/`calculateApprovalByClass`) con mutación
+comprobada (quitar el contexto de aprobación o de gasto, o ignorar `suppress`). **No lo he probado en navegador:** el
+aviso de la UI es JSX trivial y solo se comprobó con `tsc` y `next build`.
+
+**No cubierto:** no hay solape declarado entre `PREVENTION_EDUCATION` y `vacunacion` (la prevención también baja
+transmisibles), ni entre otras sub-decisiones y leyes de efecto parecido (p. ej. `salario mínimo`); se deja a juicio del diseñador.
+

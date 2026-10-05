@@ -187,9 +187,8 @@ Para ajustar:
 ### Sub-decisiones legacy
 
 Las sub-decisiones booleanas `vacunacion` y `saludMental` del seed se mantienen
-por compatibilidad con partidas existentes, pero los programas reales reemplazan
-su rol. En el futuro deben deprecarse o migrarse a programas reales generados
-en el seed.
+(el SPEC las pide). Mientras un programa equivalente esté activo, **dejan de aplicar su efecto**
+para no contarlo dos veces (ver "Solapes" en Sub-decisiones de ministerio, Issue 12).
 
 ### Tipos 4 y 5 (construccion e investigacion) — LRD
 
@@ -368,6 +367,21 @@ costo     = Σ (coeficiente × unidades), escalado por población (COST_REFERENC
 Unidades: "por unidad" es por punto del slider (o por USD / soldado / juez en las que no son 0–100);
 las booleanas aplican el coeficiente completo al cambiar de valor. `inflación` y `reducción corrupción`
 son pequeñas porque esas escalas del motor lo son (inflación ≈ 0,2–0,5; corrupción ±1–3 pts/mes).
+
+### Solapes con programas y leyes (Issue 12)
+
+Cuatro sub-decisiones modelan lo mismo que un programa de Salud-3A o una ley. Mientras el reemplazo esté
+activo, la sub-decisión no aplica los canales indicados (`SUB_DECISION_OVERLAPS` en `balance.ts`):
+
+| Sub-decisión | Reemplazo activo | Canales anulados |
+|---|---|---|
+| `saludMental` | programa `MENTAL_HEALTH_PROGRAM` | indicadores, aprobación, costo |
+| `vacunacion` | cualquier programa `VACCINATION_CAMPAIGN` | indicadores, aprobación, costo |
+| `becas` | ley `becas-merito` | indicadores, aprobación, costo |
+| `servicioMilitar` | ley `servicio-militar-obligatorio` | solo aprobación (la ley no modela empleo/crimen ni el costo mensual) |
+
+Un programa cancelado o una ley no vigente no anulan nada. La UI muestra un aviso bajo los sliders. Es una propuesta
+de balance: para cambiar un caso se edita su fila de la tabla.
 
 ## Presupuesto inicial y equilibrio fiscal (Issue 8)
 

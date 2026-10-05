@@ -6,12 +6,14 @@
 //   numérica: efecto = coeficiente × (clamp(valor, range) − neutral)
 //   booleana: efecto = coeficiente si valor ≠ neutral, 0 si no
 //   grupo:    valor = valor_i / Σ valores del grupo × 100   (suma 100, como pide el SPEC)
+//   solape:   si hay un programa/ley equivalente activo (SUB_DECISION_OVERLAPS), la
+//             sub-decisión no aplica los canales indicados (evita contar dos veces)
 // Justificación: con el valor inicial el efecto es 0, así que una partida nueva no
 // cambia; el efecto es lineal y acotado al `range`, así que un valor extremo (o uno
 // manipulado) no puede disparar un indicador.
 
-import { BALANCE, SUB_DECISION_EFFECTS } from "../balance";
-import type { SubDecisionTarget, SubDecisionClass, SubDecisionEffect } from "../balance";
+import { BALANCE, SUB_DECISION_EFFECTS, SUB_DECISION_OVERLAPS } from "../balance";
+import type { SubDecisionTarget, SubDecisionClass, SubDecisionEffect, SubDecisionOverlap } from "../balance";
 import { scaleCost } from "./cost-scale";
 
 export type SubDecisionDeltas = {
@@ -22,6 +24,32 @@ export type SubDecisionDeltas = {
 };
 
 type MinistryLike = { key: string; subDecisions: Record<string, number | boolean> };
+
+/** Programas y leyes vigentes: lo único que hace falta para detectar solapes. */
+export type SubDecisionContext = {
+  programs?: readonly { type: string; status: string }[];
+  activeLaws?: readonly { lawKey: string }[];
+};
+
+/** Solape vigente de una sub-decisión (el reemplazo está activo), o undefined. */
+export function activeOverlap(
+  ministryKey: string,
+  subKey: string,
+  context: SubDecisionContext | undefined,
+): SubDecisionOverlap | undefined {
+  if (!context || !has(SUB_DECISION_OVERLAPS, ministryKey) || !has(SUB_DECISION_OVERLAPS[ministryKey], subKey)) return undefined;
+  const overlap = SUB_DECISION_OVERLAPS[ministryKey][subKey];
+  const programActive = overlap.program !== undefined &&
+    (context.programs ?? []).some((p) => p.status === "ACTIVE" && p.type === overlap.program);
+  const lawActive = overlap.law !== undefined &&
+    (context.activeLaws ?? []).some((l) => l.lawKey === overlap.law);
+  return programActive || lawActive ? overlap : undefined;
+}
+
+/** Contexto de solapes a partir del estado del juego. */
+export function subDecisionContext(state: SubDecisionContext): SubDecisionContext {
+  return { programs: state.programs, activeLaws: state.activeLaws };
+}
 
 const TARGETS: SubDecisionTarget[] = [
   "povertyRate", "unemploymentRate", "sickRate", "foodSecurity", "crimeRate",
@@ -49,8 +77,13 @@ function storedValue(ministry: MinistryLike, key: string, spec: SubDecisionEffec
 /**
  * Efecto total de las sub-decisiones de los ministerios dados.
  * @param population - para escalar el costo mensual (COST_REFERENCE_POPULATION)
+ * @param context - programas y leyes vigentes, para anular los canales que solapan
  */
-export function subDecisionDeltas(ministries: readonly MinistryLike[], population: number): SubDecisionDeltas {
+export function subDecisionDeltas(
+  ministries: readonly MinistryLike[],
+  population: number,
+  context?: SubDecisionContext,
+): SubDecisionDeltas {
   const deltas = emptyDeltas();
   let rawCost = 0;
 
@@ -78,13 +111,18 @@ export function subDecisionDeltas(ministries: readonly MinistryLike[], populatio
       }
       if (units === 0) continue;
 
-      for (const [target, coef] of Object.entries(spec.indicators ?? {})) {
-        deltas.indicators[target as SubDecisionTarget] += coef * units * BALANCE.SUBDECISION_EFFECT_SCALE;
+      const suppressed = activeOverlap(ministry.key, key, context)?.suppress ?? [];
+      if (!suppressed.includes("indicators")) {
+        for (const [target, coef] of Object.entries(spec.indicators ?? {})) {
+          deltas.indicators[target as SubDecisionTarget] += coef * units * BALANCE.SUBDECISION_EFFECT_SCALE;
+        }
       }
-      for (const [cls, coef] of Object.entries(spec.approval ?? {})) {
-        deltas.approval[cls as SubDecisionClass] += coef * units * BALANCE.SUBDECISION_EFFECT_SCALE;
+      if (!suppressed.includes("approval")) {
+        for (const [cls, coef] of Object.entries(spec.approval ?? {})) {
+          deltas.approval[cls as SubDecisionClass] += coef * units * BALANCE.SUBDECISION_EFFECT_SCALE;
+        }
       }
-      rawCost += (spec.cost ?? 0) * units;
+      if (!suppressed.includes("cost")) rawCost += (spec.cost ?? 0) * units;
     }
   }
 
@@ -94,10 +132,28 @@ export function subDecisionDeltas(ministries: readonly MinistryLike[], populatio
 
 /** Atajo para las fórmulas de indicadores: efecto de las sub-decisiones del estado sobre un indicador. */
 export function subDecisionIndicator(
-  state: { ministries: readonly MinistryLike[]; population: number },
+  state: { ministries: readonly MinistryLike[]; population: number } & SubDecisionContext,
   target: SubDecisionTarget,
 ): number {
-  return subDecisionDeltas(state.ministries, state.population).indicators[target];
+  return subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).indicators[target];
+}
+
+/**
+ * Sub-decisiones de un ministerio cuyo efecto está anulado ahora por un solape,
+ * con su aviso, para informar al jugador en la UI. Solo las que se apartan de su
+ * valor sembrado (las que no tienen efecto no se anulan de nada).
+ */
+export function suppressedSubDecisions(
+  ministry: MinistryLike,
+  context: SubDecisionContext | undefined,
+): Array<{ key: string; notice: string }> {
+  if (!has(SUB_DECISION_EFFECTS, ministry.key)) return [];
+  const out: Array<{ key: string; notice: string }> = [];
+  for (const [key, spec] of Object.entries(SUB_DECISION_EFFECTS[ministry.key])) {
+    const overlap = activeOverlap(ministry.key, key, context);
+    if (overlap && storedValue(ministry, key, spec) !== spec.neutral) out.push({ key, notice: overlap.notice });
+  }
+  return out;
 }
 
 // ─── Resumen para la UI ───────────────────────────────────────────────────────

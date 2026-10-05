@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { numberRange } from "@/lib/engine/sub-decisions";
-import { subDecisionDeltas, describeSubDecisionEffects } from "@/lib/engine/sub-decision-effects";
+import { subDecisionDeltas, describeSubDecisionEffects, suppressedSubDecisions } from "@/lib/engine/sub-decision-effects";
 
 interface SubDecisionsProps {
   ministryKey: string;
@@ -450,12 +450,20 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
 
   // Efecto de la configuración actual de este ministerio respecto del punto de partida
   const population = useGameStore((s) => s.gameState?.population);
+  const programs = useGameStore((s) => s.gameState?.programs);
+  const activeLaws = useGameStore((s) => s.gameState?.activeLaws);
+  const context = useMemo(() => ({ programs, activeLaws }), [programs, activeLaws]);
   const effects = useMemo(
     () =>
       population
-        ? describeSubDecisionEffects(subDecisionDeltas([{ key: ministryKey, subDecisions: effectiveSubDecisions }], population))
+        ? describeSubDecisionEffects(subDecisionDeltas([{ key: ministryKey, subDecisions: effectiveSubDecisions }], population, context))
         : [],
-    [ministryKey, effectiveSubDecisions, population],
+    [ministryKey, effectiveSubDecisions, population, context],
+  );
+  // Sub-decisiones cuyo efecto reemplaza hoy un programa o una ley (se avisa para no engañar)
+  const suppressed = useMemo(
+    () => suppressedSubDecisions({ key: ministryKey, subDecisions: effectiveSubDecisions }, context),
+    [ministryKey, effectiveSubDecisions, context],
   );
   const fmtEffect = (e: { value: number; kind: string }) =>
     e.kind === "cost"
@@ -493,6 +501,13 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
         <p className="text-xs font-medium text-muted-foreground">
           Efecto de esta configuración (respecto del punto de partida)
         </p>
+        {suppressed.length > 0 && (
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
+            {suppressed.map((s) => (
+              <li key={s.key}>{s.notice}</li>
+            ))}
+          </ul>
+        )}
         {effects.length === 0 ? (
           <p className="text-xs text-muted-foreground">Sin cambios: los indicadores no se alteran.</p>
         ) : (

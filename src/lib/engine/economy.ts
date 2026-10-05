@@ -4,7 +4,7 @@
 import type { GameState, LawCatalogEntry } from "./types";
 import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
-import { subDecisionDeltas } from "./sub-decision-effects";
+import { subDecisionDeltas, subDecisionContext } from "./sub-decision-effects";
 
 /**
  * Ingresos fiscales = poblaciónActiva * ingresoPerCápita * tasaImpositiva.
@@ -72,7 +72,7 @@ function fixedExpenseBreakdown(state: GameState) {
   }
 
   // Costo (o ahorro) de las sub-decisiones respecto de su valor sembrado
-  const subDecisionCost = subDecisionDeltas(state.ministries, state.population).cost;
+  const subDecisionCost = subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).cost;
 
   return {
     activeOfficialCount,
@@ -254,7 +254,7 @@ export function calculateGDP(state: GameState): number {
   }
 
   // Sub-decisiones (STEM, tasa de interés, apertura...): modificador en % del PIB
-  gdp += gdp * (subDecisionDeltas(state.ministries, state.population).indicators.gdpPct / 100);
+  gdp += gdp * (subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).indicators.gdpPct / 100);
 
   return Math.max(0, gdp);
 }
