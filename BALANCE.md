@@ -174,7 +174,7 @@ Clasificacion (`regime.ts:classifyRegime`, en este orden; `avg` = promedio de la
 | Golpe de estado | riesgo > 50, con `riesgo = COUP_BASE_RISK (5) + 0,32·(100 − subordinacion militar) + 0,28·(100 − aprobacion) + 0,22·corrupcion − 0,15·impactoDefensa − 0,10·efectividadInteligencia` (constantes `COUP_*`, acotado a [0, 100]) |
 | Renuncia forzada | aprobacion < 10 por 6 meses consecutivos |
 | Perdida electoral | elecciones cada 5 anios: pierdes si el % de votos (aprobacion de cada clase ponderada por su poblacion) es < 50 % |
-| Fin de mandato | **no existe**: se eliminó el límite de mandatos; las elecciones siguen cada 5 años mientras ganes (el SPEC pide un límite) |
+| Fin de mandato | **no existe** (decisión de diseño, SPEC §9): no hay límite de mandatos; las elecciones siguen cada 5 años mientras ganes |
 | Asesinato | aprobacion < 15 + inteligencia con autonomia < 30 (prob. 3%/mes) |
 
 ---

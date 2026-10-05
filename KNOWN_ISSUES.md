@@ -382,8 +382,8 @@ golpe de estado y pérdida electoral. Las fórmulas hablaban de "eficiencia" cua
 partida, y se reescribieron. Un test (`tests/balance-doc.test.ts`) compara cada constante citada como `` `NOMBRE` (valor) ``
 con `balance.ts` y falla si se desalinean (comprobado con mutación).
 
-**Divergencia con el SPEC (no cambiada, para decidir):** el SPEC (línea 503) pide "fin de mandatos máximos: terminas tu
-mandato sin posibilidad de reelección", pero el código eliminó el límite de mandatos (las elecciones siguen cada 5 años
-mientras se gane) y la pérdida electoral se decide por el % de votos de las clases, no por "aprobación baja". Se
-documentó el comportamiento real.
+**Divergencia con el SPEC (resuelta actualizando el SPEC):** el SPEC pedía "fin de mandatos máximos" y que la pérdida
+electoral dependiera de "aprobación baja", y describía el golpe con umbrales fijos. El código eliminó el límite de mandatos
+(las elecciones siguen cada 5 años mientras se gane), decide la elección por el % de votos de las clases (< 50 % pierde) y
+calcula el golpe con un riesgo ponderado. Por decisión del diseñador se actualizó el SPEC (§9) a este comportamiento.
 

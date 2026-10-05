@@ -496,11 +496,11 @@ Tutorial guiado primer año: tooltips contextuales explican cada sistema cuando 
 
 ## 9. Condiciones de fin de partida
 
-- **Golpe de estado exitoso**: militares con baja subordinación + aprobación <25 + corrupción >50
+- **Golpe de estado exitoso**: se ejecuta cuando un riesgo de golpe supera 50. El riesgo (0–100) sube con la baja subordinación militar, la baja aprobación y la corrupción, y baja con el impacto de Defensa y la efectividad del organismo de Inteligencia (pesos `COUP_*` en `lib/balance.ts`)
 - **Vacancia presidencial / juicio político**: aprobado por mayoría en Senado
 - **Renuncia forzada**: aprobación <10 durante 6 meses consecutivos
-- **Pérdida electoral**: elecciones presidenciales periódicas (configurable, default cada 5 años) — pierdes si tu aprobación está baja
-- **Fin de mandatos máximos**: terminas tu mandato constitucional sin posibilidad de reelección
+- **Pérdida electoral**: elecciones presidenciales periódicas (configurable, default cada 5 años). El voto de cada clase social es su aprobación del gobierno; el % de votos es el promedio ponderado por población de las clases, y pierdes si es menor a 50 %
+- **Sin límite de mandatos**: no hay fin de mandato constitucional. Mientras sigas ganando las elecciones puedes ser reelecto indefinidamente (decisión de diseño: la partida termina por pérdida, no por calendario)
 - **Asesinato político**: posible si inteligencia tiene autonomía baja y se usa contra opositores, o si aprobación es muy baja
 - **Estado fallido**: ver sección 4.6
 
