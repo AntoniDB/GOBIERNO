@@ -3,14 +3,15 @@
 // y las partidas se crean desde el wizard autenticado.
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { buildPoolConfig } from "../src/lib/db-config";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+// Misma conexión que la app (DATABASE_URL, DATABASE_SSL, pool…): ver src/lib/db-config.ts
+const adapter = new PrismaPg(buildPoolConfig());
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log("🌱 Iniciando seed (catalogo de leyes)...");
-
-  await prisma.lawCatalog.deleteMany();
+  // Idempotente: se puede ejecutar contra una base con datos sin borrar nada (upsert por `key`).
 
   const leyes = [
     { key: "subsidio-alimentario", name: "Subsidio Alimentario", description: "Programa de subsidio directo para alimentos basicos a familias de bajos recursos.", effectsJson: { povertyRate: -5, approval: { EXTREME_POVERTY: 8, POVERTY: 4, MIDDLE: -1, ELITE: -2 } }, idealIdeology: { economic: -60, social: 40, authority: -10 }, cost: 500000000 },
@@ -63,7 +64,7 @@ async function main() {
   ];
 
   for (const ley of leyes) {
-    await prisma.lawCatalog.create({ data: ley });
+    await prisma.lawCatalog.upsert({ where: { key: ley.key }, create: ley, update: ley });
   }
   console.log(`  ✓ ${leyes.length} leyes en catalogo`);
 

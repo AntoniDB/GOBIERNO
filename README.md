@@ -27,19 +27,21 @@ npm install
 
 # 2. Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales de PostgreSQL:
-#   DATABASE_URL="postgresql://usuario:password@localhost:5432/simulador"
-#   AUTH_SECRET="cualquier-string-largo"
+# Editar .env: DATABASE_URL (local con Docker, o un Postgres remoto: ver "PostgreSQL en un VPS")
+# y AUTH_SECRET / NEXTAUTH_SECRET (cualquier string largo, el mismo en ambas)
 
-# 3. Levantar PostgreSQL (opcion A: Docker)
+# 3. Levantar PostgreSQL (opcion A: Docker; si usas un Postgres remoto, omite este paso)
 docker compose up -d
+
+# 3b. Comprobar la conexion (local o remota)
+npm run db:check
 
 # 4. Ejecutar migraciones
 npx prisma migrate deploy
 # o para desarrollo:
 npx prisma migrate dev
 
-# 5. Poblar la base de datos con datos de demo
+# 5. Poblar el catalogo de leyes (idempotente: se puede repetir sin borrar datos)
 npx prisma db seed
 
 # 6. Iniciar el servidor de desarrollo
@@ -48,10 +50,44 @@ npm run dev
 
 Abrir [http://localhost:3000](http://localhost:3000).
 
-## Usuario demo
+## PostgreSQL en un VPS
 
-- Email: `demo@simulador.local`
-- Password: `demo123`
+La app solo necesita una cadena de conexion en `DATABASE_URL`; el resto (TLS, pool, timeouts) se
+configura por variables de entorno (ver `.env.example` y `src/lib/db-config.ts`).
+
+**1. En el servidor** (como superusuario de Postgres): crear un rol y una base dedicados, sin privilegios de superusuario.
+
+```sql
+CREATE ROLE simulador LOGIN PASSWORD 'una-clave-larga';
+CREATE DATABASE simulador OWNER simulador;
+```
+
+**2. Acceso remoto.** En `postgresql.conf`: `listen_addresses = '*'` (o la IP publica). En `pg_hba.conf`, permitir solo
+tu IP y exigir TLS: `hostssl simulador simulador <TU_IP>/32 scram-sha-256`. Abrir el puerto 5432 en el firewall
+**solo para esa IP** (la de tu maquina de desarrollo y, luego, la del servidor de produccion). Para cifrar, activar
+`ssl = on` con certificado y clave en `postgresql.conf`; si no puedes, usa un tunel SSH
+(`ssh -L 5432:localhost:5432 usuario@vps` y `DATABASE_URL` apuntando a `localhost`).
+
+**3. En tu `.env`** (la contraseña, codificada si tiene `@ : / ? # %`; nunca se sube al repo):
+
+```bash
+DATABASE_URL="postgresql://simulador:CLAVE@mi-vps.example.com:5432/simulador"
+DATABASE_SSL="require"      # certificado autofirmado; "verify" (+ DATABASE_SSL_CA) si el certificado es valido
+```
+
+La CLI de Prisma (`migrate`, `db seed`) no lee `DATABASE_SSL`: negocia TLS por su cuenta a partir de la URL. En las
+pruebas conectó sin parametros extra a un servidor que exigia TLS con certificado autofirmado; si el tuyo falla por el
+certificado, añade a la URL `?sslmode=require&sslaccept=accept_invalid_certs` (opcion documentada por Prisma).
+
+**4. Comprobar y preparar la base** (la primera vez):
+
+```bash
+npm run db:check             # servidor, usuario, si va cifrado, latencia y migraciones aplicadas
+npx prisma migrate deploy    # crea las tablas (aplica todas las migraciones pendientes)
+npx prisma db seed           # catalogo de leyes (idempotente)
+```
+
+En produccion la app usa la misma `DATABASE_URL` (definida como variable de entorno del servidor, no en un archivo del repo).
 
 ## Comandos
 
@@ -63,7 +99,8 @@ Abrir [http://localhost:3000](http://localhost:3000).
 | `npm run lint` | Linter (ESLint) |
 | `npx vitest run` | Ejecutar todos los tests |
 | `npx vitest` | Tests en modo watch |
-| `npx prisma db seed` | Re-poblar la base de datos |
+| `npm run db:check` | Comprobar la conexion a PostgreSQL (cifrado, latencia, migraciones) |
+| `npx prisma db seed` | Poblar el catalogo de leyes (idempotente) |
 | `npx prisma studio` | Explorador visual de la DB |
 
 ## Arquitectura
