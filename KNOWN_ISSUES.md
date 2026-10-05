@@ -331,7 +331,7 @@ por la rampa). Tests nuevos con mutación comprobada (siembra en 0, objetivo sin
 - La eficiencia de Salud solo mueve la prevalencia a 0,2–0,4 pp/mes por enfermedad: un cambio de política tarda meses
   en notarse en el sickRate (diseño existente, no cambiado).
 - La esperanza de vida sigue bajando levemente con el tiempo (≈0,1–0,4 años en 12 meses) por otros indicadores (pobreza,
-  crimen), no por epidemiología.
+  crimen), no por epidemiología. Investigado en #14.
 
 ---
 
@@ -386,4 +386,32 @@ con `balance.ts` y falla si se desalinean (comprobado con mutación).
 electoral dependiera de "aprobación baja", y describía el golpe con umbrales fijos. El código eliminó el límite de mandatos
 (las elecciones siguen cada 5 años mientras se gane), decide la elección por el % de votos de las clases (< 50 % pierde) y
 calcula el golpe con un riesgo ponderado. Por decisión del diseñador se actualizó el SPEC (§9) a este comportamiento.
+
+---
+
+## 14. Deriva lenta de la esperanza de vida: causa identificada (sin cambios de código)
+
+**Qué se midió** (Postgres real, 4 presets × 36 turnos sin intervención del jugador): la esperanza de vida baja
+≈0,1–0,4 años por año (p. ej. estable 72,5 → 71,9, pobre 70,8 → 69,9 en 36 meses).
+
+**Causa:** no es la fórmula de la esperanza de vida ni la epidemiología (sickRate plano ≈46–48 %). Es la corrupción:
+- Cada funcionario suma `CORRUPTION_BASE_INCREASE` (1,5) al mes y la única reducción sembrada es la Contraloría con
+  efectividad 40 y autonomía 70: `3 × 40/100 = 1,2` (el bono de +1 por autonomía exige `> 70` y la sembrada vale 70).
+  Neto: **+0,3 puntos/mes por funcionario**, medido: corrupción global 6,1 → 13–15 en 30 meses en el preset estable.
+- La corrupción del ministro baja la eficiencia de su ministerio (≈ −0,2 puntos/mes: Salud 66 → 60, Economía 60 → 56 …) y
+  con ella el impacto de cada ministerio en pobreza, desempleo, crimen, alimentación y PIB per cápita (todos empeoran
+  despacio: en el preset estable la pobreza sube 1,1 puntos y el PIB per cápita baja ≈4 % en 36 meses). Esos indicadores restan a la esperanza de vida (`LE_CRIME/POVERTY/FOOD/GDP_FACTOR`).
+- En los presets pobres la corrupción se estabiliza (~27–29) y la deriva sale de la misma cadena con otro punto de partida.
+
+**Es dinámica coherente con el SPEC §4.4** (la corrupción crece sin vigilancia y se combate con organismos, leyes y
+casos judiciales), no un artefacto numérico. Lo frágil es que el signo dependa de un umbral (`autonomía > 70` con
+autonomía sembrada 70, efectividad 40 vs 50 que daría neto 0). Pendiente de decisión de diseño: dejarlo (el gobierno que no
+hace nada se degrada despacio) o calibrar la siembra de la Contraloría.
+
+**Otros hallazgos del mismo barrido (no investigados a fondo, sin cambios):**
+- Un desastre cuesta `severidad × población × 2` USD: en el preset estable (tesoro 8 B) uno de severidad 52 se llevó 5,2 B; en
+  los presets pobres (tesoro 0,5–2 B) uno de severidad 31 deja el tesoro en ≈0, y como el balance sembrado es ≈ +0,03 % del
+  ingreso (#8) el tesoro tarda años en recuperarse. Escala bien con la población; lo que descuadra es tesoro inicial vs
+  ingreso mensual.
+- Los eventos de protesta suben el crimen de golpe (`severidad × 0,5` puntos): con severidad 100 el crimen del mes llegó a 88.
 
