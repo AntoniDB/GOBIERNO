@@ -5,7 +5,10 @@ import {
   calculateDiseasePrevalence,
   calculateSickRateFromDiseases,
   calculateDiseaseMortality,
+  diseaseTargetPrevalence,
+  initialDiseasePrevalence,
 } from "@/lib/engine/diseases";
+import { DISEASE_CATALOG } from "@/lib/seed-catalogs";
 import { BALANCE } from "@/lib/balance";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
@@ -159,5 +162,90 @@ describe("calculateDiseaseMortality", () => {
     // 0.05*0.001 + 0.02*0.04 = 0.00005 + 0.0008 = 0.00085
     const result = calculateDiseaseMortality(prevalences, diseases);
     expect(result).toBeCloseTo(0.00085, 5);
+  });
+});
+
+// ─── Equilibrio y siembra (Issue 11) ─────────────────────────────────────────
+
+/** sickRate nacional (Π) del catálogo completo en su equilibrio para una eficiencia de Salud. */
+function sickRateDeEquilibrio(eficiencia: number): number {
+  const prevalencias = DISEASE_CATALOG.map((d, i) => ({
+    id: `p${i}`,
+    diseaseId: d.name,
+    currentPrevalence: diseaseTargetPrevalence(d, eficiencia),
+  }));
+  return calculateSickRateFromDiseases(prevalencias)!;
+}
+
+describe("diseaseTargetPrevalence", () => {
+  it("aplica prevención y contagio: gripe a eficiencia 50 = 10×(1−0.4) + 0.375", () => {
+    expect(diseaseTargetPrevalence(crearDisease(), 50)).toBeCloseTo(6.375, 3);
+  });
+
+  it("las crónicas y mentales no tienen contagio", () => {
+    const hipertension = crearDisease({ category: "CHRONIC", contagionRate: 0.5, prevalenceBase: 14, preventionSensitivity: 0.5 });
+    // Aunque tuviera contagionRate, solo las transmisibles lo suman: 14×(1−0.25) = 10.5
+    expect(diseaseTargetPrevalence(hipertension, 50)).toBeCloseTo(10.5, 3);
+  });
+
+  it("es monótona: más eficiencia de Salud, menos prevalencia", () => {
+    for (const d of DISEASE_CATALOG) {
+      let previa = Infinity;
+      for (const eficiencia of [0, 20, 40, 60, 80, 100]) {
+        const p = diseaseTargetPrevalence(d, eficiencia);
+        expect(p).toBeLessThanOrEqual(previa);
+        previa = p;
+      }
+    }
+  });
+
+  it("queda acotada a [0, 100]", () => {
+    expect(diseaseTargetPrevalence(crearDisease({ prevalenceBase: 500 }), 0)).toBe(100);
+    expect(diseaseTargetPrevalence(crearDisease({ prevalenceBase: 0, contagionRate: 0 }), 100)).toBe(0);
+  });
+
+  it("calculateDiseasePrevalence usa la misma fórmula", () => {
+    const d = crearDisease();
+    const [r] = calculateDiseasePrevalence(crearEstadoBase(), [d]);
+    expect(r.currentPrevalence).toBeCloseTo(diseaseTargetPrevalence(d, 50), 2);
+  });
+});
+
+describe("sickRate de equilibrio del catálogo", () => {
+  it("la eficiencia de Salud mueve el sickRate de forma apreciable (SPEC: función de Salud.eficiencia)", () => {
+    const malo = sickRateDeEquilibrio(20);
+    const normal = sickRateDeEquilibrio(55);
+    const excelente = sickRateDeEquilibrio(100);
+    expect(malo).toBeGreaterThan(normal);
+    expect(normal).toBeGreaterThan(excelente);
+    // Antes del cambio el equilibrio era ≈61 % con cualquier eficiencia (rango < 1 punto)
+    expect(malo - excelente).toBeGreaterThan(15);
+  });
+
+  it("se mantiene en la banda de diseño de BALANCE.md (~35–60 %)", () => {
+    expect(sickRateDeEquilibrio(20)).toBeLessThan(60);
+    expect(sickRateDeEquilibrio(55)).toBeGreaterThan(40);
+    expect(sickRateDeEquilibrio(55)).toBeLessThan(55);
+    expect(sickRateDeEquilibrio(100)).toBeGreaterThan(30);
+  });
+});
+
+describe("initialDiseasePrevalence", () => {
+  it("siembra en el equilibrio con la eficiencia inicial, no en 0", () => {
+    for (const d of DISEASE_CATALOG) {
+      const inicial = initialDiseasePrevalence(d);
+      expect(inicial).toBeGreaterThan(0);
+      expect(inicial).toBeCloseTo(diseaseTargetPrevalence(d, BALANCE.DISEASE_SEED_HEALTH_EFFICIENCY), 2);
+    }
+  });
+
+  it("el sickRate inicial no está lejos del equilibrio (sin rampa de años)", () => {
+    const sembradas = DISEASE_CATALOG.map((d, i) => ({
+      id: `p${i}`, diseaseId: d.name, currentPrevalence: initialDiseasePrevalence(d),
+    }));
+    const inicial = calculateSickRateFromDiseases(sembradas)!;
+    // Con prevalencias en 0 el sickRate inicial era ≈4 %
+    expect(inicial).toBeGreaterThan(40);
+    expect(Math.abs(inicial - sickRateDeEquilibrio(BALANCE.DISEASE_SEED_HEALTH_EFFICIENCY))).toBeLessThan(0.5);
   });
 });

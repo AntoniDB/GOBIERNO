@@ -92,7 +92,13 @@ function fakePrisma(opts: FakeOpts) {
     $executeRaw: vi.fn(async () => 0),
     disease: {
       findMany: vi.fn(async (args: { where: { prevalences?: unknown } }) =>
-        args.where.prevalences ? [{ id: "d-1" }, { id: "d-2" }] : existing,
+        args.where.prevalences
+          ? [
+              // Gripe (transmisible) y Hipertensión (crónica) del catálogo
+              { id: "d-1", category: "TRANSMISSIBLE", contagionRate: 0.15, prevalenceBase: 10, preventionSensitivity: 0.8 },
+              { id: "d-2", category: "CHRONIC", contagionRate: 0, prevalenceBase: 14, preventionSensitivity: 0.5 },
+            ]
+          : existing,
       ),
       createMany: createManyMock(),
     },
@@ -140,9 +146,12 @@ describe("ensureSeedIntegrity", () => {
 
     expect(repaired).toEqual(["enfermedades", "comercio exterior"]);
     expect(tx.disease.createMany.mock.calls[0][0].data).toHaveLength(14);
+    // Nacen en el equilibrio con la eficiencia inicial (55), no en 0:
+    //   gripe: 10×(1−0.55×0.8) + 0.15×0.45×5 = 5.6 + 0.3375 = 5.94
+    //   hipertensión: 14×(1−0.55×0.5) = 10.15
     expect(tx.diseasePrevalence.createMany.mock.calls[0][0].data).toEqual([
-      { gameId: "g1", diseaseId: "d-1", currentPrevalence: 0 },
-      { gameId: "g1", diseaseId: "d-2", currentPrevalence: 0 },
+      { gameId: "g1", diseaseId: "d-1", currentPrevalence: 5.94 },
+      { gameId: "g1", diseaseId: "d-2", currentPrevalence: 10.15 },
     ]);
 
     const flows = tx.tradeFlow.createMany.mock.calls[0][0].data;

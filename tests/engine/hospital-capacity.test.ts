@@ -8,7 +8,7 @@ import { calculateNationalSaturationMortality } from "@/lib/engine/indicators";
 import { applyDecisionEffects } from "@/lib/engine/long-running-decisions";
 import { createRNG } from "@/lib/rng";
 
-const SICK_BASE = 41; // sickRate típico con el catálogo de enfermedades (Salud-2)
+const SICK_BASE = 49; // sickRate de una partida nueva (prevalencias sembradas en equilibrio, eficiencia de Salud 55)
 
 /** Regiones sembradas como las deja createInitialGame, con id para el estado. */
 function regiones(preset: PresetKey, population: number): RegionState[] {
@@ -87,7 +87,7 @@ describe("la red de camas sembrada escala con la población", () => {
   });
 });
 
-describe("calibración del colapso hospitalario por preset (sickRate ≈ 41%)", () => {
+describe("calibración del colapso hospitalario por preset (sickRate ≈ 49%)", () => {
   const T = BALANCE.COLLAPSE_SATURATION_THRESHOLD;
 
   it("estable_democratico empieza sin ninguna región en colapso", () => {

@@ -9,6 +9,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "./seed-catalogs";
 import { defaultTradeFlowParams } from "./engine/trade";
 import { initialEconomy } from "./initial-economy";
+import { initialDiseasePrevalence } from "./engine/diseases";
 
 type Tx = Prisma.TransactionClient;
 
@@ -57,7 +58,7 @@ const diseasesStep: SeedStep = {
         category: d.category,
         contagionRate: d.contagionRate,
         mortalityRate: d.mortalityRate,
-        prevalence: 0,
+        prevalence: initialDiseasePrevalence(d),
         prevalenceBase: d.prevalenceBase,
         hasVaccine: d.hasVaccine,
         preventionSensitivity: d.preventionSensitivity,
@@ -68,13 +69,13 @@ const diseasesStep: SeedStep = {
 
     const withoutPrevalence = await tx.disease.findMany({
       where: { gameId, prevalences: { none: {} } },
-      select: { id: true },
+      select: { id: true, category: true, contagionRate: true, prevalenceBase: true, preventionSensitivity: true },
     });
     await tx.diseasePrevalence.createMany({
       data: withoutPrevalence.map((d) => ({
         gameId,
         diseaseId: d.id,
-        currentPrevalence: 0,
+        currentPrevalence: initialDiseasePrevalence(d),
       })),
       skipDuplicates: true,
     });

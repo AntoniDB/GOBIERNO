@@ -433,8 +433,14 @@ export const BALANCE = {
   /** Base asintotica de esperanza de vida con todo perfecto */
   LE_BASE: 78,
 
-  /** Factor de sickRate: cada 1% extra de enfermos quita 0.28 anios */
-  LE_SICK_FACTOR: 0.28,
+  /**
+   * Factor de sickRate: cada 1% extra de enfermos quita 0.12 anios.
+   * Era 0.28 (calibrado con sickRate ≈ 20 %, penalización ≈ 5,6 años). Desde el modelo de
+   * 14 enfermedades (Salud-2) el sickRate de una partida normal ronda 45–50 %; 0.12 deja la
+   * penalización en ≈ 5,5–6 años (la calibración original) y sigue premiando una buena
+   * política sanitaria (sickRate 57 % → 35 % ≙ 6,8 → 4,2 años).
+   */
+  LE_SICK_FACTOR: 0.12,
 
   /** Factor de crimeRate: cada 1% extra de crimen quita 0.14 anios */
   LE_CRIME_FACTOR: 0.14,
@@ -485,11 +491,11 @@ export const BALANCE = {
    * unidad abstracta, ~160 veces menor que la realidad, así que NO es el ~8%
    * hospitalario real (con el 8% la saturación era de 50× a 1.600× el umbral incluso
    * a 10M y el colapso hospitalario se disparaba siempre). Se calibró para que con
-   * sickRate ≈ 41% (modelo de enfermedades) la saturación de cada región del
+   * sickRate ≈ 49% (el de una partida nueva con el modelo de enfermedades, Issue 11) la saturación de cada región del
    * preset sea: estable_democratico 0,3-1,2 (sin colapso al empezar), pobre/crisis
    * 1,4-3,2 en las regiones rurales y post_conflicto hasta 10 en las más pobres.
    */
-  HOSPITALIZATION_SHARE: 0.0005,
+  HOSPITALIZATION_SHARE: 0.00042,
 
   /** Base de cobertura por instalacion: cuantas personas cubre 1 bed */
   HEALTH_BED_COVERAGE_PER_PERSON: 0.002,
@@ -513,6 +519,14 @@ export const BALANCE = {
   // Cada enfermedad tiene prevalencia que evoluciona segun el sistema sanitario.
   // sickRate = 1 - Π(1 - prev_i)  (probabilidad de union, para display)
   // diseaseMortality = Σ(prev_i * mortalityRate_i)  (aditiva, para el motor)
+
+  /**
+   * Eficiencia de Salud con la que se siembra la prevalencia inicial de cada
+   * enfermedad: es la eficiencia con la que nacen todos los ministerios (55).
+   * Sembrar en el equilibrio (en vez de en 0) evita que el sickRate "suba" ~3 pts/mes
+   * durante años solo por haber arrancado desde cero.
+   */
+  DISEASE_SEED_HEALTH_EFFICIENCY: 55,
 
   /** Factor de diseaseMortality en LE: 0.04 anos por punto de mortalidad por enfermedad */
   LE_DISEASE_FACTOR: 0.04,

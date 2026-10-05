@@ -38,8 +38,10 @@ enfermos = SICK_HEALTH_FACTOR * eficienciaSalud + SICK_BASE
 - `SICK_HEALTH_FACTOR` (-0.34): mas eficiencia en salud → menos enfermos (solo modo fallback)
 - `LE_DISEASE_FACTOR` (0.04): impacto de mortalidad por enfermedades en esperanza de vida (nuevo en Salud-2)
 - `LE_SATURATION_FACTOR` (0.10): impacto de saturacion hospitalaria en esperanza de vida (nuevo en Salud-2)
-- La esperanza de vida usa `diseaseMortality` (aditivo, evita doble conteo), no `sickRate` (Π, para display).
-- Ver `diseases.ts` para el calculo completo de prevalencia por enfermedad.
+- La esperanza de vida resta `LE_SICK_FACTOR × sickRate` (0,12; era 0,28, ver Issue 11) y, además, un término
+  muy pequeño de `diseaseMortality` (≈0,03 años). *(Esta línea decía antes que usaba solo `diseaseMortality`;
+  no era cierto.)*
+- Ver `diseases.ts` para el calculo completo de prevalencia por enfermedad y "Epidemiología (Issue 11)" abajo.
 
 ### Seguridad alimentaria (`indicators.ts:calculateFoodSecurity`)
 ```
@@ -274,13 +276,36 @@ demanda = población × %región × sickRate% × HOSPITALIZATION_SHARE
 saturación = demanda / camas        (colapso si > COLLAPSE_SATURATION_THRESHOLD 3 meses seguidos)
 ```
 
-- `HOSPITALIZATION_SHARE` (0,0005): las camas del juego son una unidad abstracta (~160× menos que las
-  reales), así que esta fracción también lo es. Calibrada con `sickRate ≈ 41 %`: red inicial estable
+- `HOSPITALIZATION_SHARE` (0,00042): las camas del juego son una unidad abstracta (~160× menos que las
+  reales), así que esta fracción también lo es. Calibrada con `sickRate ≈ 49 %` (el de una partida nueva,
+  Issue 11; era 0,0005 con un 41 % que no era el valor real): red inicial estable
   0,3–1,2; pobre/crisis 1,4–3,2 en regiones rurales; post-conflicto hasta 10. Subirla vuelve más
   frágil el sistema; bajarla lo relaja.
 - La red sembrada (camas, establecimientos, costo operativo) se escala con la población, referencia
   `HEALTH_NETWORK_REFERENCE_POPULATION` (10M). Un hospital construido añade camas con el mismo escalado.
 - El detector de colapso y la mortalidad por saturación (`min(2, (ratio−1)/3)`) usan las mismas funciones.
+
+## Epidemiología (Issue 11)
+
+Un único objetivo de prevalencia por enfermedad (`diseases.ts:diseaseTargetPrevalence`):
+
+```
+equilibrio = base × (1 − (eficiencia/100) × preventionSensitivity) + contagio
+contagio   = contagionRate × (1 − eficiencia/100) × CONTAGION_MULTIPLIER   (solo transmisibles)
+```
+
+- **Siembra:** cada enfermedad nace en su equilibrio con `DISEASE_SEED_HEALTH_EFFICIENCY` (55, la eficiencia con
+  que nacen los ministerios). Antes nacía en 0 y el sickRate subía ~3 pts/mes durante años (de ~4 % a ~61 %).
+- **Recuperación mensual** (`programs.ts`): sin programa, la prevalencia tiende a ese equilibrio (0,2–0,4 pp/mes),
+  de modo que la eficiencia de Salud mueve el sickRate (SPEC: "función de Salud.eficiencia"). Antes el objetivo era
+  `base + contagio` y la eficiencia casi no importaba (≈61 % con cualquier política).
+- **Programas:** su mínimo ahora se mide sobre el equilibrio (`MIN_RATIO × equilibrio`), no sobre `prevalenceBase`; con
+  la base, la prevención (0,9 × base) no habría tenido efecto con eficiencia ≥ 20.
+- sickRate de equilibrio del catálogo: eficiencia 20 → 57 %, 55 → ≈49 %, 80 → 41 %, 100 → 35 %.
+- `LE_SICK_FACTOR` 0,28 → 0,12: el factor se calibró con sickRate ≈ 20 % (penalización ≈ 5,6 años); con 45–50 % restaba
+  13–14 años. Con 0,12 la penalización de una partida normal es ≈ 5,8 años, y entre política mala y excelente varía ≈ 2,7 años.
+- Para ajustar la dificultad sanitaria: `prevalenceBase` / `preventionSensitivity` (seed-catalogs.ts), `LE_SICK_FACTOR`,
+  y `HOSPITALIZATION_SHARE` si cambia el sickRate típico.
 
 ## Sub-decisiones de ministerio (Issue 10)
 

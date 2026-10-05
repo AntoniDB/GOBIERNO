@@ -2,8 +2,9 @@
 // Programas persistentes lanzables por el Ministro (sin aprobacion del Senado).
 // Tipos:
 //   1. VACCINATION_CAMPAIGN — elegir enfermedad con hasVaccine=true, baja su
-//      prevalencia hacia un minimo proporcional a prevalenceBase mientras activa.
-//      Al desactivar, la prevalencia sube lentamente hacia prevalenceBase.
+//      prevalencia hacia un minimo proporcional a la prevalencia de equilibrio
+//      (diseaseTargetPrevalence) mientras activa. Al desactivar, la prevalencia
+//      sube lentamente de vuelta hacia ese equilibrio.
 //   2. PREVENTION_EDUCATION — abate transmisibles + cronicos de forma transversal.
 //   3. MENTAL_HEALTH_PROGRAM — abate depresion, ansiedad, adicciones; ademas da
 //      bonus de aprobacion a POVERTY y MIDDLE mientras activo.
@@ -24,6 +25,7 @@ import type {
 } from "./types";
 import { BALANCE } from "../balance";
 import { scaleCost } from "./cost-scale";
+import { diseaseTargetPrevalence } from "./diseases";
 
 /**
  * Catalogo de enfermedades que tienen vacuna disponible.
@@ -193,33 +195,44 @@ export function applyProgramEffects(
     });
   }
 
+  // Eficiencia actual de Salud: define el equilibrio de cada enfermedad
+  const healthMinistry = state.ministries.find(
+    (m) => m.key === "HEALTH" || m.key === "salud",
+  );
+  const healthEfficiency = healthMinistry?.efficiency ?? 50;
+
   // Procesar cada programa activo en orden
   for (const prog of activePrograms) {
     switch (prog.type) {
       case "VACCINATION_CAMPAIGN":
-        applyVaccinationCampaign(state, prog, diseasesById);
+        applyVaccinationCampaign(state, prog, diseasesById, healthEfficiency);
         break;
       case "PREVENTION_EDUCATION":
-        applyPreventionEducation(state, prog, diseasesById);
+        applyPreventionEducation(state, prog, diseasesById, healthEfficiency);
         break;
       case "MENTAL_HEALTH_PROGRAM":
-        applyMentalHealthProgram(state, prog, diseasesById);
+        applyMentalHealthProgram(state, prog, diseasesById, healthEfficiency);
         break;
     }
   }
 
-  // Programas inactivos: revertir prevalencias hacia prevalenceBase
-  applyUnprogrammedRecovery(state, activePrograms, diseasesById);
+  // Enfermedades sin programa: tienden a su equilibrio
+  applyUnprogrammedRecovery(state, activePrograms, diseasesById, healthEfficiency);
 }
 
 /**
  * Campaña de vacunacion: baja la prevalencia de la enfermedad elegida hacia
- * MIN_RATIO × prevalenceBase. La prevalencia solo baja si esta activa.
+ * MIN_RATIO × equilibrio. La prevalencia solo baja si esta activa.
+ *
+ * Los mínimos de los programas se miden sobre el equilibrio (no sobre
+ * prevalenceBase): como la eficiencia de Salud ya rebaja el equilibrio, un mínimo
+ * sobre la base dejaría al programa de prevención sin efecto con buena gestión.
  */
 function applyVaccinationCampaign(
   state: GameState,
   prog: MinistryProgramState,
   diseasesById: Map<string, DiseaseStateInput>,
+  healthEfficiency: number,
 ): void {
   const diseaseId = prog.parameters.diseaseId as string;
   if (!diseaseId) return;
@@ -229,19 +242,20 @@ function applyVaccinationCampaign(
   const prev = state.diseasePrevalences.find((p) => p.diseaseId === diseaseId);
   if (prev) prev.currentPrevalence = decayToward(
     prev.currentPrevalence,
-    disease.prevalenceBase * BALANCE.VACCINATION_MIN_RATIO,
+    diseaseTargetPrevalence(disease, healthEfficiency) * BALANCE.VACCINATION_MIN_RATIO,
     BALANCE.VACCINATION_PREVALENCE_DECAY,
   );
 }
 
 /**
  * Programa de prevencion: baja transmissionables + cronicos hacia
- * PREVENTION_MIN_RATIO × prevalenceBase. Efecto sutil pero acumulativo.
+ * PREVENTION_MIN_RATIO × equilibrio. Efecto sutil pero acumulativo.
  */
 function applyPreventionEducation(
   state: GameState,
   _prog: MinistryProgramState,
   diseasesById: Map<string, DiseaseStateInput>,
+  healthEfficiency: number,
 ): void {
   for (const prev of state.diseasePrevalences) {
     const disease = diseasesById.get(prev.diseaseId);
@@ -249,27 +263,28 @@ function applyPreventionEducation(
     if (disease.category !== "TRANSMISSIBLE" && disease.category !== "CHRONIC") continue;
     prev.currentPrevalence = decayToward(
       prev.currentPrevalence,
-      disease.prevalenceBase * BALANCE.PREVENTION_MIN_RATIO,
+      diseaseTargetPrevalence(disease, healthEfficiency) * BALANCE.PREVENTION_MIN_RATIO,
       BALANCE.PREVENTION_PREVALENCE_DECAY,
     );
   }
 }
 
 /**
- * Programa de salud mental: baja mentales hacia MENTAL_HEALTH_MIN_RATIO × base.
+ * Programa de salud mental: baja mentales hacia MENTAL_HEALTH_MIN_RATIO × equilibrio.
  * Afecta solo MENTAL_HEALTH — no toca transmisibles/cronicos.
  */
 function applyMentalHealthProgram(
   state: GameState,
   _prog: MinistryProgramState,
   diseasesById: Map<string, DiseaseStateInput>,
+  healthEfficiency: number,
 ): void {
   for (const prev of state.diseasePrevalences) {
     const disease = diseasesById.get(prev.diseaseId);
     if (!disease || disease.category !== "MENTAL_HEALTH") continue;
     prev.currentPrevalence = decayToward(
       prev.currentPrevalence,
-      disease.prevalenceBase * BALANCE.MENTAL_HEALTH_MIN_RATIO,
+      diseaseTargetPrevalence(disease, healthEfficiency) * BALANCE.MENTAL_HEALTH_MIN_RATIO,
       BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY,
     );
   }
@@ -277,11 +292,11 @@ function applyMentalHealthProgram(
 
 /**
  * Recuperacion: para enfermedades que NO tienen programa activo sobre ellas,
- * subir (o bajar) la prevalencia hacia un target dinamico.
+ * subir (o bajar) la prevalencia hacia su equilibrio (diseaseTargetPrevalence).
  *
- * Para transmisibles, el target incluye contagioBonus (contagionRate
- * escalado por la falta de cobertura sanitaria). Asi, bajar el presupuesto
- * de Salud SÍ sube la prevalencia cada mes, no solo en la inicializacion.
+ * El equilibrio depende de la eficiencia de Salud (prevención + contagio de las
+ * transmisibles): bajar la eficiencia SÍ sube la prevalencia cada mes y mejorarla
+ * la baja, no solo en la inicializacion.
  *
  * La tasa de recuperacion depende del tipo de programa que normally las cubriria:
  *  - transmisibles con vacuna: VACCINATION_RECOVERY_RATE
@@ -292,14 +307,8 @@ function applyUnprogrammedRecovery(
   state: GameState,
   activePrograms: MinistryProgramState[],
   diseasesById: Map<string, DiseaseStateInput>,
+  healthEfficiency: number,
 ): void {
-  // Eficiencia actual de Salud para calcular contagioBonus
-  const healthMinistry = state.ministries.find(
-    (m) => m.key === "HEALTH" || (m as any).key === "salud",
-  );
-  const healthEfficiency = healthMinistry?.efficiency ?? 50;
-  const coverageBonus = healthEfficiency / BALANCE.DISEASE_COVERAGE_MAX;
-
   // Set de diseaseIds cubiertos por una campaña de vacunacion activa
   const vaccinatedIds = new Set<string>(
     activePrograms
@@ -328,11 +337,7 @@ function applyUnprogrammedRecovery(
 
     if (covered) continue;
 
-    // Target dinamico: incluye contagio para transmisibles
-    const contagionBonus = disease.category === "TRANSMISSIBLE"
-      ? disease.contagionRate * (1 - coverageBonus) * BALANCE.CONTAGION_MULTIPLIER
-      : 0;
-    const target = disease.prevalenceBase + contagionBonus;
+    const target = diseaseTargetPrevalence(disease, healthEfficiency);
 
     prev.currentPrevalence = recoverToward(
       prev.currentPrevalence,

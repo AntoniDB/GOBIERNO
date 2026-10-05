@@ -178,39 +178,42 @@ describe("calculateNationalSaturationMortality", () => {
     });
 
   it("una red con camas de sobra no genera mortalidad por saturación", () => {
-    // pob. 10M, 25% = 2.5M, sick 5% → demanda = 2.5M × 0.05 × HOSPITALIZATION_SHARE = 62.5 camas; hay 350
+    // pob. 10M, 25% = 2.5M, sick 5% → demanda = 2.5M × 0.05 × HOSPITALIZATION_SHARE ≈ 52 camas; hay 350
     const state = crearEstadoBase({ sickRate: 5, regions: [region(25, 350)] });
     expect(calculateNationalSaturationMortality(state)).toBe(0);
   });
 
   it("una región con demanda > camas sufre mortalidad, ponderada por su población", () => {
-    // demanda = 2.5M × 0.05 × 0.0005 = 62.5; camas = 10 → saturación (62.5−10)/10 = 5.25
-    // multiplicador extra = min(2, 5.25/3) = 1.75, ponderado por 25% de la población
+    // demanda = 2.5M × 0.05 × HOSPITALIZATION_SHARE; camas = 10 → saturación (demanda−10)/10
+    // multiplicador extra = min(2, saturación/3), ponderado por 25% de la población
     const state = crearEstadoBase({ sickRate: 5, regions: [region(25, 10)] });
     const demanda = 2_500_000 * 0.05 * BALANCE.HOSPITALIZATION_SHARE;
     const esperado = Math.min(2, (demanda - 10) / 10 / 3) * 0.25;
     expect(calculateNationalSaturationMortality(state)).toBeCloseTo(esperado, 8);
-    expect(esperado).toBeCloseTo(0.4375, 8);
+    expect(esperado).toBeGreaterThan(0);
+    expect(esperado).toBeLessThan(2 * 0.25); // por debajo del tope: el caso ejercita la fórmula, no el cap
   });
 
   it("la mortalidad crece de forma gradual con la saturación (no salta al tope)", () => {
     const mort = (beds: number) => calculateNationalSaturationMortality(crearEstadoBase({ sickRate: 40, regions: [region(100, beds)] }));
-    // demanda = 10M × 0.4 × 0.0005 = 2000 camas
-    expect(mort(2000)).toBe(0);               // justo suficiente
-    expect(mort(1500)).toBeGreaterThan(0);
-    expect(mort(1500)).toBeLessThan(mort(1000));
-    expect(mort(1000)).toBeLessThan(mort(100));
+    const demanda = 10_000_000 * 0.4 * BALANCE.HOSPITALIZATION_SHARE;
+    expect(mort(Math.ceil(demanda))).toBe(0); // justo suficiente
+    expect(mort(demanda * 0.75)).toBeGreaterThan(0);
+    expect(mort(demanda * 0.75)).toBeLessThan(mort(demanda * 0.5));
+    expect(mort(demanda * 0.5)).toBeLessThan(mort(demanda * 0.05));
     expect(mort(1)).toBe(2);                  // tope (cap del multiplicador)
   });
 
   it("múltiples regiones: se suman ponderadas y las que tienen camas de sobra no aportan", () => {
-    // sick 10%: r-sat 40% → demanda 4M×0.1×0.0005 = 200 vs 50 camas → min(2, 150/50/3) = 1 → ×0.4
-    //           r-med 60% → demanda 6M×0.1×0.0005 = 300 vs 8000 camas → 0
+    // sick 10%: r-sat 40% → demanda = 4M×0.1×SHARE; con camas = demanda/10 la saturación es
+    //           (d − d/10)/(d/10) = 9 → min(2, 9/3) = 2 (tope) → ×0.4
+    //           r-med 60% → demanda 6M×0.1×SHARE vs 8000 camas → 0
+    const demandaSat = 4_000_000 * 0.1 * BALANCE.HOSPITALIZATION_SHARE;
     const state = crearEstadoBase({
       sickRate: 10,
-      regions: [region(40, 50, "r-sat"), region(60, 8000, "r-med")],
+      regions: [region(40, demandaSat / 10, "r-sat"), region(60, 8000, "r-med")],
     });
-    expect(calculateNationalSaturationMortality(state)).toBeCloseTo(1 * 0.4, 8);
+    expect(calculateNationalSaturationMortality(state)).toBeCloseTo(2 * 0.4, 8);
   });
 
   it("una región sin camas no se cuenta (evita dividir por cero)", () => {

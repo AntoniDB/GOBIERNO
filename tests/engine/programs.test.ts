@@ -11,6 +11,7 @@ import {
   programLabel,
 } from "@/lib/engine/programs";
 import { BALANCE } from "@/lib/balance";
+import { diseaseTargetPrevalence } from "@/lib/engine/diseases";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
@@ -84,6 +85,9 @@ function crearDisease(overrides?: Partial<DiseaseStateInput>): DiseaseStateInput
     ...overrides,
   };
 }
+
+/** Equilibrio con la eficiencia de Salud por defecto del motor cuando no hay ministerio (50). */
+const equilibrio = (d: DiseaseStateInput) => diseaseTargetPrevalence(d, 50);
 
 function crearPrograma(overrides?: Partial<MinistryProgramState>): MinistryProgramState {
   return {
@@ -260,58 +264,71 @@ describe("reduccion de prevalencia (efecto por mes)", () => {
   });
 
   it("prevencion reduce transmisible y cronico pero no mentales", () => {
+    const trans = crearDisease({ id: "d-tr", name: "Trans", category: "TRANSMISSIBLE", prevalenceBase: 10 });
+    const cron = crearDisease({ id: "d-cr", name: "Cron", category: "CHRONIC", prevalenceBase: 8, hasVaccine: false });
+    const mental = crearDisease({ id: "d-me", name: "Mental", category: "MENTAL_HEALTH", prevalenceBase: 5, hasVaccine: false });
     const state = crearEstadoBase({
-      diseases: [
-        crearDisease({ id: "d-tr", name: "Trans", category: "TRANSMISSIBLE", prevalenceBase: 10 }),
-        crearDisease({ id: "d-cr", name: "Cron", category: "CHRONIC", prevalenceBase: 8, hasVaccine: false }),
-        crearDisease({ id: "d-me", name: "Mental", category: "MENTAL_HEALTH", prevalenceBase: 5, hasVaccine: false }),
-      ],
+      diseases: [trans, cron, mental],
+      // Todas parten de su equilibrio: lo que se mueva es efecto del programa
       diseasePrevalences: [
-        { id: "p1", diseaseId: "d-tr", currentPrevalence: 10 },
-        { id: "p2", diseaseId: "d-cr", currentPrevalence: 8 },
-        { id: "p3", diseaseId: "d-me", currentPrevalence: 5 },
+        { id: "p1", diseaseId: "d-tr", currentPrevalence: equilibrio(trans) },
+        { id: "p2", diseaseId: "d-cr", currentPrevalence: equilibrio(cron) },
+        { id: "p3", diseaseId: "d-me", currentPrevalence: equilibrio(mental) },
       ],
       programs: [crearPrograma({
         id: "p-prev", type: "PREVENTION_EDUCATION", parameters: {}, monthlyCost: BALANCE.PROGRAM_PREVENTION_COST,
       })],
     });
     advancePrograms(state, {});
-    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(10 - BALANCE.PREVENTION_PREVALENCE_DECAY, 2);
-    expect(state.diseasePrevalences[1].currentPrevalence).toBeCloseTo(8 - BALANCE.PREVENTION_PREVALENCE_DECAY, 2);
-    // Mental NO debe bajar
-    expect(state.diseasePrevalences[2].currentPrevalence).toBe(5);
+    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(equilibrio(trans) - BALANCE.PREVENTION_PREVALENCE_DECAY, 1);
+    expect(state.diseasePrevalences[1].currentPrevalence).toBeCloseTo(equilibrio(cron) - BALANCE.PREVENTION_PREVALENCE_DECAY, 1);
+    // Mental NO debe bajar (se queda en su equilibrio)
+    expect(state.diseasePrevalences[2].currentPrevalence).toBeCloseTo(equilibrio(mental), 2);
+  });
+
+  it("la prevencion todavia reduce con buena gestion de Salud (minimo medido sobre el equilibrio)", () => {
+    const trans = crearDisease({ id: "d-tr", prevalenceBase: 10 });
+    const eficiencia = 90;
+    const eq = diseaseTargetPrevalence(trans, eficiencia);
+    const state = crearEstadoBase({
+      ministries: [{ key: "HEALTH", efficiency: eficiencia }] as unknown as GameState["ministries"],
+      diseases: [trans],
+      diseasePrevalences: [{ id: "p1", diseaseId: "d-tr", currentPrevalence: eq }],
+      programs: [crearPrograma({
+        id: "p-prev", type: "PREVENTION_EDUCATION", parameters: {}, monthlyCost: BALANCE.PROGRAM_PREVENTION_COST,
+      })],
+    });
+    for (let i = 0; i < 60; i++) advancePrograms(state, {});
+    // Llega al minimo del programa: PREVENTION_MIN_RATIO × equilibrio (< equilibrio)
+    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(eq * BALANCE.PREVENTION_MIN_RATIO, 1);
+    expect(state.diseasePrevalences[0].currentPrevalence).toBeLessThan(eq);
   });
 
   it("salud mental reduce depresion, ansiedad y adicciones", () => {
+    const dep = crearDisease({ id: "d-dep", name: "Depresion", category: "MENTAL_HEALTH", prevalenceBase: 12, hasVaccine: false });
+    const ans = crearDisease({ id: "d-ans", name: "Ansiedad", category: "MENTAL_HEALTH", prevalenceBase: 10, hasVaccine: false });
+    const adi = crearDisease({ id: "d-adi", name: "Adicciones", category: "MENTAL_HEALTH", prevalenceBase: 5, hasVaccine: false });
+    const gripe = crearDisease({ id: "d-tr", name: "Gripe", category: "TRANSMISSIBLE", prevalenceBase: 10, hasVaccine: true });
     const state = crearEstadoBase({
-      diseases: [
-        crearDisease({ id: "d-dep", name: "Depresion", category: "MENTAL_HEALTH", prevalenceBase: 12, hasVaccine: false }),
-        crearDisease({ id: "d-ans", name: "Ansiedad", category: "MENTAL_HEALTH", prevalenceBase: 10, hasVaccine: false }),
-        crearDisease({ id: "d-adi", name: "Adicciones", category: "MENTAL_HEALTH", prevalenceBase: 5, hasVaccine: false }),
-        crearDisease({ id: "d-tr", name: "Gripe", category: "TRANSMISSIBLE", prevalenceBase: 10, hasVaccine: true }),
-      ],
-      diseasePrevalences: [
-        { id: "p1", diseaseId: "d-dep", currentPrevalence: 12 },
-        { id: "p2", diseaseId: "d-ans", currentPrevalence: 10 },
-        { id: "p3", diseaseId: "d-adi", currentPrevalence: 5 },
-        { id: "p4", diseaseId: "d-tr", currentPrevalence: 10 },
-      ],
+      diseases: [dep, ans, adi, gripe],
+      diseasePrevalences: [dep, ans, adi, gripe].map((d, i) => ({
+        id: `p${i + 1}`, diseaseId: d.id, currentPrevalence: equilibrio(d),
+      })),
       programs: [crearPrograma({
         id: "p-mental", type: "MENTAL_HEALTH_PROGRAM", parameters: {}, monthlyCost: BALANCE.PROGRAM_MENTAL_HEALTH_COST,
       })],
     });
     advancePrograms(state, {});
-    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(12 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
-    expect(state.diseasePrevalences[1].currentPrevalence).toBeCloseTo(10 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
-    expect(state.diseasePrevalences[2].currentPrevalence).toBeCloseTo(5 - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 2);
-    // Trans no debe bajar: el contagio sin cobertura (mental no cubre transmissibles)
-    // la empuja hacia prevalenceBase + contagionBonus = 10 + 0.15×0.5×5 = 10.375
-    expect(state.diseasePrevalences[3].currentPrevalence).toBeCloseTo(10.375, 2);
+    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(equilibrio(dep) - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 1);
+    expect(state.diseasePrevalences[1].currentPrevalence).toBeCloseTo(equilibrio(ans) - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 1);
+    expect(state.diseasePrevalences[2].currentPrevalence).toBeCloseTo(equilibrio(adi) - BALANCE.MENTAL_HEALTH_PREVALENCE_DECAY, 1);
+    // Transmisible no cubierta: se queda en su equilibrio
+    expect(state.diseasePrevalences[3].currentPrevalence).toBeCloseTo(equilibrio(gripe), 2);
   });
 });
 
 describe("recuperacion al desactivar", () => {
-  it("al desactivar el programa, la prevalencia sube lentamente hacia prevalenceBase", () => {
+  it("al desactivar el programa, la prevalencia sube lentamente hacia el equilibrio", () => {
     const state = crearEstadoBase({
       diseases: [crearDisease({ prevalenceBase: 10 })],
       // La prevalencia esta muy baja (efecto de campaña sostenida previa)
@@ -324,15 +341,48 @@ describe("recuperacion al desactivar", () => {
     expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(2.4, 1);
   });
 
-  it("la prevalencia supera prevalenceBase al recuperarse por contagio", () => {
+  it("la recuperacion no pasa del equilibrio (base con prevencion + contagio)", () => {
+    const gripe = crearDisease({ prevalenceBase: 10 });
+    const eq = equilibrio(gripe); // 10×(1−0.5×0.8) + 0.15×0.5×5 = 6.375
+    expect(eq).toBeCloseTo(6.375, 3);
     const state = crearEstadoBase({
-      diseases: [crearDisease({ prevalenceBase: 10 })],
-      diseasePrevalences: [{ id: "p1", diseaseId: "d-gripe", currentPrevalence: 9.8 }],
+      diseases: [gripe],
+      diseasePrevalences: [{ id: "p1", diseaseId: "d-gripe", currentPrevalence: eq - 0.1 }],
       programs: [],
     });
     advancePrograms(state, {});
-    // 9.8 + 0.4 = 10.2, sin cap porque target = prevalenceBase + contagionBonus (10.375) > 10.2
-    expect(state.diseasePrevalences[0].currentPrevalence).toBe(10.2);
+    expect(state.diseasePrevalences[0].currentPrevalence).toBeCloseTo(eq, 3);
+  });
+
+  it("sin programas la prevalencia sembrada en equilibrio no se mueve (sin rampa)", () => {
+    const diseases = [
+      crearDisease({ id: "d-a", prevalenceBase: 10 }),
+      crearDisease({ id: "d-b", category: "CHRONIC", prevalenceBase: 14, hasVaccine: false, preventionSensitivity: 0.5 }),
+      crearDisease({ id: "d-c", category: "MENTAL_HEALTH", prevalenceBase: 12, hasVaccine: false, preventionSensitivity: 0.5 }),
+    ];
+    const state = crearEstadoBase({
+      diseases,
+      diseasePrevalences: diseases.map((d) => ({ id: `p-${d.id}`, diseaseId: d.id, currentPrevalence: equilibrio(d) })),
+      programs: [],
+    });
+    for (let i = 0; i < 24; i++) advancePrograms(state, {});
+    diseases.forEach((d, i) => expect(state.diseasePrevalences[i].currentPrevalence).toBeCloseTo(equilibrio(d), 2));
+  });
+
+  it("subir la eficiencia de Salud baja la prevalencia; bajarla la sube", () => {
+    const hipertension = crearDisease({ id: "d-h", category: "CHRONIC", prevalenceBase: 14, hasVaccine: false, preventionSensitivity: 0.5 });
+    const correr = (eficiencia: number) => {
+      const state = crearEstadoBase({
+        ministries: [{ key: "HEALTH", efficiency: eficiencia }] as unknown as GameState["ministries"],
+        diseases: [hipertension],
+        diseasePrevalences: [{ id: "p1", diseaseId: "d-h", currentPrevalence: equilibrio(hipertension) }],
+        programs: [],
+      });
+      for (let i = 0; i < 24; i++) advancePrograms(state, {});
+      return state.diseasePrevalences[0].currentPrevalence;
+    };
+    expect(correr(90)).toBeLessThan(equilibrio(hipertension));
+    expect(correr(10)).toBeGreaterThan(equilibrio(hipertension));
   });
 });
 

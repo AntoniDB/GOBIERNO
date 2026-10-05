@@ -107,24 +107,23 @@ de mortalidad, sin responder a las decisiones del jugador.
   mismas funciones, de modo que ya no pueden desalinearse.
 - Demanda = población de la región × `sickRate%` × `BALANCE.HOSPITALIZATION_SHARE` (0,0005). Las camas
   están en "unidades de juego" (~160× menos que las reales), así que la fracción hospitalizada es una
-  unidad abstracta calibrada con `sickRate ≈ 41%`: red inicial estable 0,3–1,2; pobre/crisis 1,4–3,2 en
+  unidad abstracta calibrada con `sickRate ≈ 49%` (valor 0,00042; la primera versión usaba 41 % → 0,0005, que no era
+  el sickRate real de una partida nueva, ver #11): red inicial estable 0,3–1,2; pobre/crisis 1,4–3,2 en
   regiones rurales; post-conflicto hasta 10.
 - Las camas, establecimientos y costo operativo de cada preset se escalan con la población
   (`scaleHealthNetwork`, referencia 10M `HEALTH_NETWORK_REFERENCE_POPULATION`), igual que los demás
   costos (#4). Construir un hospital añade camas escaladas por la misma razón.
 
-**Verificación (Postgres real, 4 presets × 8 turnos):** colapsos 0/1/0/3 (estable/pobre/crisis/
-post-conflicto) frente a 6/6/6/5 antes. 24 tests nuevos o reescritos (módulo, escalado, calibración por
+**Verificación (Postgres real, 4 presets × 12 turnos, tras corregir #11):** colapsos 0/6/6/9 (estable/pobre/
+crisis/post-conflicto): las regiones rurales de los presets pobres siguen saturadas por diseño y el jugador las
+alivia construyendo hospitales. Antes del cambio eran 6/6/6/5 en solo 8 turnos. 24 tests nuevos o reescritos (módulo, escalado, calibración por
 preset, colapso estable = 0 en 12 meses y post-conflicto sí colapsa, construir hospitales alivia).
 
 **Limitaciones:**
 - Las partidas ya creadas conservan sus camas sembradas sin escalar (no hay backfill), por lo que
   seguirán más saturadas que las nuevas.
 - `HOSPITALIZATION_SHARE` es una calibración de diseño, no un dato real.
-- **Hallazgo preexistente (no causado por este cambio, verificado en el código anterior):** la
-  prevalencia sembrada de enfermedades parte en 0, así que `sickRate` arranca en ~4 % y sube ~3 pts/mes
-  hasta ~26 % al mes 8, y la esperanza de vida cae ~1 año por mes (estable: 77,0 → 70,7 a; antes del
-  cambio 76,1 → 69,8). Es un problema de calibración de epidemiología aparte y no se ha abordado.
+- El hallazgo de que el `sickRate` partía en ~4 % y subía ~3 pts/mes (preexistente) se corrigió en #11.
 
 ---
 
@@ -295,3 +294,41 @@ atenúa o desactiva todos a la vez. Conviene que el diseñador los revise.
 **Verificación:** 33 tests de la tabla y de las fórmulas (con mutación comprobada) y 4 de `processTurn`;
 prueba en navegador real (Playwright + Postgres): sin cambios al iniciar, efectos visibles al mover el
 salario mínimo, valor escrito a mano acotado a 10.000 y turno avanzado con la decisión persistida.
+
+---
+
+## 11. ~~Epidemiología: rampa del sickRate y sickRate insensible a la política de Salud~~ — RESUELTO
+
+**Problema original** (hallado midiendo el #5, preexistente):
+- Las prevalencias de las 14 enfermedades se sembraban en 0. El `sickRate` arrancaba en ~4 % y subía ~3 pts/mes
+  (la recuperación mueve 0,2–0,4 pp/mes por enfermedad hacia su objetivo, la hipertensión tardaba ~70 meses), y
+  la esperanza de vida caía ~1 año por mes (estable: 77,0 → 70,7 en 8 meses).
+- El objetivo de esa recuperación era `base + contagio` e ignoraba la eficiencia de Salud: el equilibrio quedaba en
+  ≈61 % con cualquier política (61,3 % con eficiencia 20; 60,4 % con 100), contra SPEC.md ("función de
+  Salud.eficiencia"). La fórmula que sí usa la eficiencia (`calculateDiseasePrevalence`) solo se ejecutaba si no
+  había prevalencias.
+- `LE_SICK_FACTOR` (0,28) estaba calibrado con sickRate ≈ 20 % (BALANCE.md decía que la esperanza de vida no
+  usaba sickRate, pero el código sí): con 45–60 % restaba 13–17 años.
+
+**Solución:**
+- `diseaseTargetPrevalence` (`engine/diseases.ts`) es el único objetivo de prevalencia: siembra, recuperación
+  mensual y mínimos de los programas lo usan. `calculateDiseasePrevalence` delega en él.
+- Las prevalencias se siembran en el equilibrio con eficiencia 55 (`initialDiseasePrevalence`,
+  `DISEASE_SEED_HEALTH_EFFICIENCY`) tanto al crear partidas como al reponer enfermedades faltantes
+  (`ensureSeedIntegrity`).
+- Los programas miden su mínimo sobre el equilibrio (antes sobre `prevalenceBase`; con la eficiencia ya incluida en
+  el equilibrio, la prevención habría quedado sin efecto).
+- `LE_SICK_FACTOR` 0,28 → 0,12 (penalización ≈ 5,6–5,8 años en una partida normal, como la calibración original).
+- `HOSPITALIZATION_SHARE` 0,0005 → 0,00042 (ver #5): se había calibrado con un sickRate de 41 % que no era el real.
+
+**Verificación (Postgres real, 4 presets × 12–24 turnos):** sickRate plano ≈ 46–51 % desde el mes 1 (antes 4 % →
+26 % en 8 meses); esperanza de vida 74 / 70 / 71 / 69 años al mes 1 y estable después (antes 77 → 71 en 8 meses
+por la rampa). Tests nuevos con mutación comprobada (siembra en 0, objetivo sin eficiencia).
+
+**Limitaciones:**
+- Las partidas ya creadas conservan sus prevalencias actuales: seguirán convergiendo, ahora hacia el nuevo (menor)
+  equilibrio, a 0,2–0,4 pp/mes. No se les hace backfill.
+- La eficiencia de Salud solo mueve la prevalencia a 0,2–0,4 pp/mes por enfermedad: un cambio de política tarda meses
+  en notarse en el sickRate (diseño existente, no cambiado).
+- La esperanza de vida sigue bajando levemente con el tiempo (≈0,1–0,4 años en 12 meses) por otros indicadores (pobreza,
+  crimen), no por epidemiología.

@@ -31,9 +31,52 @@ export interface DiseasePrevalenceState {
 }
 
 /**
- * Calcula la prevalencia actual de cada enfermedad en funcion de la
- * cobertura sanitaria del pais. Cada enfermedad responde segun su
- * preventionSensitivity.
+ * Prevalencia de equilibrio de una enfermedad para una eficiencia de Salud dada
+ * (la prevalencia hacia la que tiende cuando ningún programa actúa sobre ella).
+ *
+ *   equilibrio = base × (1 − (eficiencia/100) × sensibilidad) + contagio
+ *   contagio   = contagionRate × (1 − eficiencia/100) × CONTAGION_MULTIPLIER   (solo transmisibles)
+ *
+ * Justificación: SPEC.md hace depender los enfermos de la eficiencia de Salud. Esta es
+ * la única fórmula de objetivo (siembra, recuperación mensual y programas la usan),
+ * de modo que la política sanitaria mueve el sickRate (≈57 % con eficiencia 20,
+ * ≈50 % con 50 y ≈35 % con 100). Antes la recuperación apuntaba a base + contagio, ignorando
+ * la eficiencia: el equilibrio quedaba en ≈61 % con cualquier política.
+ */
+export function diseaseTargetPrevalence(
+  disease: Pick<DiseaseState, "contagionRate" | "prevalenceBase" | "preventionSensitivity"> & {
+    category: string;
+  },
+  healthEfficiency: number,
+): number {
+  const coverageBonus = healthEfficiency / BALANCE.DISEASE_COVERAGE_MAX;
+  // La prevencion reduce la prevalencia base segun la sensibilidad de la enf.
+  const preventionEffect = coverageBonus * disease.preventionSensitivity;
+  // Transmisibles: la contagionRate puede hacer que suba si no hay control
+  const contagionBonus = disease.category === "TRANSMISSIBLE"
+    ? disease.contagionRate * (1 - coverageBonus) * BALANCE.CONTAGION_MULTIPLIER
+    : 0;
+  const raw = disease.prevalenceBase * (1 - preventionEffect) + contagionBonus;
+  return Math.max(0, Math.min(100, raw));
+}
+
+/**
+ * Prevalencia con la que nace una enfermedad en una partida: su equilibrio con la
+ * eficiencia inicial de Salud (`DISEASE_SEED_HEALTH_EFFICIENCY`), redondeada a 2 decimales.
+ * Sembrar en 0 hacía que el sickRate subiera ~3 pts/mes durante años hasta el equilibrio.
+ */
+export function initialDiseasePrevalence(
+  disease: Pick<DiseaseState, "contagionRate" | "prevalenceBase" | "preventionSensitivity"> & {
+    category: string;
+  },
+): number {
+  const value = diseaseTargetPrevalence(disease, BALANCE.DISEASE_SEED_HEALTH_EFFICIENCY);
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Calcula la prevalencia de equilibrio de cada enfermedad en funcion de la
+ * eficiencia sanitaria del pais (ver `diseaseTargetPrevalence`).
  *
  * Si no hay datos de enfermedades en el estado, retorna un array vacio
  * y el sistema usa calculateHealth/calculateHealthRegional como fallback.
@@ -51,25 +94,12 @@ export function calculateDiseasePrevalence(
     (m) => m.key === "HEALTH" || m.key === "salud"
   );
   const healthEfficiency = healthMinistry?.efficiency ?? 50;
-  const coverageBonus = healthEfficiency / BALANCE.DISEASE_COVERAGE_MAX;
 
-  return diseases.map((disease) => {
-    // La prevencion reduce la prevalencia base segun la sensibilidad de la enf.
-    const preventionEffect = coverageBonus * disease.preventionSensitivity;
-
-    // Transmisibles: la contagionRate puede hacer que suba si no hay control
-    const contagionBonus = disease.category === "TRANSMISSIBLE"
-      ? disease.contagionRate * (1 - coverageBonus) * BALANCE.CONTAGION_MULTIPLIER
-      : 0;
-
-    const rawPrevalence = disease.prevalenceBase * (1 - preventionEffect) + contagionBonus;
-
-    return {
-      id: `prev-${disease.id}`,
-      diseaseId: disease.id,
-      currentPrevalence: Math.max(0, Math.min(100, Math.round(rawPrevalence * 100) / 100)),
-    };
-  });
+  return diseases.map((disease) => ({
+    id: `prev-${disease.id}`,
+    diseaseId: disease.id,
+    currentPrevalence: Math.round(diseaseTargetPrevalence(disease, healthEfficiency) * 100) / 100,
+  }));
 }
 
 /**

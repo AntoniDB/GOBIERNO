@@ -6,6 +6,7 @@ import type { PresetKey, Difficulty } from "@/lib/game-factory";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
 import { defaultTradeFlowParams } from "@/lib/engine/trade";
 import { scaleLawCost } from "@/lib/engine/cost-scale";
+import { initialDiseasePrevalence } from "@/lib/engine/diseases";
 import { BALANCE } from "@/lib/balance";
 import {
   generateSeed,
@@ -206,7 +207,7 @@ export async function createInitialGame(
         category: d.category,
         contagionRate: d.contagionRate,
         mortalityRate: d.mortalityRate,
-        prevalence: 0,
+        prevalence: initialDiseasePrevalence(d),
         prevalenceBase: d.prevalenceBase,
         hasVaccine: d.hasVaccine,
         preventionSensitivity: d.preventionSensitivity,
@@ -214,12 +215,13 @@ export async function createInitialGame(
         classAffinity: d.classAffinity as Record<string, unknown>,
       },
     });
-    // Crear DiseasePrevalence inicial con 0
+    // Prevalencia inicial = equilibrio con la eficiencia inicial de Salud (no 0:
+    // sembrar en 0 generaba una rampa artificial del sickRate durante años)
     await prismaClient.diseasePrevalence.create({
       data: {
         gameId,
         diseaseId: disease.id,
-        currentPrevalence: 0,
+        currentPrevalence: initialDiseasePrevalence(d),
       },
     });
   }
