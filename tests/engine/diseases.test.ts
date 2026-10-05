@@ -7,6 +7,7 @@ import {
   calculateDiseaseMortality,
   diseaseTargetPrevalence,
   initialDiseasePrevalence,
+  migratedDiseasePrevalence,
 } from "@/lib/engine/diseases";
 import { DISEASE_CATALOG } from "@/lib/seed-catalogs";
 import { BALANCE } from "@/lib/balance";
@@ -247,5 +248,20 @@ describe("initialDiseasePrevalence", () => {
     // Con prevalencias en 0 el sickRate inicial era ≈4 %
     expect(inicial).toBeGreaterThan(40);
     expect(Math.abs(inicial - sickRateDeEquilibrio(BALANCE.DISEASE_SEED_HEALTH_EFFICIENCY))).toBeLessThan(0.5);
+  });
+});
+
+describe("migratedDiseasePrevalence", () => {
+  it("sube hasta el equilibrio lo que quedó por debajo (sembrado en 0)", () => {
+    expect(migratedDiseasePrevalence(0, 6.375, false)).toBe(6.38);
+    expect(migratedDiseasePrevalence(3, 6.375, false)).toBe(6.38);
+  });
+  it("no baja lo que ya está por encima ni toca lo cubierto por un programa", () => {
+    expect(migratedDiseasePrevalence(10, 6.375, false)).toBe(10);
+    expect(migratedDiseasePrevalence(1, 6.375, true)).toBe(1);
+  });
+  it("es idempotente", () => {
+    const una = migratedDiseasePrevalence(0, 6.375, false);
+    expect(migratedDiseasePrevalence(una, 6.375, false)).toBe(una);
   });
 });

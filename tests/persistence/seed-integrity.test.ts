@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
 import { defaultTradeFlowParams, createDefaultTradeGoods } from "@/lib/engine/trade";
-import { ensureSeedIntegrity, type SeedCounts } from "@/lib/seed-integrity";
+import { ensureSeedIntegrity, SEED_VERSION, type SeedCounts } from "@/lib/seed-integrity";
 
 // ──────────────────────────────────────────────────────────────────────────────
 //  Catálogos y helper puro
@@ -60,8 +60,9 @@ const FULL: SeedCounts = {
   diseases: DISEASE_CATALOG.length,
   tradeGoods: TRADE_GOOD_CATALOG.length,
   tradeFlows: TRADE_GOOD_CATALOG.length,
+  seedVersion: SEED_VERSION, // las migraciones de datos tienen su propio archivo (seed-migrations.test.ts)
 };
-const EMPTY: SeedCounts = { diseases: 0, tradeGoods: 0, tradeFlows: 0 };
+const EMPTY: SeedCounts = { diseases: 0, tradeGoods: 0, tradeFlows: 0, seedVersion: SEED_VERSION };
 
 type Rows = Record<string, unknown>[];
 const createManyMock = () =>
@@ -86,7 +87,7 @@ function fakePrisma(opts: FakeOpts) {
 
   const tx = {
     game: {
-      findUnique: vi.fn(async () => ({ _count: opts.inner ?? opts.outer })),
+      findUnique: vi.fn(async () => ({ seedVersion: (opts.inner ?? opts.outer).seedVersion, _count: opts.inner ?? opts.outer })),
       findUniqueOrThrow: vi.fn(async () => ({ population: 10_000_000 })),
     },
     $executeRaw: vi.fn(async () => 0),
@@ -117,7 +118,7 @@ function fakePrisma(opts: FakeOpts) {
 
   const prisma = {
     game: {
-      findUnique: vi.fn(async () => ({ _count: opts.outer })),
+      findUnique: vi.fn(async () => ({ seedVersion: opts.outer.seedVersion, _count: opts.outer })),
     },
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   };

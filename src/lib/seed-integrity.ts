@@ -4,11 +4,28 @@
 // las repone al cargar la partida, reemplazando los scripts de backfill
 // manuales. Para agregar una entidad nueva: sumar un paso a SEED_STEPS y su
 // catálogo en seed-catalogs.ts (el mismo que usa la creación de partidas).
+//
+// Además hay migraciones de DATOS (corregir valores sembrados con reglas antiguas), que
+// no se pueden detectar por conteos: se versionan con Game.seedVersion. Las partidas
+// nuevas nacen con SEED_VERSION; a las anteriores se les aplica cada paso una sola vez.
+// Para añadir una: subir SEED_VERSION, sumar un paso con `isMissing: c.seedVersion < N`.
 
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "./seed-catalogs";
 import { defaultTradeFlowParams } from "./engine/trade";
 import { initialEconomy } from "./initial-economy";
+import { costScaleFactor } from "./engine/cost-scale";
+import { diseaseTargetPrevalence, migratedDiseasePrevalence } from "./engine/diseases";
+import { isDiseaseCovered } from "./engine/programs";
+import { generateRegions, scaleHealthCoverage } from "./game-factory";
+import type { PresetKey, RegionData } from "./game-factory";
+import { BALANCE } from "./balance";
+
+/**
+ * Versión actual de las migraciones de datos de siembra.
+ *  1 — red hospitalaria escalada por población (Issue 5) y prevalencias en equilibrio (Issue 11)
+ */
+export const SEED_VERSION = 1;
 import { initialDiseasePrevalence } from "./engine/diseases";
 
 type Tx = Prisma.TransactionClient;
@@ -17,6 +34,7 @@ export interface SeedCounts {
   diseases: number;
   tradeGoods: number;
   tradeFlows: number;
+  seedVersion: number;
 }
 
 export interface SeedStep {
@@ -133,7 +151,88 @@ const tradeStep: SeedStep = {
   },
 };
 
-export const SEED_STEPS: readonly SeedStep[] = [diseasesStep, tradeStep];
+type Coverage = RegionData["healthCoverage"];
+const totalBeds = (hc: Coverage) => hc.primary.beds + hc.secondary.beds + hc.tertiary.beds;
+
+/** v1 (Issue 5): las camas de los presets no escalaban con la población del país. */
+const healthNetworkStep: SeedStep = {
+  name: "red hospitalaria escalada",
+  isMissing: (c) => c.seedVersion < 1,
+  async fill(tx, gameId) {
+    const game = await tx.game.findUniqueOrThrow({
+      where: { id: gameId },
+      select: { preset: true, difficulty: true },
+    });
+    const population = initialEconomy(game.preset, game.difficulty).population;
+    const factor = costScaleFactor(population, BALANCE.HEALTH_NETWORK_REFERENCE_POPULATION);
+    if (factor === 1) return;
+
+    const regions = await tx.region.findMany({ where: { gameId }, select: { id: true, healthCoverage: true } });
+    // Defensa: una partida creada con el código del Issue 5 pero sin versión ya tiene la red escalada
+    // (≈ factor × plantilla): no se escala dos veces. Una sin escalar solo suma las camas construidas.
+    const template = generateRegions(game.preset as PresetKey).reduce((sum, r) => sum + totalBeds(r.healthCoverage), 0);
+    const current = regions.reduce((sum, r) => sum + totalBeds(r.healthCoverage as Coverage), 0);
+    if (current >= template * (1 + factor) / 2) return;
+
+    for (const region of regions) {
+      await tx.region.update({
+        where: { id: region.id },
+        data: { healthCoverage: scaleHealthCoverage(region.healthCoverage as Coverage, factor) },
+      });
+    }
+  },
+};
+
+/** v1 (Issue 11): las prevalencias se sembraban en 0 y subían durante años hacia su equilibrio. */
+const diseasePrevalenceStep: SeedStep = {
+  name: "prevalencias en equilibrio",
+  isMissing: (c) => c.seedVersion < 1,
+  async fill(tx, gameId) {
+    const [diseases, prevalences, health, programs] = await Promise.all([
+      tx.disease.findMany({
+        where: { gameId },
+        select: { id: true, category: true, contagionRate: true, prevalenceBase: true, preventionSensitivity: true, hasVaccine: true },
+      }),
+      tx.diseasePrevalence.findMany({ where: { gameId }, select: { id: true, diseaseId: true, currentPrevalence: true } }),
+      tx.ministry.findFirst({ where: { gameId, key: "HEALTH" }, select: { efficiency: true } }),
+      tx.ministryProgram.findMany({ where: { gameId, status: "ACTIVE" }, select: { type: true, parameters: true } }),
+    ]);
+    const efficiency = health?.efficiency ?? BALANCE.DISEASE_SEED_HEALTH_EFFICIENCY;
+    const activePrograms = programs.map((p) => ({
+      type: p.type,
+      parameters: (p.parameters ?? {}) as Record<string, unknown>,
+    }));
+    const byId = new Map(diseases.map((d) => [d.id, d]));
+
+    for (const prevalence of prevalences) {
+      const disease = byId.get(prevalence.diseaseId);
+      if (!disease) continue;
+      const target = diseaseTargetPrevalence(disease, efficiency);
+      const covered = isDiseaseCovered(disease, activePrograms);
+      const next = migratedDiseasePrevalence(prevalence.currentPrevalence, target, covered);
+      if (next !== prevalence.currentPrevalence) {
+        await tx.diseasePrevalence.update({ where: { id: prevalence.id }, data: { currentPrevalence: next } });
+      }
+    }
+  },
+};
+
+/** Siempre el último: marca la partida como migrada a SEED_VERSION. */
+const seedVersionStep: SeedStep = {
+  name: "versión de siembra",
+  isMissing: (c) => c.seedVersion < SEED_VERSION,
+  async fill(tx, gameId) {
+    await tx.game.update({ where: { id: gameId }, data: { seedVersion: SEED_VERSION } });
+  },
+};
+
+export const SEED_STEPS: readonly SeedStep[] = [
+  diseasesStep,
+  tradeStep,
+  healthNetworkStep,
+  diseasePrevalenceStep,
+  seedVersionStep,
+];
 
 async function findMissingSteps(
   db: Pick<Tx, "game">,
@@ -142,11 +241,12 @@ async function findMissingSteps(
   const game = await db.game.findUnique({
     where: { id: gameId },
     select: {
+      seedVersion: true,
       _count: { select: { diseases: true, tradeGoods: true, tradeFlows: true } },
     },
   });
   if (!game) return [];
-  return SEED_STEPS.filter((step) => step.isMissing(game._count));
+  return SEED_STEPS.filter((step) => step.isMissing({ ...game._count, seedVersion: game.seedVersion }));
 }
 
 /**

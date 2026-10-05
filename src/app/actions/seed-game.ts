@@ -7,6 +7,7 @@ import { DISEASE_CATALOG, TRADE_GOOD_CATALOG } from "@/lib/seed-catalogs";
 import { defaultTradeFlowParams } from "@/lib/engine/trade";
 import { scaleLawCost } from "@/lib/engine/cost-scale";
 import { initialDiseasePrevalence } from "@/lib/engine/diseases";
+import { SEED_VERSION } from "@/lib/seed-integrity";
 import { BALANCE } from "@/lib/balance";
 import {
   generateSeed,
@@ -48,6 +49,8 @@ export async function createInitialGame(
       difficulty: params.difficulty,
       treasury: cfg.treasury,
       population: cfg.population,
+      // Nace ya con las migraciones de datos de siembra aplicadas (lib/seed-integrity.ts)
+      seedVersion: SEED_VERSION,
     },
   });
 

@@ -9,6 +9,7 @@ import {
   getVaccineDiseases,
   getMentalHealthDiseases,
   programLabel,
+  isDiseaseCovered,
 } from "@/lib/engine/programs";
 import { BALANCE } from "@/lib/balance";
 import { diseaseTargetPrevalence } from "@/lib/engine/diseases";
@@ -463,5 +464,35 @@ describe("flujo completo: activar -> varios meses -> desactivar", () => {
     const prevTrasRecuperar = state.diseasePrevalences[0].currentPrevalence;
     expect(prevTrasRecuperar).toBeGreaterThan(prevTrasSostenido);
     expect(prevTrasRecuperar).toBeLessThanOrEqual(10);
+  });
+});
+describe("isDiseaseCovered", () => {
+  const gripe = { id: "d-gripe", category: "TRANSMISSIBLE", hasVaccine: true };
+  const dengue = { id: "d-dengue", category: "TRANSMISSIBLE", hasVaccine: false };
+  const hipertension = { id: "d-hta", category: "CHRONIC", hasVaccine: false };
+  const depresion = { id: "d-dep", category: "MENTAL_HEALTH", hasVaccine: false };
+  const prog = (type: string, parameters: Record<string, unknown> = {}) => ({ type, parameters }) as MinistryProgramState;
+
+  it("sin programas nada está cubierto", () => {
+    for (const d of [gripe, dengue, hipertension, depresion]) expect(isDiseaseCovered(d, [])).toBe(false);
+  });
+  it("la campaña de vacunación cubre solo la enfermedad elegida", () => {
+    const campana = [prog("VACCINATION_CAMPAIGN", { diseaseId: "d-gripe" })];
+    expect(isDiseaseCovered(gripe, campana)).toBe(true);
+    expect(isDiseaseCovered({ ...gripe, id: "otra" }, campana)).toBe(false);
+    expect(isDiseaseCovered(dengue, campana)).toBe(false);
+  });
+  it("la prevención cubre transmisibles y crónicas, no mentales", () => {
+    const prevencion = [prog("PREVENTION_EDUCATION")];
+    expect(isDiseaseCovered(gripe, prevencion)).toBe(true);
+    expect(isDiseaseCovered(dengue, prevencion)).toBe(true);
+    expect(isDiseaseCovered(hipertension, prevencion)).toBe(true);
+    expect(isDiseaseCovered(depresion, prevencion)).toBe(false);
+  });
+  it("el programa de salud mental cubre solo las mentales", () => {
+    const mental = [prog("MENTAL_HEALTH_PROGRAM")];
+    expect(isDiseaseCovered(depresion, mental)).toBe(true);
+    expect(isDiseaseCovered(gripe, mental)).toBe(false);
+    expect(isDiseaseCovered(hipertension, mental)).toBe(false);
   });
 });

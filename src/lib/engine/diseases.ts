@@ -75,6 +75,17 @@ export function initialDiseasePrevalence(
 }
 
 /**
+ * Prevalencia de una enfermedad de una partida anterior al Issue 11 tras la migración de datos:
+ * se sube hasta su equilibrio actual (esas partidas sembraron en 0 y todavía "suben" hacia él),
+ * salvo que un programa la cubra (entonces el valor es resultado de la campaña del jugador) o
+ * que ya esté por encima (se deja bajar sola hacia el equilibrio, 0,2–0,4 pp/mes).
+ */
+export function migratedDiseasePrevalence(current: number, target: number, covered: boolean): number {
+  if (covered || current >= target) return current;
+  return Math.round(target * 100) / 100;
+}
+
+/**
  * Calcula la prevalencia de equilibrio de cada enfermedad en funcion de la
  * eficiencia sanitaria del pais (ver `diseaseTargetPrevalence`).
  *

@@ -408,20 +408,25 @@ export function generateRegions(
  */
 export function scaleHealthNetwork(regions: RegionData[], population: number): RegionData[] {
   const factor = costScaleFactor(population, BALANCE.HEALTH_NETWORK_REFERENCE_POPULATION);
+  return regions.map((r) => ({ ...r, healthCoverage: scaleHealthCoverage(r.healthCoverage, factor) }));
+}
+
+/** Multiplica camas, establecimientos (mín. 1 si había) y costo operativo de cada nivel por `factor`. */
+export function scaleHealthCoverage(
+  healthCoverage: RegionData["healthCoverage"],
+  factor: number,
+): RegionData["healthCoverage"] {
   const levels = ["primary", "secondary", "tertiary"] as const;
-  return regions.map((r) => ({
-    ...r,
-    healthCoverage: Object.fromEntries(
-      levels.map((level) => {
-        const hc = r.healthCoverage[level];
-        return [level, {
-          facilities: hc.facilities > 0 ? Math.max(1, Math.round(hc.facilities * factor)) : 0,
-          beds: Math.round(hc.beds * factor),
-          operationalCost: Math.round(hc.operationalCost * factor),
-        }];
-      }),
-    ) as RegionData["healthCoverage"],
-  }));
+  return Object.fromEntries(
+    levels.map((level) => {
+      const hc = healthCoverage[level];
+      return [level, {
+        facilities: hc.facilities > 0 ? Math.max(1, Math.round(hc.facilities * factor)) : 0,
+        beds: Math.round(hc.beds * factor),
+        operationalCost: Math.round(hc.operationalCost * factor),
+      }];
+    }),
+  ) as RegionData["healthCoverage"];
 }
 
 function regionTemplates(preset: PresetKey): RegionData[] {

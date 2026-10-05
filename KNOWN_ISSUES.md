@@ -120,8 +120,7 @@ alivia construyendo hospitales. Antes del cambio eran 6/6/6/5 en solo 8 turnos. 
 preset, colapso estable = 0 en 12 meses y post-conflicto sí colapsa, construir hospitales alivia).
 
 **Limitaciones:**
-- Las partidas ya creadas conservan sus camas sembradas sin escalar (no hay backfill), por lo que
-  seguirán más saturadas que las nuevas.
+- Las partidas ya creadas se migran al cargarlas (backfill, ver #15).
 - `HOSPITALIZATION_SHARE` es una calibración de diseño, no un dato real.
 - El hallazgo de que el `sickRate` partía en ~4 % y subía ~3 pts/mes (preexistente) se corrigió en #11.
 
@@ -326,8 +325,7 @@ salario mínimo, valor escrito a mano acotado a 10.000 y turno avanzado con la d
 por la rampa). Tests nuevos con mutación comprobada (siembra en 0, objetivo sin eficiencia).
 
 **Limitaciones:**
-- Las partidas ya creadas conservan sus prevalencias actuales: seguirán convergiendo, ahora hacia el nuevo (menor)
-  equilibrio, a 0,2–0,4 pp/mes. No se les hace backfill.
+- Las partidas ya creadas se migran al cargarlas (backfill, ver #15).
 - La eficiencia de Salud solo mueve la prevalencia a 0,2–0,4 pp/mes por enfermedad: un cambio de política tarda meses
   en notarse en el sickRate (diseño existente, no cambiado).
 - La esperanza de vida sigue bajando levemente con el tiempo (≈0,1–0,4 años en 12 meses) por otros indicadores (pobreza,
@@ -416,3 +414,32 @@ efectividad sembrada de la Contraloría a ~50 (neto 0) o hacer gradual el bono d
   ingreso mensual.
 - Los eventos de protesta suben el crimen de golpe (`severidad × 0,5` puntos): con severidad 100 el crimen del mes llegó a 88.
 
+---
+
+## 15. ~~Backfill de partidas existentes (red hospitalaria y prevalencias)~~ — RESUELTO
+
+**Problema:** los arreglos del #5 (camas escaladas por población) y del #11 (prevalencias sembradas en equilibrio) solo
+valían para partidas nuevas; las creadas antes conservaban camas sin escalar (más saturadas) y prevalencias en 0 que subían
+despacio durante años.
+
+**Solución:** migraciones de datos versionadas. `Game.seedVersion` (migración `20261005000000_game_seed_version`, por
+defecto 0) guarda cuántas se aplicaron; las partidas nuevas nacen con `SEED_VERSION` (1). `ensureSeedIntegrity` (que ya corre
+al cargar la partida y al avanzar el turno, con lock por partida y re-chequeo) ejecuta una sola vez, para las de versión < 1:
+- **Red hospitalaria:** camas, establecimientos y costo de cada región × (población inicial del preset / 10M), incluidas las
+  camas ya construidas. No vuelve a escalar una red que ya lo está (detecta que sus camas ≈ factor × plantilla).
+- **Prevalencias:** las que quedaron por debajo del equilibrio con la eficiencia **actual** de Salud suben hasta él. No se tocan
+  las que ya están por encima (bajan solas, 0,2–0,4 pp/mes) ni las cubiertas por un programa activo (conservan el efecto de la
+  campaña; `isDiseaseCovered`, que además comparte lógica con la recuperación mensual).
+- Luego marca la partida con `SEED_VERSION`. Para una migración futura: subir `SEED_VERSION` y añadir un paso.
+
+**Efecto visible para el jugador (una vez, al cargar):** en una partida antigua el `sickRate` salta de su valor "en rampa" al
+de equilibrio (≈ 49 %), y la esperanza de vida baja en consecuencia unos años (con factor 0,12 por punto de sickRate). Es el
+valor al que la partida habría llegado de todos modos en 1–5 años, y es el de una partida nueva.
+
+**Verificación:** 18 tests con Prisma simulado (pasos, idempotencia, doble escalado, camas construidas, programas, lock y
+re-chequeo; mutación comprobada de la defensa anti-doble-escalado, de los programas y del marcado de versión) y prueba en
+Postgres real: una partida con red sin escalar y prevalencias en 0 pasa de 3.800 a 19.000 camas (=las de una nueva) y
+prevalencia media 4,6, queda en `seedVersion` 1, una segunda carga no cambia nada y el turno siguiente da sickRate 48,5.
+
+**Límites:** no se corrige el historial de snapshots (los sickRate/esperanza de vida pasados quedan como estaban). Las
+migraciones corren también en partidas terminadas la próxima vez que se carguen.

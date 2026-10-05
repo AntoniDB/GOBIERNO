@@ -291,6 +291,30 @@ function applyMentalHealthProgram(
 }
 
 /**
+ * ¿Hay un programa activo que cubra esta enfermedad? Las cubiertas no se recuperan
+ * hacia su equilibrio (el programa las mantiene bajas):
+ *  - mentales: programa de salud mental
+ *  - transmisibles con vacuna: campaña de esa enfermedad o programa de prevención
+ *  - resto (crónicas, transmisibles sin vacuna): programa de prevención
+ */
+export function isDiseaseCovered(
+  disease: Pick<DiseaseStateInput, "id" | "category" | "hasVaccine">,
+  activePrograms: readonly Pick<MinistryProgramState, "type" | "parameters">[],
+): boolean {
+  const preventionActive = activePrograms.some((p) => p.type === "PREVENTION_EDUCATION");
+  if (disease.category === "MENTAL_HEALTH") {
+    return activePrograms.some((p) => p.type === "MENTAL_HEALTH_PROGRAM");
+  }
+  if (disease.category === "TRANSMISSIBLE" && disease.hasVaccine) {
+    const vaccinated = activePrograms.some(
+      (p) => p.type === "VACCINATION_CAMPAIGN" && p.parameters?.diseaseId === disease.id,
+    );
+    return vaccinated || preventionActive;
+  }
+  return preventionActive;
+}
+
+/**
  * Recuperacion: para enfermedades que NO tienen programa activo sobre ellas,
  * subir (o bajar) la prevalencia hacia su equilibrio (diseaseTargetPrevalence).
  *
@@ -309,33 +333,16 @@ function applyUnprogrammedRecovery(
   diseasesById: Map<string, DiseaseStateInput>,
   healthEfficiency: number,
 ): void {
-  // Set de diseaseIds cubiertos por una campaña de vacunacion activa
-  const vaccinatedIds = new Set<string>(
-    activePrograms
-      .filter((p) => p.type === "VACCINATION_CAMPAIGN" && p.parameters.diseaseId)
-      .map((p) => p.parameters.diseaseId as string),
-  );
-  const preventionActive = activePrograms.some((p) => p.type === "PREVENTION_EDUCATION");
-  const mentalActive = activePrograms.some((p) => p.type === "MENTAL_HEALTH_PROGRAM");
-
   for (const prev of state.diseasePrevalences) {
     const disease = diseasesById.get(prev.diseaseId);
     if (!disease) continue;
 
-    let rate: number;
-    let covered: boolean;
-    if (disease.category === "MENTAL_HEALTH") {
-      rate = BALANCE.MENTAL_HEALTH_RECOVERY_RATE;
-      covered = mentalActive;
-    } else if (disease.category === "TRANSMISSIBLE" && disease.hasVaccine) {
-      rate = BALANCE.VACCINATION_RECOVERY_RATE;
-      covered = vaccinatedIds.has(prev.diseaseId) || preventionActive;
-    } else {
-      rate = BALANCE.PREVENTION_RECOVERY_RATE;
-      covered = preventionActive;
-    }
+    if (isDiseaseCovered(disease, activePrograms)) continue;
 
-    if (covered) continue;
+    const rate =
+      disease.category === "MENTAL_HEALTH" ? BALANCE.MENTAL_HEALTH_RECOVERY_RATE
+      : disease.category === "TRANSMISSIBLE" && disease.hasVaccine ? BALANCE.VACCINATION_RECOVERY_RATE
+      : BALANCE.PREVENTION_RECOVERY_RATE;
 
     const target = diseaseTargetPrevalence(disease, healthEfficiency);
 

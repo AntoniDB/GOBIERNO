@@ -196,6 +196,9 @@ model Game {
   healthEfficiencyStreak      Int @default(0)
   consecutiveSaturationMonths Json?
   sanctionsMultiplier Float  @default(1.0)
+  // Versión de las migraciones de datos de siembra ya aplicadas (lib/seed-integrity.ts).
+  // Las partidas nuevas nacen con SEED_VERSION; las anteriores a una migración tienen menos.
+  seedVersion   Int       @default(0)
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
