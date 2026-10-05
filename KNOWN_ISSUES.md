@@ -369,3 +369,21 @@ aviso de la UI es JSX trivial y solo se comprobó con `tsc` y `next build`.
 **No cubierto:** no hay solape declarado entre `PREVENTION_EDUCATION` y `vacunacion` (la prevención también baja
 transmisibles), ni entre otras sub-decisiones y leyes de efecto parecido (p. ej. `salario mínimo`); se deja a juicio del diseñador.
 
+---
+
+## 13. ~~BALANCE.md desactualizado respecto del código~~ — RESUELTO
+
+**Problema original:** el documento llevaba valores y fórmulas de sesiones antiguas: inflación (2,5 / 0,3 en vez de 0,2 /
+0,02), pobreza, desempleo y alimentación (factores y bases), corrupción base (0,5 en vez de 1,5) y las fórmulas de régimen,
+golpe de estado y pérdida electoral. Las fórmulas hablaban de "eficiencia" cuando el código usa el **impacto**
+(`eficiencia × (1 − e^(−presupuesto%/12))`).
+
+**Solución:** se revisaron contra el código todas las secciones de indicadores, aprobación, corrupción, régimen y fin de
+partida, y se reescribieron. Un test (`tests/balance-doc.test.ts`) compara cada constante citada como `` `NOMBRE` (valor) ``
+con `balance.ts` y falla si se desalinean (comprobado con mutación).
+
+**Divergencia con el SPEC (no cambiada, para decidir):** el SPEC (línea 503) pide "fin de mandatos máximos: terminas tu
+mandato sin posibilidad de reelección", pero el código eliminó el límite de mandatos (las elecciones siguen cada 5 años
+mientras se gane) y la pérdida electoral se decide por el % de votos de las clases, no por "aprobación baja". Se
+documentó el comportamiento real.
+

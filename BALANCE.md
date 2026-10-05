@@ -6,23 +6,36 @@ Todas las constantes de balance estan centralizadas en `src/lib/balance.ts`. Par
 
 ## Indicadores sociales
 
+Todos los indicadores se recalculan desde cero cada turno. Donde abajo dice **impacto** de un ministerio
+se refiere a `indicators.ts:getMinistryImpact`:
+
+```
+impacto = eficiencia × (1 − e^(−presupuesto% / 12))      // 0 si el presupuesto es 0; sin ministerio: 25
+```
+
+A cada fórmula se le suman además los efectos de las leyes activas (`effectsJson.<indicador>`) y de las
+sub-decisiones (ver "Sub-decisiones de ministerio").
+
 ### Pobreza (`indicators.ts:calculatePoverty`)
 ```
-pobreza = POVERTY_SOCIAL_DEV_FACTOR * eficienciaDesarrolloSocial
+pobreza = POVERTY_SOCIAL_DEV_FACTOR * impactoDesarrolloSocial
         + POVERTY_UNEMPLOYMENT_FACTOR * desempleo
         + POVERTY_INFLATION_FACTOR * inflacion
-        + 25 (base)
+        + POVERTY_BASE
+          (clamped a [0, 100])
 ```
-- `POVERTY_SOCIAL_DEV_FACTOR` (-0.3): mas eficiencia → menos pobreza
+- `POVERTY_SOCIAL_DEV_FACTOR` (-0.5): mas impacto de Desarrollo Social → menos pobreza
 - `POVERTY_UNEMPLOYMENT_FACTOR` (0.5): mas desempleo → mas pobreza
 - `POVERTY_INFLATION_FACTOR` (0.3): mas inflacion → mas pobreza
+- `POVERTY_BASE` (43)
 
 ### Desempleo (`indicators.ts:calculateUnemployment`)
 ```
-desempleo = UNEMPLOYMENT_ECONOMY_FACTOR * eficienciaEconomia + UNEMPLOYMENT_BASE
+desempleo = UNEMPLOYMENT_ECONOMY_FACTOR * impactoEconomia + UNEMPLOYMENT_BASE
            (clamped a [2, 50])
 ```
-- `UNEMPLOYMENT_ECONOMY_FACTOR` (-0.4): mas eficiencia economica → menos desempleo
+- `UNEMPLOYMENT_ECONOMY_FACTOR` (-0.26): mas impacto economico → menos desempleo
+- `UNEMPLOYMENT_BASE` (25)
 
 ### Salud / Enfermos (`indicators.ts:calculateHealthRegional`)
 ```
@@ -31,11 +44,11 @@ sickRate = 1 − Π(1 − prevalence_i)   // probabilidad de union sobre 14 enfe
 diseaseMortality = Σ(prevalence_i × mortalityRate_i)  // aditiva, para el motor
 
 // Fallback sin enfermedades (modo anterior):
-enfermos = SICK_HEALTH_FACTOR * eficienciaSalud + SICK_BASE
+enfermos = SICK_HEALTH_FACTOR * impactoSalud + SICK_BASE
            (clamped a [0, 50])
 ```
 - **Cambio en Salud-2**: el sickRate paso de ~20% (modelo antiguo, solo agudos) a ~40% (modelo Π con 14 enfermedades incluyendo cronicas y salud mental). Esto es epidemiológicamente correcto: ~40-50% de la poblacion tiene al menos 1 condicion de salud en cualquier pais. Los thresholds del dashboard se recalibraron: verde ≤25%, amarillo 25-45%, rojo >45%.
-- `SICK_HEALTH_FACTOR` (-0.34): mas eficiencia en salud → menos enfermos (solo modo fallback)
+- `SICK_HEALTH_FACTOR` (-0.34) y `SICK_BASE` (28): mas impacto de Salud → menos enfermos (solo modo fallback)
 - `LE_DISEASE_FACTOR` (0.04): impacto de mortalidad por enfermedades en esperanza de vida (nuevo en Salud-2)
 - `LE_SATURATION_FACTOR` (0.10): impacto de saturacion hospitalaria en esperanza de vida (nuevo en Salud-2)
 - La esperanza de vida resta `LE_SICK_FACTOR × sickRate` (0,12; era 0,28, ver Issue 11) y, además, un término
@@ -45,34 +58,39 @@ enfermos = SICK_HEALTH_FACTOR * eficienciaSalud + SICK_BASE
 
 ### Seguridad alimentaria (`indicators.ts:calculateFoodSecurity`)
 ```
-alimentacion = FOOD_AGRICULTURE_FACTOR * eficienciaAgricultura + FOOD_BASE
+alimentacion = FOOD_AGRICULTURE_FACTOR * impactoAgricultura + FOOD_BASE
                 (clamped a [0, 100])
 ```
-- `FOOD_AGRICULTURE_FACTOR` (0.5): mas eficiencia → mas seguridad alimentaria
+- `FOOD_AGRICULTURE_FACTOR` (0.35): mas impacto de Agricultura → mas seguridad alimentaria
+- `FOOD_BASE` (54)
 
 ### Crimen (`indicators.ts:calculateCrime`)
 ```
-crimen = CRIME_SECURITY_FACTOR * eficienciaSeguridad
+crimen = CRIME_SECURITY_FACTOR * impactoSeguridad
        + CRIME_POVERTY_FACTOR * pobreza
        + CRIME_UNEMPLOYMENT_FACTOR * desempleo
        + CRIME_BASE
+         (clamped a [0, 100])
 ```
-- `CRIME_SECURITY_FACTOR` (-0.35): mas eficiencia en seguridad → menos crimen
+- `CRIME_SECURITY_FACTOR` (-0.35): mas impacto de Seguridad → menos crimen
+- `CRIME_BASE` (29)
 - `CRIME_POVERTY_FACTOR` (0.3): mas pobreza → mas crimen
 - `CRIME_UNEMPLOYMENT_FACTOR` (0.4): mas desempleo → mas crimen
 
 ### Educacion (`indicators.ts:calculateEducation`)
 ```
-educacion = EDUCATION_EDU_FACTOR * eficienciaEducacion + EDUCATION_BASE
+educacion = EDUCATION_EDU_FACTOR * impactoEducacion + EDUCATION_BASE
 ```
 
 ### Inflacion (`economy.ts:calculateInflation`)
 ```
-inflacion = BASE_INFLATION + deficitRelativo * INFLATION_DEFICIT_FACTOR
+deficit% = max(0, gastos − ingresos) / ingresos × 100
+inflacion = BASE_INFLATION + deficit% * INFLATION_DEFICIT_FACTOR   (+ sub-decisiones; mínimo 0)
 ```
-- `BASE_INFLATION` (2.5)
-- `INFLATION_DEFICIT_FACTOR` (0.3)
-- Afectada por INFLATION_CRISIS_THRESHOLD (15%) que dispara penalizacion de aprobacion
+- `BASE_INFLATION` (0.2): inflación mensual sin déficit (≈ 2,4 % anual)
+- `INFLATION_DEFICIT_FACTOR` (0.02): puntos de inflación por cada 1 % de déficit sobre el ingreso
+- Con los valores sembrados la inflación ronda 0,2–0,5; `INFLATION_CRISIS_THRESHOLD` (15) solo se alcanza con
+  déficits enormes, y entonces dispara la penalizacion de aprobacion
 
 ---
 
@@ -81,10 +99,12 @@ inflacion = BASE_INFLATION + deficitRelativo * INFLATION_DEFICIT_FACTOR
 ```
 aprobacion = APPROVAL_BASE (50)
            + efectos de leyes activas
-           - impacto de eventos del mes (severidad * APPROVAL_EVENT_WEIGHT * 10 * classMultiplier)
-           - penalidad de pobreza si >30% y clase es POBREZA/EXTREMA_POBREZA
-           - penalidad de inflacion si >INFLATION_CRISIS_THRESHOLD
-           - corrupcion promedio * APPROVAL_CORRUPTION_WEIGHT
+           + efectos de sub-decisiones (por clase)
+           - impacto de eventos negativos del mes (severidad * APPROVAL_EVENT_WEIGHT * 10 * classMultiplier;
+             los eventos no negativos suman la mitad)
+           - (pobreza − 30) * APPROVAL_INDICATOR_WEIGHT si pobreza > 30% y clase es POBREZA/EXTREMA_POBREZA
+           - (inflacion − INFLATION_CRISIS_THRESHOLD) * APPROVAL_INDICATOR_WEIGHT si supera el umbral
+           - corrupcion promedio de funcionarios * APPROVAL_CORRUPTION_WEIGHT
            (clamped [0, 100])
 ```
 - `APPROVAL_BASE` (50): punto de partida
@@ -109,15 +129,19 @@ aprobacion = APPROVAL_BASE (50)
 
 ### Corrupcion individual (`updateOfficialCorruption`)
 ```
-deltaCorrupcion = CORRUPTION_BASE_INCREASE (0.5)
-                + budgetBonus (presupuesto * CORRUPTION_BUDGET_FACTOR)
-                - organismoBonus (Contraloria/Fiscalia)
-                - deterrenceFactor (casos activos)
+deltaCorrupcion = CORRUPTION_BASE_INCREASE (1.5)
+                + (presupuesto% − 20) * CORRUPTION_BUDGET_FACTOR (0.1)   // solo si el ministerio supera el 20 %
+                - Contraloria: COMPTROLLER_CORRUPTION_REDUCTION (3) * efectividad/100
+                  (+1 con autonomia > 70, −0,5 con autonomia < 30)
+                - Fiscalia Anticorrupcion: ANTICORRUPTION_CORRUPTION_REDUCTION (2) * efectividad/100
+                - CORRUPTION_DETERRENCE_BY_CASES (0.5) * casos judiciales abiertos
+                - leyes anticorrupcion (effectsJson.corruption < 0) y sub-decisiones de Justicia
 ```
+Resultado acotado a [0, 100].
 
 ### Corrupcion global (`calculateGlobalCorruption`)
 ```
-promedio ponderado: MINISTER peso=3, otros peso=1
+promedio ponderado: role MINISTER peso=3, otros peso=1
 ```
 
 ---
@@ -126,15 +150,18 @@ promedio ponderado: MINISTER peso=3, otros peso=1
 
 7 metricas (0-100): powerConcentration, pressFreedom, judicialIndependence, politicalPluralism, civilLiberties, transparency, militarySubordination.
 
-Se mueven con acciones del jugador y se regeneran gradualmente hacia el baseline (50) a ~0.5/mes.
+Se mueven con acciones del jugador y se regeneran gradualmente (si no cambiaron ese turno) hacia su propio
+baseline (`REGIME_BASELINE`: powerConcentration 30, pressFreedom 70, judicialIndependence 60, politicalPluralism 70,
+civilLiberties 70, transparency 50, militarySubordination 60) a `REGIME_REGENERATION_RATE` (0,5) por mes.
 
-Clasificacion:
-- Democracia plena: promedio > 70
-- Democracia defectuosa: 55-70
-- Regimen hibrido: 35-55
-- Autoritarismo electoral: 20-35
-- Dictadura: < 20 y powerConcentration > 85
+Clasificacion (`regime.ts:classifyRegime`, en este orden; `avg` = promedio de las 7 metricas):
+- Democracia plena: pressFreedom, judicialIndependence y politicalPluralism todas > `REGIME_FULL_DEMOCRACY` (70)
 - Estado fallido: crimen > 80, corrupcion > 80, aprobacion < 15
+- Dictadura: powerConcentration > 85 y avg < 20
+- Democracia defectuosa: avg > `REGIME_DEFECTIVE_DEMOCRACY` (55)
+- Regimen hibrido: avg > `REGIME_HYBRID` (35)
+- Autoritarismo electoral: avg > `REGIME_AUTHORITARIAN` (20)
+- Dictadura: avg ≤ 20
 
 ---
 
@@ -144,10 +171,10 @@ Clasificacion:
 |-----------|---------------|
 | Estado fallido | crimen > 80, corrupcion > 80, aprobacion < 15 |
 | Juicio politico | voto del Congreso (mocion) |
-| Golpe de estado | subordinacion militar < 30, aprobacion < 25, corrupcion > 50. Exito depende de defensa + inteligencia |
+| Golpe de estado | riesgo > 50, con `riesgo = COUP_BASE_RISK (5) + 0,32·(100 − subordinacion militar) + 0,28·(100 − aprobacion) + 0,22·corrupcion − 0,15·impactoDefensa − 0,10·efectividadInteligencia` (constantes `COUP_*`, acotado a [0, 100]) |
 | Renuncia forzada | aprobacion < 10 por 6 meses consecutivos |
-| Perdida electoral | elecciones cada 5 anios con aprobacion < 40 |
-| Fin de mandato | limite de 2 mandatos (10 anios) |
+| Perdida electoral | elecciones cada 5 anios: pierdes si el % de votos (aprobacion de cada clase ponderada por su poblacion) es < 50 % |
+| Fin de mandato | **no existe**: se eliminó el límite de mandatos; las elecciones siguen cada 5 años mientras ganes (el SPEC pide un límite) |
 | Asesinato | aprobacion < 15 + inteligencia con autonomia < 30 (prob. 3%/mes) |
 
 ---
@@ -176,10 +203,10 @@ Para ajustar:
 - **Efectividad por mes** (puntos-porcentaje de prevalencia que baja):
   `VACCINATION_PREVALENCE_DECAY` (0.8), `PREVENTION_PREVALENCE_DECAY` (0.15),
   `MENTAL_HEALTH_PREVALENCE_DECAY` (0.5)
-- **Minimo alcanzable** como fraccion de prevalenceBase:
+- **Minimo alcanzable** como fraccion de la prevalencia de equilibrio (`diseaseTargetPrevalence`, Issue 11):
   `VACCINATION_MIN_RATIO` (0.10), `PREVENTION_MIN_RATIO` (0.90),
   `MENTAL_HEALTH_MIN_RATIO` (0.20)
-- **Recuperacion al desactivar** (pp/mes hacia prevalenceBase):
+- **Recuperacion al desactivar** (pp/mes hacia el equilibrio):
   `VACCINATION_RECOVERY_RATE` (0.4), `PREVENTION_RECOVERY_RATE` (0.2),
   `MENTAL_HEALTH_RECOVERY_RATE` (0.3)
 - **Bonus de aprobacion salud mental**: `MENTAL_HEALTH_APPROVAL_BONUS` — POVERTY +3/mes, MIDDLE +2/mes
