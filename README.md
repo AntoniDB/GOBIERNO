@@ -89,6 +89,16 @@ npx prisma db seed           # catalogo de leyes (idempotente)
 
 En produccion la app usa la misma `DATABASE_URL` (definida como variable de entorno del servidor, no en un archivo del repo).
 
+## Actualizar tras un `git pull`
+
+```bash
+npm install                  # tambien regenera el cliente de Prisma (postinstall)
+npx prisma migrate deploy    # aplica migraciones nuevas a tu base de datos
+```
+
+Si ves `Unknown argument ...` al crear una partida o `Unknown field`, el cliente de Prisma esta desfasado del esquema:
+ejecuta `npm run prisma:generate` y reinicia `npm run dev` (el servidor en marcha mantiene cargado el cliente viejo).
+
 ## Comandos
 
 | Comando | Descripcion |
