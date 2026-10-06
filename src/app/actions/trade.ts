@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { getTransactionOptions } from "@/lib/db-config";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -36,7 +37,7 @@ export async function updateTradeFlowDecisions(
         },
       });
     }
-  });
+  }, getTransactionOptions());
 
   revalidatePath(`/ministerios/HEALTH`);
 }

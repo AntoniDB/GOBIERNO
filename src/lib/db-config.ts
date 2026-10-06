@@ -9,6 +9,8 @@
 //   DATABASE_POOL_MAX               conexiones máximas del pool            (def. 10)
 //   DATABASE_CONNECTION_TIMEOUT_MS  espera máxima para conectar            (def. 10000)
 //   DATABASE_IDLE_TIMEOUT_MS        cierre de conexiones ociosas           (def. 30000)
+//   DATABASE_TRANSACTION_TIMEOUT_MS      duración máxima de una transacción interactiva   (def. 60000)
+//   DATABASE_TRANSACTION_MAX_WAIT_MS     espera máxima para obtener una conexión para ella (def. 10000)
 //
 // Por qué DATABASE_SSL existe aparte de `?sslmode=` en la URL: `pg` interpreta
 // `sslmode=require` como verificación ESTRICTA del certificado (distinto de libpq), así
@@ -125,4 +127,16 @@ export function describeDatabaseTarget(env: Env = process.env): string {
   const url = parseUrl(env.DATABASE_URL);
   const user = decodeURIComponent(url.username);
   return `${user ? `${user}@` : ""}${url.hostname}${url.port ? `:${url.port}` : ""}${url.pathname}`;
+}
+
+/**
+ * Opciones de `prisma.$transaction(fn, options)` para las transacciones interactivas largas (guardar
+ * un turno, repoblar una partida). Prisma corta a los 5 s por defecto, que contra un Postgres remoto
+ * no alcanza; aquí es configurable y holgado.
+ */
+export function getTransactionOptions(env: Env = process.env): { maxWait: number; timeout: number } {
+  return {
+    maxWait: positiveInt(env, "DATABASE_TRANSACTION_MAX_WAIT_MS", 10_000),
+    timeout: positiveInt(env, "DATABASE_TRANSACTION_TIMEOUT_MS", 60_000),
+  };
 }

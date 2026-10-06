@@ -20,6 +20,7 @@ import { isDiseaseCovered } from "./engine/programs";
 import { generateRegions, scaleHealthCoverage } from "./game-factory";
 import type { PresetKey, RegionData } from "./game-factory";
 import { BALANCE } from "./balance";
+import { getTransactionOptions } from "./db-config";
 
 /**
  * Versión actual de las migraciones de datos de siembra.
@@ -272,7 +273,7 @@ export async function ensureSeedIntegrity(
         for (const step of steps) await step.fill(tx, gameId);
         return steps.map((s) => s.name);
       },
-      { timeout: 30_000 },
+      getTransactionOptions(),
     );
 
     if (repaired.length > 0) {

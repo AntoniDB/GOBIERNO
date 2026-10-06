@@ -87,6 +87,12 @@ npx prisma migrate deploy    # crea las tablas (aplica todas las migraciones pen
 npx prisma db seed           # catalogo de leyes (idempotente)
 ```
 
+**Latencia.** Cada consulta a un Postgres remoto cuesta una ida y vuelta de red (≈200 ms a un VPS lejano; ≈1 ms si la app
+corre en el mismo servidor). Guardar un turno se agrupa en ≈15 sentencias (antes ≈85), asi que con 200 ms un turno tarda
+≈6 s; crear una partida (cientos de inserts) puede tardar ~40 s. Para desarrollar con comodidad usa una base local
+(Docker) y deja la remota para probar el despliegue; en produccion, con la app en el mismo VPS, no se nota. El tiempo
+maximo de una transaccion se ajusta con `DATABASE_TRANSACTION_TIMEOUT_MS` (60 s por defecto).
+
 En produccion la app usa la misma `DATABASE_URL` (definida como variable de entorno del servidor, no en un archivo del repo).
 
 ## Actualizar tras un `git pull`
