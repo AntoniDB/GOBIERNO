@@ -485,3 +485,49 @@ Cualquier otro cálculo previo al recálculo que leyera esos campos pasa de `und
 **Verificación:** 5 tests nuevos (incluida una regresión que reproduce el `NaN`), migración probada en Postgres real y
 equivalencia de persistencia con candidatos reales (0 funcionarios con `NaN`).
 
+---
+
+# Issues por reparar (abiertos)
+
+Hallados probando la app contra la base remota. Están diagnosticados pero **sin arreglar**.
+
+## 18. ABIERTO — Al crear un organismo, el personal y la autonomía elegidos no se aplican
+
+**Qué pasa:** en "Crear organismo" (p. ej. Fiscalía Anticorrupción) el jugador configura presupuesto, personal, autonomía y
+titular; al avanzar el mes el organismo aparece con valores por defecto, no con lo configurado.
+
+**Causa (verificada en el código):**
+- `components/game/justicia/create-organism.tsx` (`handleCreate`, línea 98) guarda en `pendingInput.newOrganisms` solo
+  `{ name, monthlyBudget, headOfficialId }`. **`staff` y `autonomyLevel` existen en el formulario (estados y sliders) pero nunca
+  se envían.**
+- El tipo `TurnInput.newOrganisms` (`engine/types.ts:393`) tampoco tiene esos campos, y el motor (`engine/turn.ts:216-225`) crea
+  el organismo con `staff: 10`, `effectiveness: 50` y `autonomyLevel: 50` fijos.
+- El presupuesto sí viaja, pero el motor lo acota con `clampOrganismBudget` (`engine/cost-scale.ts:44`, rango `ORGANISM_BUDGET_MIN/MAX`
+  escalado por población): si el jugador espera exactamente su valor y el tope lo cambia, no se le avisa.
+
+**Impacto:** la autonomía decide cuánto reduce la corrupción el organismo y su riesgo político (`corruption.ts`, `game-over.ts`
+usan `autonomyLevel`), así que el jugador cree configurar algo que el motor ignora.
+
+**Propuesta:** añadir `staff` y `autonomyLevel` a `TurnInput.newOrganisms`; **validarlos y acotarlos en el motor** (5-50 y 0-100,
+rechazando `NaN`/tipos incorrectos con un aviso, como las demás entradas del cliente: #6 y #9), usarlos al crear el organismo y
+mostrar en la UI el presupuesto efectivo si el motor lo acota. Test del motor con mutación + comprobación en navegador de que la
+lista de organismos muestra tras avanzar lo configurado.
+
+**Relacionado (sin verificar a fondo):** `newOrganisms` está indexado por tipo, así que crear dos del mismo tipo en un mes sobrescribe
+el primero, y no se comprueba si ya existe uno de ese tipo.
+
+## 19. ABIERTO — Los desplegables muestran el código (id / clave) en vez del nombre al seleccionar
+
+**Qué pasa:** al elegir el titular de un organismo, el campo muestra el identificador del funcionario (p. ej. un UUID) en vez de
+su nombre. Lo mismo ocurre con el tipo de organismo (muestra `ANTICORRUPTION_PROSECUTION` en vez de "Fiscalía Anticorrupción").
+
+**Causa (verificada):** los `Select` son de Base UI (`@base-ui/react/select`). Su `SelectValue` muestra el **valor** crudo salvo que
+el `Select` reciba la prop `items` (mapa valor → etiqueta) o `SelectValue` reciba una función hija que formatee el valor
+(documentado en `SelectValue.d.ts`). Ninguno de los tres usos del proyecto lo hace:
+- `components/game/justicia/create-organism.tsx:148` (tipo) y `:175` (titular)
+- `components/game/justicia/organism-list.tsx:136` (selector de organismo / titular)
+
+**Propuesta:** pasar `items` al `Select` (o una función hija a `SelectValue`) en los tres sitios, derivando el mapa de las mismas
+listas que ya pintan los `SelectItem` (`ORGANISM_TYPES`, `eligibleOfficials` con `nombre (rol)`), y comprobar en navegador que tras
+elegir se ve el nombre. Conviene revisar si hay más `Select` con el mismo patrón al añadir nuevos (hoy solo esos tres usan `SelectValue`).
+
