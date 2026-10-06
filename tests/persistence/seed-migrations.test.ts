@@ -39,7 +39,7 @@ function fake(opts: Opts = {}) {
       findUniqueOrThrow: vi.fn(async () => ({ preset: PRESET, difficulty: "normal" })),
       update: vi.fn(async () => ({})),
     },
-    $executeRaw: vi.fn(async () => 0),
+    $executeRaw: vi.fn(async (_strings: TemplateStringsArray, ..._values: unknown[]) => 0),
     region: {
       findMany: vi.fn(async () => regions),
       update: vi.fn(async (args: { where: { id: string }; data: { healthCoverage: Cov } }) => {
@@ -74,9 +74,19 @@ describe("migración de datos de siembra (Game.seedVersion)", () => {
   it("una partida sin migrar ejecuta los pasos y queda marcada con SEED_VERSION", async () => {
     const { prisma, tx } = fake();
     expect(await ensureSeedIntegrity(prisma, "g1")).toEqual([
-      "red hospitalaria escalada", "prevalencias en equilibrio", "versión de siembra",
+      "red hospitalaria escalada", "prevalencias en equilibrio", "habilidad de funcionarios", "versión de siembra",
     ]);
     expect(tx.game.update).toHaveBeenCalledWith({ where: { id: "g1" }, data: { seedVersion: SEED_VERSION } });
+  });
+
+  it("una partida en v1 solo ejecuta la migración nueva (no vuelve a escalar ni a mover prevalencias)", async () => {
+    const { prisma, tx } = fake({ seedVersion: 1 });
+    expect(await ensureSeedIntegrity(prisma, "g1")).toEqual(["habilidad de funcionarios", "versión de siembra"]);
+    expect(tx.region.update).not.toHaveBeenCalled();
+    expect(tx.diseasePrevalence.update).not.toHaveBeenCalled();
+    const repair = tx.$executeRaw.mock.calls.map(([strings]) => Array.from(strings).join("?")).find((t) => t.includes('"Official"'));
+    expect(repair).toContain(`"skill" = 50`);
+    expect(repair).toContain(`"skill" = 'NaN'::float8`); // solo toca los NaN
   });
 
   it("una partida ya migrada no escribe nada (idempotente)", async () => {

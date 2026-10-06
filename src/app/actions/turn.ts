@@ -8,7 +8,7 @@ import { getTransactionOptions } from "@/lib/db-config";
 import { persistTurn } from "./turn-persistence";
 import { auth } from "@/auth";
 import { ensureSeedIntegrity } from "@/lib/seed-integrity";
-import { initialEconomy } from "@/lib/initial-economy";
+import { initialEconomy, snapshotIndicators } from "@/lib/initial-economy";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { resolveLawEnactments } from "@/lib/engine/economy";
@@ -56,6 +56,7 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
     currentMonth: game.currentMonth,
     treasury: latestSnapshot?.treasury ?? initial.treasury,
     population: latestSnapshot?.population ?? initial.population,
+    ...snapshotIndicators(latestSnapshot, initial),
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     healthEfficiencyStreak: (game as Record<string, unknown>).healthEfficiencyStreak as number ?? 0,

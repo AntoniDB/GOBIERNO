@@ -25,8 +25,9 @@ import { getTransactionOptions } from "./db-config";
 /**
  * Versión actual de las migraciones de datos de siembra.
  *  1 — red hospitalaria escalada por población (Issue 5) y prevalencias en equilibrio (Issue 11)
+ *  2 — candidatos con skill NaN (advanceMonth no cargaba los indicadores, Issue 17)
  */
-export const SEED_VERSION = 1;
+export const SEED_VERSION = 2;
 import { initialDiseasePrevalence } from "./engine/diseases";
 
 type Tx = Prisma.TransactionClient;
@@ -218,6 +219,20 @@ const diseasePrevalenceStep: SeedStep = {
   },
 };
 
+/**
+ * v2 (Issue 17): `advanceMonth` no cargaba la educación del último snapshot, así que todo candidato
+ * nacía con `skill = NaN`. Contratarlo como ministro o director hacía NaN la eficiencia del ministerio
+ * y, con ella, todos los indicadores. Se repone la habilidad neutra (50, la que el motor asume sin
+ * ministro). Es idempotente: solo toca los NaN.
+ */
+const officialSkillStep: SeedStep = {
+  name: "habilidad de funcionarios",
+  isMissing: (c) => c.seedVersion < 2,
+  async fill(tx, gameId) {
+    await tx.$executeRaw`UPDATE "Official" SET "skill" = 50 WHERE "gameId" = ${gameId} AND "skill" = 'NaN'::float8`;
+  },
+};
+
 /** Siempre el último: marca la partida como migrada a SEED_VERSION. */
 const seedVersionStep: SeedStep = {
   name: "versión de siembra",
@@ -232,6 +247,7 @@ export const SEED_STEPS: readonly SeedStep[] = [
   tradeStep,
   healthNetworkStep,
   diseasePrevalenceStep,
+  officialSkillStep,
   seedVersionStep,
 ];
 

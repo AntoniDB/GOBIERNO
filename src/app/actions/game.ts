@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { ensureSeedIntegrity } from "@/lib/seed-integrity";
-import { initialEconomy } from "@/lib/initial-economy";
+import { initialEconomy, snapshotIndicators } from "@/lib/initial-economy";
 import type {
   GameState,
   RegimeMetricsState,
@@ -71,15 +71,7 @@ function buildGameState(
     currentMonth: game.currentMonth,
     treasury: latestSnapshot?.treasury ?? initial.treasury,
     population: latestSnapshot?.population ?? initial.population,
-    gdp: latestSnapshot?.gdp ?? initial.gdp,
-    povertyRate: latestSnapshot?.povertyRate ?? initial.povertyRate,
-    unemploymentRate: latestSnapshot?.unemploymentRate ?? initial.unemploymentRate,
-    sickRate: latestSnapshot?.sickRate ?? 0,
-    crimeRate: latestSnapshot?.crimeRate ?? 0,
-    foodSecurity: latestSnapshot?.foodSecurity ?? 0,
-    educationLevel: latestSnapshot?.educationLevel ?? 0,
-    inflation: latestSnapshot?.inflation ?? initial.inflation,
-    lifeExpectancy: latestSnapshot?.lifeExpectancy ?? 68,
+    ...snapshotIndicators(latestSnapshot, initial),
     seed: game.seed,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({

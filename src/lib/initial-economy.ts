@@ -44,3 +44,39 @@ export function initialEconomy(
     inflation: cfg.inflation,
   };
 }
+
+/** Indicadores nacionales del último snapshot (o del preset si aún no hay ninguno). */
+export interface SnapshotIndicators {
+  gdp: number;
+  povertyRate: number;
+  unemploymentRate: number;
+  sickRate: number;
+  crimeRate: number;
+  foodSecurity: number;
+  educationLevel: number;
+  inflation: number;
+  lifeExpectancy: number;
+}
+
+type SnapshotLike = Partial<Record<keyof SnapshotIndicators, number | null>> | null | undefined;
+
+/**
+ * Indicadores con los que arranca un turno: los del último snapshot o, sin él, los del preset.
+ * Los indicadores se recalculan desde cero a mitad del turno, pero lo que corre antes (p. ej. los
+ * candidatos, que dependen de la educación) lee estos valores. `advanceMonth` no los cargaba:
+ * llegaban `undefined`, y cada candidato nacía con `skill = NaN` (y nunca salían 2-3 a la vez).
+ * `getGameState` y `advanceMonth` usan esta misma función para no volver a divergir.
+ */
+export function snapshotIndicators(snapshot: SnapshotLike, initial: InitialEconomy): SnapshotIndicators {
+  return {
+    gdp: snapshot?.gdp ?? initial.gdp,
+    povertyRate: snapshot?.povertyRate ?? initial.povertyRate,
+    unemploymentRate: snapshot?.unemploymentRate ?? initial.unemploymentRate,
+    sickRate: snapshot?.sickRate ?? 0,
+    crimeRate: snapshot?.crimeRate ?? 0,
+    foodSecurity: snapshot?.foodSecurity ?? 0,
+    educationLevel: snapshot?.educationLevel ?? 0,
+    inflation: snapshot?.inflation ?? initial.inflation,
+    lifeExpectancy: snapshot?.lifeExpectancy ?? 68,
+  };
+}

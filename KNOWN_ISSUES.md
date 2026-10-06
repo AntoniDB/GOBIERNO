@@ -443,3 +443,45 @@ prevalencia media 4,6, queda en `seedVersion` 1, una segunda carga no cambia nad
 
 **Límites:** no se corrige el historial de snapshots (los sickRate/esperanza de vida pasados quedan como estaban). Las
 migraciones corren también en partidas terminadas la próxima vez que se carguen.
+
+---
+
+## 16. ~~Guardar el turno tardaba >20 s contra una base remota (P2028)~~ — RESUELTO
+
+**Problema:** `advanceMonth` guardaba el turno con ~85 `update`/`upsert` uno a uno dentro de una transacción interactiva de
+Prisma sin timeout explícito (5 s). Contra Postgres local son ~1 ms cada una; contra un VPS (≈200 ms de ida y vuelta) el turno
+tardaba 38 s y fallaba con `P2028 … expired transaction`.
+
+**Solución:** la persistencia sale a `app/actions/turn-persistence.ts` y los bucles por fila pasan a una sentencia por tabla
+(`turn-batch.ts`: `UPDATE … FROM unnest(…)`, `INSERT … ON CONFLICT`, `createMany`). Los números viajan como texto con cast a
+`float8` para conservar el comportamiento ante `NaN`. El timeout es configurable (`DATABASE_TRANSACTION_TIMEOUT_MS`, 60 s;
+`getTransactionOptions` en `lib/db-config.ts`) y lo usan el turno, el comercio y `seed-integrity`.
+
+**Verificación (Postgres real):** 4 presets × 12 turnos aplicando el código anterior y el nuevo sobre el mismo estado
+(SAVEPOINT + ROLLBACK) dejan las mismas 18 tablas; operaciones por turno 85 → 15; con 200 ms simulados el turno pasa de 38 s a
+5,7 s. Test permanente con tope de operaciones por turno y que no crecen con el número de filas.
+
+**Pendiente:** crear una partida sigue haciendo cientos de inserts uno a uno (≈40 s con 200 ms de latencia). En producción, con
+la app en el mismo servidor que Postgres, no se nota.
+
+---
+
+## 17. ~~Los candidatos nacían con `skill = NaN` (`advanceMonth` no cargaba los indicadores)~~ — RESUELTO
+
+**Problema** (hallado por el test de equivalencia del #16): `buildGameState` (la ruta de `advanceMonth`) no cargaba `gdp`,
+`povertyRate`, `unemploymentRate`, `sickRate`, `crimeRate`, `foodSecurity`, `educationLevel`, `inflation` ni `lifeExpectancy`
+(`getGameState` sí). Lo que corre antes de recalcular los indicadores los leía como `undefined`. El caso visible: los
+candidatos de cada 6 meses calculan su número y habilidad con `educationLevel`, así que **todos nacían con `skill = NaN`** y
+nunca salían 2-3 a la vez. Contratar a uno como ministro o director hacía `NaN` la eficiencia del ministerio (los `Math.min/max`
+propagan `NaN`) y, con ella, todos los indicadores.
+
+**Solución:** `snapshotIndicators` (`lib/initial-economy.ts`) da los indicadores del último snapshot (o del preset) y lo usan
+`getGameState` y `advanceMonth`. Migración de datos v2 (`seedVersion` 2): repone `skill = 50` en los funcionarios que ya lo
+tienen en `NaN` (idempotente, solo toca los `NaN`; la eficiencia ministerial se recalcula sola el turno siguiente).
+
+**Efecto en el juego:** los candidatos ahora tienen habilidad real (40-95 según la educación) y, con educación > 70, salen 2-3.
+Cualquier otro cálculo previo al recálculo que leyera esos campos pasa de `undefined` a los valores del mes anterior.
+
+**Verificación:** 5 tests nuevos (incluida una regresión que reproduce el `NaN`), migración probada en Postgres real y
+equivalencia de persistencia con candidatos reales (0 funcionarios con `NaN`).
+
