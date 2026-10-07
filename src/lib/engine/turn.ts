@@ -50,7 +50,8 @@ import { generateMediaCoverage, generateDecisionCoverage, generateEditorialCover
 import { createMonthSnapshot } from "./snapshot";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "./game-over";
 import { generateCandidates, removeExpiredCandidates, candidateHireCost } from "./candidates";
-import { scaleCost, clampOrganismBudget } from "./cost-scale";
+import { scaleCost } from "./cost-scale";
+import { resolveOrganismConfig } from "./organism-config";
 import { applySubDecisionChanges } from "./sub-decisions";
 import { advanceDecisions, createNewDecisions, applyDecisionEffects } from "./long-running-decisions";
 import { createNewPrograms, advancePrograms, programNotifications } from "./programs";
@@ -213,14 +214,30 @@ export function processTurn(
   if (input.newOrganisms) {
     let orgIndex = 0;
     for (const [type, config] of Object.entries(input.newOrganisms)) {
+      // Presupuesto, personal y autonomía los elige el jugador, pero el motor los valida y acota
+      const resolved = resolveOrganismConfig(config, newState.population);
+      for (const warning of resolved.warnings) {
+        allNotifications.push({
+          type: "warning",
+          title: "Configuración de organismo ajustada",
+          description: `${config.name}: ${warning}.`,
+        });
+      }
+      if (resolved.budgetAdjusted) {
+        allNotifications.push({
+          type: "info",
+          title: "Presupuesto de organismo ajustado",
+          description: `${config.name}: el presupuesto se fijó en M$ ${Math.round(resolved.monthlyBudget / 1_000_000)} (rango permitido para el país).`,
+        });
+      }
       const organism: OrganismState = {
         id: generateId("org", newState.currentYear, newState.currentMonth, orgIndex),
         type,
         name: config.name,
-        monthlyBudget: clampOrganismBudget(config.monthlyBudget, newState.population),
-        staff: 10,
+        monthlyBudget: resolved.monthlyBudget,
+        staff: resolved.staff,
         effectiveness: 50,
-        autonomyLevel: 50,
+        autonomyLevel: resolved.autonomyLevel,
         headOfficialId: config.headOfficialId ?? null,
       };
       newState.organisms.push(organism);
@@ -246,7 +263,7 @@ export function processTurn(
           allNotifications.push({
             type: "info",
             title: "Nuevo organismo creado",
-            description: `Se ha creado el organismo ${config.name} (${type}) con ${head.name} como director.`,
+            description: `Se ha creado el organismo ${config.name} con ${head.name} como director.`,
           });
         }
       }

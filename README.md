@@ -93,6 +93,9 @@ corre en el mismo servidor). Guardar un turno se agrupa en ≈15 sentencias (ant
 (Docker) y deja la remota para probar el despliegue; en produccion, con la app en el mismo VPS, no se nota. El tiempo
 maximo de una transaccion se ajusta con `DATABASE_TRANSACTION_TIMEOUT_MS` (60 s por defecto).
 
+**Produccion (`npm run build` + `npm run start`).** Ademas de `DATABASE_URL` y `AUTH_SECRET`, define `AUTH_TRUST_HOST=true` (o
+`AUTH_URL` con tu URL publica): sin eso, Auth.js responde `UntrustedHost` y no se puede iniciar sesion. En `npm run dev` no hace falta.
+
 En produccion la app usa la misma `DATABASE_URL` (definida como variable de entorno del servidor, no en un archivo del repo).
 
 ## Actualizar tras un `git pull`

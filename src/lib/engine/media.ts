@@ -152,7 +152,7 @@ export function generateDecisionCoverage(
   input: {
     proposedLaws?: string[];
     budgetAdjustments?: Record<string, number>;
-    newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
+    newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string; staff?: number; autonomyLevel?: number }>;
     appointments?: Record<string, string>;
   },
   newEvents: EventState[],

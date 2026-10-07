@@ -49,6 +49,14 @@ export const BALANCE = {
   INITIAL_COMPTROLLER_BUDGET: 150_000_000,
   ORGANISM_BUDGET_MAX: 500_000_000,
 
+  /** Personal de un organismo creable: valor por defecto y rango que el motor impone (entero) */
+  ORGANISM_STAFF_DEFAULT: 10,
+  ORGANISM_STAFF_MIN: 5,
+  ORGANISM_STAFF_MAX: 50,
+
+  /** Autonomía (0-100) con la que nace un organismo si el jugador no la elige */
+  ORGANISM_AUTONOMY_DEFAULT: 50,
+
   /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
   INFLATION_DEFICIT_FACTOR: 0.02,
 

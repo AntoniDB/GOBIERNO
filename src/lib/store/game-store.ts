@@ -22,7 +22,13 @@ export interface GameStore {
   updateSubDecision: (ministryKey: string, key: string, value: number | boolean) => void;
   proposeLaw: (lawKey: string) => void;
   removeProposedLaw: (lawKey: string) => void;
-  createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => void;
+  createOrganism: (
+    type: string,
+    name: string,
+    monthlyBudget: number,
+    headOfficialId?: string,
+    options?: { staff?: number; autonomyLevel?: number },
+  ) => void;
   clearNotifications: () => void;
   resetPendingInput: () => void;
   setMediaAction: (mediaId: string, action: "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none") => void;
@@ -136,13 +142,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }));
   },
 
-  createOrganism: (type: string, name: string, monthlyBudget: number, headOfficialId?: string) => {
+  createOrganism: (type, name, monthlyBudget, headOfficialId, options) => {
     set((prev) => ({
       pendingInput: {
         ...prev.pendingInput,
         newOrganisms: {
           ...prev.pendingInput.newOrganisms,
-          [type]: { name, monthlyBudget, headOfficialId },
+          // staff y autonomyLevel los valida y acota el motor (engine/organism-config.ts)
+          [type]: { name, monthlyBudget, headOfficialId, staff: options?.staff, autonomyLevel: options?.autonomyLevel },
         },
       },
     }));

@@ -95,23 +95,26 @@ export function CreateOrganism({
     return officials.some((o) => o.role === requiredRole && o.status === "ACTIVE");
   }, [officials, type]);
 
-  const handleCreate = () => {
-    // La clave debe coincidir con el enum OrganismType (MAYÚSCULAS)
-    const key = type;
+  const createOrganism = useGameStore((s) => s.createOrganism);
 
-    useGameStore.setState({
-      pendingInput: {
-        ...useGameStore.getState().pendingInput,
-        newOrganisms: {
-          ...useGameStore.getState().pendingInput.newOrganisms,
-          [key]: {
-            name: name || (ORGANISM_TYPES.find((t) => t.key === type)?.label ?? type),
-            monthlyBudget: monthlyBudget * 1_000_000,
-            headOfficialId: headOfficialId || undefined,
-          },
-        },
-      },
-    });
+  // Etiquetas para que el desplegable muestre el nombre y no el id/clave (Base UI muestra el valor
+  // crudo si el Select no recibe `items`)
+  const typeItems = useMemo(() => Object.fromEntries(ORGANISM_TYPES.map((t) => [t.key, t.label])), []);
+  const officialItems = useMemo(
+    () => Object.fromEntries(eligibleOfficials.map((o) => [o.id, `${o.name} (${ROLE_LABEL[o.role] ?? o.role})`])),
+    [eligibleOfficials],
+  );
+
+  const handleCreate = () => {
+    // La clave debe coincidir con el enum OrganismType (MAYÚSCULAS). El personal y la autonomía
+    // elegidos viajan al motor, que los valida y acota.
+    createOrganism(
+      type,
+      name || (ORGANISM_TYPES.find((t) => t.key === type)?.label ?? type),
+      monthlyBudget * 1_000_000,
+      headOfficialId || undefined,
+      { staff, autonomyLevel },
+    );
 
     setName("");
     setChosenBudget(null);
@@ -145,7 +148,7 @@ export function CreateOrganism({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Tipo de organismo</Label>
-            <Select value={type} onValueChange={(v) => v && setType(v)}>
+            <Select value={type} items={typeItems} onValueChange={(v) => v && setType(v)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -173,8 +176,9 @@ export function CreateOrganism({
             <Label htmlFor="org-titular">Titular {eligibleOfficials.length > 0 ? "" : "(opcional)"}</Label>
             {eligibleOfficials.length > 0 ? (
               <Select
-                value={headOfficialId}
-                onValueChange={(v) => v && setHeadOfficialId(v)}
+                value={headOfficialId || null}
+                items={officialItems}
+                onValueChange={(v) => setHeadOfficialId(v ?? "")}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={hasExactRole ? "Seleccionar titular..." : "Seleccionar titular (roles alternativos)..."} />

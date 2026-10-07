@@ -487,11 +487,11 @@ equivalencia de persistencia con candidatos reales (0 funcionarios con `NaN`).
 
 ---
 
-# Issues por reparar (abiertos)
+# Issues hallados probando la app contra la base remota
 
-Hallados probando la app contra la base remota. Están diagnosticados pero **sin arreglar**.
+Ambos están resueltos (abajo, el diagnóstico original y la solución).
 
-## 18. ABIERTO — Al crear un organismo, el personal y la autonomía elegidos no se aplican
+## 18. ~~Al crear un organismo, el personal y la autonomía elegidos no se aplican~~ — RESUELTO
 
 **Qué pasa:** en "Crear organismo" (p. ej. Fiscalía Anticorrupción) el jugador configura presupuesto, personal, autonomía y
 titular; al avanzar el mes el organismo aparece con valores por defecto, no con lo configurado.
@@ -508,15 +508,21 @@ titular; al avanzar el mes el organismo aparece con valores por defecto, no con 
 **Impacto:** la autonomía decide cuánto reduce la corrupción el organismo y su riesgo político (`corruption.ts`, `game-over.ts`
 usan `autonomyLevel`), así que el jugador cree configurar algo que el motor ignora.
 
-**Propuesta:** añadir `staff` y `autonomyLevel` a `TurnInput.newOrganisms`; **validarlos y acotarlos en el motor** (5-50 y 0-100,
-rechazando `NaN`/tipos incorrectos con un aviso, como las demás entradas del cliente: #6 y #9), usarlos al crear el organismo y
-mostrar en la UI el presupuesto efectivo si el motor lo acota. Test del motor con mutación + comprobación en navegador de que la
-lista de organismos muestra tras avanzar lo configurado.
+**Solución:** `TurnInput.newOrganisms` acepta `staff` y `autonomyLevel`; el formulario los envía (vía la acción `createOrganism` del
+store) y el motor los valida con `engine/organism-config.ts` (`resolveOrganismConfig`): personal entero 5-50 (def. 10), autonomía
+0-100 (def. 50), valores no numéricos descartados con aviso "Configuración de organismo ajustada", y un aviso informativo si el
+presupuesto se acota al rango del país. Las peticiones antiguas (sin esos campos) siguen funcionando con los valores por defecto.
+Constantes en `balance.ts` (`ORGANISM_STAFF_*`, `ORGANISM_AUTONOMY_DEFAULT`). El aviso "Nuevo organismo creado" ya no muestra la
+clave interna del tipo.
+
+**Verificación:** 22 tests nuevos (con mutación: volver a fijar 10/50 los hace fallar) y prueba en navegador real (Playwright +
+Postgres): se crea una Fiscalía Anticorrupción con personal 35 y autonomía 90 % y, tras avanzar, la lista de organismos muestra
+Staff 35 y Autonomía 90 %.
 
 **Relacionado (sin verificar a fondo):** `newOrganisms` está indexado por tipo, así que crear dos del mismo tipo en un mes sobrescribe
 el primero, y no se comprueba si ya existe uno de ese tipo.
 
-## 19. ABIERTO — Los desplegables muestran el código (id / clave) en vez del nombre al seleccionar
+## 19. ~~Los desplegables muestran el código (id / clave) en vez del nombre al seleccionar~~ — RESUELTO
 
 **Qué pasa:** al elegir el titular de un organismo, el campo muestra el identificador del funcionario (p. ej. un UUID) en vez de
 su nombre. Lo mismo ocurre con el tipo de organismo (muestra `ANTICORRUPTION_PROSECUTION` en vez de "Fiscalía Anticorrupción").
@@ -527,7 +533,14 @@ el `Select` reciba la prop `items` (mapa valor → etiqueta) o `SelectValue` rec
 - `components/game/justicia/create-organism.tsx:148` (tipo) y `:175` (titular)
 - `components/game/justicia/organism-list.tsx:136` (selector de organismo / titular)
 
-**Propuesta:** pasar `items` al `Select` (o una función hija a `SelectValue`) en los tres sitios, derivando el mapa de las mismas
-listas que ya pintan los `SelectItem` (`ORGANISM_TYPES`, `eligibleOfficials` con `nombre (rol)`), y comprobar en navegador que tras
-elegir se ve el nombre. Conviene revisar si hay más `Select` con el mismo patrón al añadir nuevos (hoy solo esos tres usan `SelectValue`).
+**Solución:** los tres `Select` reciben `items` (mapa valor → etiqueta, derivado de las mismas listas que los `SelectItem`); el valor
+vacío se pasa como `null` para conservar el texto de ayuda. Un test (`tests/ui-select-labels.test.ts`) falla si algún archivo con
+`<SelectValue>` tiene un `<Select>` sin `items`, para que no vuelva a pasar al añadir desplegables.
 
+**Verificación:** en navegador real el tipo muestra "Fiscalía Anticorrupción" y el titular "Ofelia Cruz Perez (Fiscal)". El diálogo
+"Asignar titular" de `organism-list.tsx` lleva el mismo arreglo y lo cubre el test, pero no se abrió en el navegador.
+
+## Nota para producción: Auth.js exige host de confianza
+
+Con `next start` (modo producción) Auth.js v5 responde `UntrustedHost: Host must be trusted` y el inicio de sesión falla si no se
+define `AUTH_TRUST_HOST=true` (o `AUTH_URL` con la URL pública). En `next dev` no hace falta. Está en `.env.example` y el README.

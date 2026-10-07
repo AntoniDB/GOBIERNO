@@ -390,7 +390,7 @@ export interface TurnInput {
   /** Nombramientos: role → officialId */
   appointments?: Record<string, string>;
   /** Organismos creados: type → { name, budget, headOfficialId } */
-  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string }>;
+  newOrganisms?: Record<string, { name: string; monthlyBudget: number; headOfficialId?: string; staff?: number; autonomyLevel?: number }>;
   /** Acciones sobre medios: mediaId → acción */
   mediaActions?: Record<string, "censor" | "close" | "boost" | "restore" | "buyAffinity" | "none">;
   /** ¿El jugador ordenó investigar a alguien? officialId[] */

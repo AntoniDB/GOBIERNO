@@ -107,6 +107,13 @@ function AssignHeadDialog({
     );
   }, [officials, organism.type]);
 
+  // Etiquetas para que el desplegable muestre el nombre y no el id (Base UI muestra el valor crudo
+  // si el Select no recibe `items`)
+  const officialItems = useMemo(
+    () => Object.fromEntries(eligibleOfficials.map((o) => [o.id, `${o.name} (${ROLE_LABEL[o.role] ?? o.role})`])),
+    [eligibleOfficials],
+  );
+
   function handleConfirm() {
     if (selectedId) {
       assignOrganismHead(organism.id, selectedId);
@@ -133,7 +140,11 @@ function AssignHeadDialog({
               No hay funcionarios activos disponibles. Contrata candidatos en la pestania Candidatos.
             </p>
           ) : (
-            <Select value={selectedId} onValueChange={(v) => v && setSelectedId(v)}>
+            <Select
+              value={selectedId || null}
+              items={officialItems}
+              onValueChange={(v) => setSelectedId(v ?? "")}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar funcionario..." />
               </SelectTrigger>
