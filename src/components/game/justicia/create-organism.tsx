@@ -31,6 +31,7 @@ const ORGANISM_TYPES = [
   { key: "ANTICORRUPTION_PROSECUTION", label: "Fiscalía Anticorrupción" },
   { key: "INTELLIGENCE", label: "Servicio de Inteligencia" },
   { key: "TAX_AGENCY", label: "Agencia Tributaria" },
+  { key: "CENTRAL_BANK", label: "Banco Central" },
 ] as const;
 
 const ORGANISM_ROLE_MAP: Record<string, string> = {
@@ -38,6 +39,7 @@ const ORGANISM_ROLE_MAP: Record<string, string> = {
   ANTICORRUPTION_PROSECUTION: "PROSECUTOR",
   INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
   TAX_AGENCY: "COMPTROLLER",
+  CENTRAL_BANK: "CENTRAL_BANK_PRESIDENT",
 };
 
 const FALLBACK_ROLES = ["MINISTER", "JUDGE", "PROSECUTOR", "GENERAL"];
@@ -46,6 +48,7 @@ const ROLE_LABEL: Record<string, string> = {
   COMPTROLLER: "Contralor",
   PROSECUTOR: "Fiscal",
   CHIEF_OF_INTELLIGENCE: "Jefe de Inteligencia",
+  CENTRAL_BANK_PRESIDENT: "Presidente del Banco Central",
   MINISTER: "Ministro",
   JUDGE: "Juez",
   GENERAL: "General",

@@ -260,7 +260,7 @@ Sub-decisiones por ministerio (2–3 cada uno, mínimo):
 
 - **Salud**: balance hospitales públicos/privados (0–100), campañas de vacunación (on/off, costo), enfoque en salud mental (on/off)
 - **Educación**: nivel de inversión por etapa (primaria/secundaria/superior, suma 100), enfoque curricular (STEM vs humanidades), becas estudiantiles
-- **Economía**: tasa de interés referencial, salario mínimo, política industrial (proteccionismo vs apertura), tasas de IVA, impuesto a la renta e impuesto a las sociedades (la recaudación depende de ellas, del PIB y de la evasión; ver BALANCE.md, "Política fiscal y deuda pública")
+- **Economía**: tasa de interés referencial, salario mínimo, política industrial (proteccionismo vs apertura), tasas de IVA, impuesto a la renta e impuesto a las sociedades (la recaudación depende de ellas, del PIB y de la evasión; ver BALANCE.md, "Política fiscal y deuda pública"); emisión monetaria (financia al Estado a costa de inflación). Un Banco Central autónomo fija la tasa de interés con una regla de Taylor y no emite; la inflación es anual y tiene inercia (ver BALANCE.md, "Política monetaria")
 - **Defensa**: tropas activas, gasto en equipamiento, servicio militar obligatorio (on/off)
 - **Seguridad**: patrullaje urbano vs rural, política antidrogas (represiva vs preventiva), inversión en cárceles
 - **Justicia**: cantidad de jueces y fiscales contratados, prioridad (corrupción vs crimen común), dureza penal (0–100)

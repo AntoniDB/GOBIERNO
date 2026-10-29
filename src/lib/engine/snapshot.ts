@@ -14,7 +14,6 @@ import {
   calculateCrime,
   calculateEducation,
   calculateGini,
-  calculateInflationSimple,
 } from "./indicators";
 import { calculateGDP } from "./economy";
 
@@ -46,7 +45,8 @@ export function createMonthSnapshot(
   const foodSecurity = calculateFoodSecurity(state);
   const crimeRate = calculateCrime(state);
   const educationLevel = calculateEducation(state);
-  const inflation = calculateInflationSimple(state);
+  // La inflación tiene memoria: se toma la del estado (paso 8 + shocks de eventos), no se recalcula
+  const inflation = state.inflation;
   const gini = calculateGini(state, state.activeLaws);
   const gdp = calculateGDP(state);
 

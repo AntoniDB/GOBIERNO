@@ -8,7 +8,7 @@ import type {
   EventState,
 } from "./types";
 import { BALANCE } from "../balance";
-import { calculatePoverty, calculateInflationSimple } from "./indicators";
+import { calculatePoverty } from "./indicators";
 import { subDecisionDeltas, subDecisionContext } from "./sub-decision-effects";
 
 /**
@@ -84,7 +84,7 @@ export function calculateApprovalByClass(
 
   // ── Modificadores por indicadores sociales ──────────────────────────────
   const povertyRate = calculatePoverty(state);
-  const inflation = calculateInflationSimple(state);
+  const inflation = state.inflation ?? 0; // anual, calculada en el paso 8 (engine/monetary.ts)
 
   // Alta pobreza penaliza especialmente a clases bajas
   if (
@@ -129,7 +129,7 @@ export function calculateClassDemands(
 ): string[] {
   const demands: string[] = [];
   const crimeRate = calculatePoverty(state); // usamos indicadores relevantes
-  const inflation = calculateInflationSimple(state);
+  const inflation = state.inflation ?? 0;
   const avgCorruption =
     state.officials.length > 0
       ? state.officials.reduce((s, o) => s + o.corruption, 0) /

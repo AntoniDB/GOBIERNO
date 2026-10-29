@@ -550,6 +550,40 @@ volvía a 0: el déficit desaparecía sin deuda, intereses ni consecuencia.
 PASO 13b), que paga intereses como gasto fijo y se amortiza con el superávit. Detalle y constantes en BALANCE.md, sección
 "Política fiscal y deuda pública".
 
+## 21. ~~La inflación no tenía memoria (y la crisis económica nunca se disparaba)~~ — RESUELTO (Economía, Fase 2)
+
+**Qué pasaba:** `calculateInflationSimple` recalculaba la inflación desde cero en cada llamada (≈0,2). El 18 % inicial de
+`crisis_economica` desaparecía en el mes 1; el shock de inflación de los eventos se sumaba al estado pero el snapshot, la
+pobreza y la aprobación volvían a recalcularla (se perdía); y `events.ts` comparaba la constante `BASE_INFLATION` (0,2) con el
+umbral 15, así que la crisis económica no podía ocurrir.
+
+**Solución:** inflación anual con inercia, credibilidad y Banco Central (`engine/monetary.ts`), calculada una vez por mes y
+leída del estado por los demás. La crisis usa la inflación real con efectos reescalados. Ver BALANCE.md, "Política monetaria".
+
+## 22. IDs del motor que se repiten entre partidas: una partida pisa filas de otra — ABIERTO (prioridad alta)
+
+**Qué pasa (verificado en la e2e de la Fase 2):** el motor genera ids como `org-{año}-{mes}-{i}` (organismos, `turn.ts:81`),
+`cand-…` (candidatos, `candidates.ts:72`), `invest-…` (casos judiciales), `lrd-…` y `prog-…`. No incluyen la partida, y la
+persistencia hace `upsert`/`ON CONFLICT ("id") DO UPDATE`. Si dos partidas crean, p. ej., un organismo en el mismo mes de juego,
+la segunda **actualiza la fila de la primera** (con sus datos) y nunca crea la suya: en la prueba, el Banco Central de una
+partida no se guardó porque `org-1-1-0` ya existía en otra. Con varios jugadores en la misma base, corrompe datos entre partidas.
+
+**Arreglo propuesto:** ids únicos por partida (p. ej. derivados de `state.seed` o un uuid determinista sembrado) y, en la
+persistencia, acotar los `upsert` por `gameId`. Revisar filas ya cruzadas en bases existentes.
+
+## 23. Las crisis sanitarias suben la aprobación — ABIERTO
+
+**Qué pasa (verificado):** `approval.ts:isNegativeEventType` no incluye `DISEASE_OUTBREAK`, `HOSPITAL_COLLAPSE`,
+`MEDICATION_SHORTAGE` ni `MALPRACTICE_SCANDAL`, así que cuentan como eventos **positivos**: un colapso hospitalario (severidad
+100) sube la aprobación del mes a ~90 %. Explica los saltos de aprobación 45 → 93 → 45 de las pruebas e2e.
+
+## 24. Un evento negativo moderado puede hundir la aprobación del mes — ABIERTO
+
+**Qué pasa (verificado):** el impacto de un evento es `severidad × APPROVAL_EVENT_WEIGHT × 10 × multiplicador de clase`; un
+desastre de severidad 36 bajó la aprobación de 40 a 7 en `post_conflicto` y disparó un golpe de estado en el mes 2. La
+aprobación no tiene memoria, así que al mes siguiente vuelve, pero el fin de partida se evalúa ese mes. Revisar la escala
+(o darle inercia a la aprobación) junto con el #23.
+
 ## Nota para producción: Auth.js exige host de confianza
 
 Con `next start` (modo producción) Auth.js v5 responde `UntrustedHost: Host must be trusted` y el inicio de sesión falla si no se

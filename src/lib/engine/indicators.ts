@@ -10,7 +10,7 @@
 
 import type { GameState, ActiveLawState, RegionState } from "./types";
 import { BALANCE } from "../balance";
-import { calculateInflation, calculateIncome, calculateExpenses, calculateGDP } from "./economy";
+import { calculateGDP } from "./economy";
 import { calculateDiseasePrevalence, calculateSickRateFromDiseases, calculateDiseaseMortality } from "./diseases";
 import { calculateHospitalOperationalFactor } from "./medical-professionals";
 import { isMedicationShortage } from "./trade";
@@ -70,7 +70,8 @@ function sumLawEffects(state: GameState, key: string): number {
 export function calculatePoverty(state: GameState): number {
   const socialDevImpact = getMinistryImpact(state, "desarrollo_social");
   const unemployment = calculateUnemployment(state);
-  const inflation = calculateInflationSimple(state);
+  // Inflación anual del estado (la calcula una vez por mes engine/monetary.ts en el paso 8)
+  const inflation = state.inflation ?? 0;
 
   const raw =
     BALANCE.POVERTY_SOCIAL_DEV_FACTOR * socialDevImpact +
@@ -185,16 +186,6 @@ export function calculateGini(
   gini += sumLawEffects(state, "gini") + subDecisionIndicator(state, "gini");
 
   return Math.max(20, Math.min(70, gini));
-}
-
-/**
- * Inflación simple: calcula ingresos y gastos del estado,
- * luego reutiliza calculateInflation de economy.
- */
-export function calculateInflationSimple(state: GameState): number {
-  const income = calculateIncome(state);
-  const expenses = calculateExpenses(state);
-  return Math.max(0, calculateInflation(state, expenses, income) + subDecisionIndicator(state, "inflation"));
 }
 
 /**

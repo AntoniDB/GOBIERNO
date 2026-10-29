@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import type { GameState, OfficialState, SocialClassState } from "@/lib/engine/types";
+import { calculateInflation } from "@/lib/engine/monetary";
 import { BALANCE, SUB_DECISION_EFFECTS } from "@/lib/balance";
 import { SUB_DECISION_SPECS } from "@/lib/engine/sub-decisions";
 import { subDecisionDeltas, describeSubDecisionEffects } from "@/lib/engine/sub-decision-effects";
@@ -7,7 +8,7 @@ import { generateMinistries } from "@/lib/game-factory";
 import { scaleCost } from "@/lib/engine/cost-scale";
 import {
   calculatePoverty, calculateUnemployment, calculateHealth, calculateHealthRegional,
-  calculateFoodSecurity, calculateCrime, calculateEducation, calculateGini, calculateInflationSimple,
+  calculateFoodSecurity, calculateCrime, calculateEducation, calculateGini,
 } from "@/lib/engine/indicators";
 import { calculateGDP, calculateExpenses } from "@/lib/engine/economy";
 import { calculateApprovalByClass } from "@/lib/engine/approval";
@@ -183,7 +184,8 @@ describe("subDecisionDeltas", () => {
     expect(sal.approval.ELITE).toBeLessThan(0);
     const tasa = deltas({ ECONOMY: { tasaInteres: 15 } });
     expect(tasa.indicators.gdpPct).toBeLessThan(0);
-    expect(tasa.indicators.inflation).toBeLessThan(0);
+    // La tasa baja la inflación vía engine/monetary.ts (INFLATION_RATE_FACTOR), no por esta tabla
+    expect(tasa.indicators.inflation).toBe(0);
     expect(tasa.indicators.unemploymentRate).toBeGreaterThan(0);
   });
 
@@ -221,11 +223,14 @@ describe("las sub-decisiones llegan a las fórmulas del motor", () => {
     const e = estado({ ECONOMY: { salarioMinimo: 700 } });
     const dU = calculateUnemployment(e) - calculateUnemployment(base);
     expect(dU).toBeCloseTo(0.004 * 350, 8);
-    // La pobreza recibe el efecto directo y el de segundo orden: más desempleo e inflación la suben
-    const dI = calculateInflationSimple(e) - calculateInflationSimple(base);
-    expect(dI).toBeCloseTo(0.0003 * 350, 8);
+    // La presión inflacionaria (puntos anuales de equilibrio) llega al cálculo monetario
+    const sinDeficit = { taxRevenue: 1, expenses: 0, emission: 0 };
+    const dI = calculateInflation(e, sinDeficit).subDecisions - calculateInflation(base, sinDeficit).subDecisions;
+    expect(dI).toBeCloseTo(0.0036 * 350, 8);
+    // La pobreza recibe el efecto directo y el de segundo orden del desempleo (la inflación la lee del
+    // estado, que se actualiza una vez por mes en el turno)
     const dP = calculatePoverty(e) - calculatePoverty(base);
-    expect(dP).toBeCloseTo(-0.005 * 350 + BALANCE.POVERTY_UNEMPLOYMENT_FACTOR * dU + BALANCE.POVERTY_INFLATION_FACTOR * dI, 8);
+    expect(dP).toBeCloseTo(-0.005 * 350 + BALANCE.POVERTY_UNEMPLOYMENT_FACTOR * dU, 8);
   });
 
   it("seguridad alimentaria, educación y desigualdad", () => {
@@ -258,7 +263,9 @@ describe("las sub-decisiones llegan a las fórmulas del motor", () => {
   });
 
   it("inflación nunca baja de 0 aunque la tasa de interés sea alta", () => {
-    expect(calculateInflationSimple(estado({ ECONOMY: { tasaInteres: 20 } }))).toBeGreaterThanOrEqual(0);
+    const r = calculateInflation(estado({ ECONOMY: { tasaInteres: 20 } }), { taxRevenue: 1, expenses: 0, emission: 0 });
+    expect(r.equilibrium).toBeGreaterThanOrEqual(0);
+    expect(r.inflation).toBeGreaterThanOrEqual(0);
   });
 
   it("PIB: modificador en %", () => {

@@ -4,7 +4,6 @@ import {
   calculateIncome,
   calculateExpenses,
   calculateTreasury,
-  calculateInflation,
   calculateGDP,
 } from "@/lib/engine/economy";
 import { BALANCE } from "@/lib/balance";
@@ -146,24 +145,6 @@ describe("calculateTreasury", () => {
   it("ingreso === gasto mantiene tesorería", () => {
     const nueva = calculateTreasury(1000000, 400000, 400000);
     expect(nueva).toBe(1000000);
-  });
-});
-
-describe("calculateInflation", () => {
-  it("inflación base cuando no hay déficit", () => {
-    const state = crearEstadoBase();
-    const income = calculateIncome(state);
-    const expenses = income * 0.5; // superávit
-    const inflation = calculateInflation(state, expenses, income);
-    expect(inflation).toBe(BALANCE.BASE_INFLATION);
-  });
-
-  it("aumenta con el déficit", () => {
-    const state = crearEstadoBase();
-    const income = 1000000;
-    const expenses = 1100000; // 10% déficit
-    const inflation = calculateInflation(state, expenses, income);
-    expect(inflation).toBe(BALANCE.BASE_INFLATION + 10 * BALANCE.INFLATION_DEFICIT_FACTOR);
   });
 });
 

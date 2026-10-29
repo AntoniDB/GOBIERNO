@@ -109,11 +109,36 @@ export const BALANCE = {
   /** Autonomía (0-100) con la que nace un organismo si el jugador no la elige */
   ORGANISM_AUTONOMY_DEFAULT: 50,
 
-  /** Factor de aumento de inflación por déficit fiscal (por cada 1% de déficit) */
-  INFLATION_DEFICIT_FACTOR: 0.02,
+  // ─── Inflación y política monetaria (Economía, Fase 2) ──────────────────
+  // La inflación es ANUAL (%) y tiene memoria: cada mes se acerca a su nivel de equilibrio
+  //   equilibrio = INFLATION_TARGET + presiones × (1 + INFLATION_CRED_AMPLIFIER × (1 − credibilidad))
+  //   inflación  = anterior + INFLATION_ADJUST × credibilidad × (equilibrio − anterior)   (+ shocks de eventos)
+  // presiones (puntos anuales): déficit fiscal, emisión monetaria, tasa de interés y sub-decisiones.
+  // Con poca credibilidad la inflación tarda en bajar y las presiones pesan más (expectativas sin ancla).
 
-  /** Inflación base mensual sin déficit (0.2% mensual ≈ 2.4% anual) */
-  BASE_INFLATION: 0.2,
+  /** Meta de inflación anual del Banco Central y nivel al que converge sin presiones */
+  INFLATION_TARGET: 3,
+  /** Fracción de la distancia al equilibrio que se recorre por mes con credibilidad 1 */
+  INFLATION_ADJUST: 0.15,
+  /** Cuánto amplifica la falta de credibilidad las presiones inflacionarias */
+  INFLATION_CRED_AMPLIFIER: 1,
+  /** Puntos de inflación anual de equilibrio por cada 1 % de déficit fiscal sobre la recaudación */
+  INFLATION_DEFICIT_FACTOR: 0.3,
+  /** Puntos de inflación anual de equilibrio por cada 1 % de la recaudación emitido como dinero */
+  INFLATION_EMISSION_FACTOR: 1.5,
+  /** Puntos de inflación anual de equilibrio que resta cada punto de tasa de interés sobre la neutral (4,5) */
+  INFLATION_RATE_FACTOR: 0.5,
+
+  /** Credibilidad monetaria sin Banco Central (o disuelto) y máxima posible */
+  MONETARY_CRED_MIN: 0.3,
+  MONETARY_CRED_MAX: 0.85,
+  /** Autonomía mínima del Banco Central para fijar él la tasa y negarse a emitir */
+  CB_AUTONOMY_THRESHOLD: 50,
+  /** Tasa real neutral de la regla de Taylor: tasa = r* + inflación + TAYLOR_INFLATION_WEIGHT × (inflación − meta) */
+  CB_NEUTRAL_REAL_RATE: 1.5,
+  TAYLOR_INFLATION_WEIGHT: 0.5,
+  /** Máximo que el Banco Central mueve la tasa en un mes (puntos) */
+  CB_MAX_RATE_STEP: 1,
 
   /** Umbral de inflación para crisis económica */
   INFLATION_CRISIS_THRESHOLD: 15,
@@ -283,6 +308,20 @@ export const BALANCE = {
   EVENT_CRIME_SURGE_THRESHOLD: 65,
   EVENT_COUP_APPROVAL_THRESHOLD: 25,
   EVENT_ECONOMIC_CRISIS_INFLATION: 15,
+  // Efectos de la crisis económica por punto de severidad (0-100). Antes era severidad × población × 5
+  // de costo y +severidad de inflación: con la inflación real (Fase 2) eso hundía cualquier partida.
+  /**
+   * Severidad = BASE + (inflación − umbral) × POR_PUNTO, máx. 100: con 15 % de inflación es 30 y llega a
+   * 100 con ~32 %. Antes era inflación × 5 (100 desde 20 %) y cada crisis hundía la aprobación del mes.
+   */
+  EVENT_ECONOMIC_CRISIS_BASE_SEVERITY: 30,
+  EVENT_ECONOMIC_CRISIS_SEVERITY_PER_POINT: 4,
+  /** Puntos de inflación anual que suma la crisis por punto de severidad (máx. +5: no se realimenta) */
+  EVENT_ECONOMIC_CRISIS_INFLATION_SHOCK: 0.05,
+  /** Costo para el tesoro por habitante y punto de severidad */
+  EVENT_ECONOMIC_CRISIS_COST_PER_CAPITA: 0.5,
+  /** Puntos de desempleo por punto de severidad */
+  EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT: 0.05,
 
   /** Multiplicadores de impacto de eventos por clase social.
    *  Epidemias, desastres y protestas golpean más a clases bajas (menos recursos).
@@ -820,17 +859,21 @@ export const SUB_DECISION_EFFECTS: Record<string, Record<string, SubDecisionEffe
   },
   ECONOMY: {
     // Tasa alta: menos inflación (la inflación del motor es pequeña: ~0.2-0.5), más desempleo, menos PIB
-    tasaInteres: { neutral: 4.5, range: [1, 20], indicators: { inflation: -0.01, unemploymentRate: 0.1, gdpPct: -0.35 } },
+    // Su efecto en la inflación lo calcula engine/monetary.ts (INFLATION_RATE_FACTOR), no esta tabla
+    tasaInteres: { neutral: 4.5, range: [1, 20], indicators: { unemploymentRate: 0.1, gdpPct: -0.35 } },
     // Rango útil 100-1000 USD: menos pobreza y más aprobación de los pobres, más desempleo e inflación
-    salarioMinimo: { neutral: 350, range: [100, 1000], indicators: { povertyRate: -0.005, unemploymentRate: 0.004, inflation: 0.0003 }, approval: { POVERTY: 0.004, EXTREME_POVERTY: 0.003, ELITE: -0.003 } },
+    salarioMinimo: { neutral: 350, range: [100, 1000], indicators: { povertyRate: -0.005, unemploymentRate: 0.004, inflation: 0.0036 }, approval: { POVERTY: 0.004, EXTREME_POVERTY: 0.003, ELITE: -0.003 } },
     // 0 = proteccionismo, 100 = apertura total: más PIB y élite contenta, más desempleo y desigualdad
     politicaIndustrial: { neutral: 50, range: [0, 100], indicators: { gdpPct: 0.03, unemploymentRate: 0.02, gini: 0.03 }, approval: { POVERTY: -0.02, ELITE: 0.02 } },
     // Impuestos (tasas en %; su efecto en la recaudación lo calcula engine/fiscal.ts). Aquí, los efectos
     // secundarios: el IVA es regresivo (pobreza, aprobación de las clases bajas, algo de inflación); la renta
     // progresiva reduce la desigualdad y molesta a la élite; sociedades frena la inversión (PIB y empleo).
-    iva: { neutral: 16, range: [0, 30], indicators: { povertyRate: 0.08, inflation: 0.005 }, approval: { EXTREME_POVERTY: -0.18, POVERTY: -0.18, MIDDLE: -0.09 } },
+    iva: { neutral: 16, range: [0, 30], indicators: { povertyRate: 0.08, inflation: 0.06 }, approval: { EXTREME_POVERTY: -0.18, POVERTY: -0.18, MIDDLE: -0.09 } },
     impuestoRenta: { neutral: 25, range: [0, 50], indicators: { gini: -0.08, gdpPct: -0.03 }, approval: { ELITE: -0.12, MIDDLE: -0.04, POVERTY: 0.02 } },
     impuestoSociedades: { neutral: 25, range: [0, 45], indicators: { gdpPct: -0.08, unemploymentRate: 0.04 }, approval: { ELITE: -0.12 } },
+    // Emisión monetaria (% de la recaudación por mes; su efecto en tesoro e inflación está en engine/monetary.ts).
+    // Aquí: los ahorristas pierden poder adquisitivo (clase media y élite).
+    emisionMonetaria: { neutral: 0, range: [0, 30], approval: { MIDDLE: -0.02, ELITE: -0.02 } },
   },
   DEFENSE: {
     // Cabezas de tropa (rango 10.000-200.000): absorben desempleo y crimen; cuestan 150 USD/soldado/mes

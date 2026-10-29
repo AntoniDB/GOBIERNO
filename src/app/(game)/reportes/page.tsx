@@ -147,8 +147,8 @@ export default function ReportesPage() {
               <ReportChart title="" data={chartData} series={[{ dataKey: "pib", name: "PIB ($)", color: "#00C87E" }]} chartType="area" valueFormatter={(v) => Math.abs(v) >= 1e9 ? `$${(v/1e9).toFixed(1)}B` : `$${(v/1e6).toFixed(0)}M`} />
             </ChartCard>
             <ChartCard>
-              <div style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px solid #0A0A0A" }}>INFLACIÓN</div>
-              <ReportChart title="" data={chartData} series={[{ dataKey: "inflacion", name: "Inflación (%)", color: "#FF2090" }]} chartType="line" valueFormatter={(v) => `${v.toFixed(1)}%`} />
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#0A0A0A", letterSpacing: 2, marginBottom: 12, paddingBottom: 8, borderBottom: "1.5px solid #0A0A0A" }}>INFLACIÓN ANUAL</div>
+              <ReportChart title="" data={chartData} series={[{ dataKey: "inflacion", name: "Inflación anual (%)", color: "#FF2090" }]} chartType="line" valueFormatter={(v) => `${v.toFixed(1)}%`} />
             </ChartCard>
           </div>
         </div>

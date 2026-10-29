@@ -245,25 +245,6 @@ export function calculateTreasury(
 }
 
 /**
- * Inflación = inflación base + (déficit como % del ingreso) * factor de déficit.
- * Si no hay ingreso pero sí déficit, se asume 100% de déficit.
- */
-export function calculateInflation(
-  state: GameState,
-  expenses: number,
-  income: number
-): number {
-  const deficit = Math.max(0, expenses - income);
-  const deficitPercent =
-    income > 0 ? (deficit / income) * 100 : deficit > 0 ? 100 : 0;
-
-  return (
-    BALANCE.BASE_INFLATION +
-    deficitPercent * BALANCE.INFLATION_DEFICIT_FACTOR
-  );
-}
-
-/**
  * PIB = population * ingresoPerCapitaMensual * 12 * (eficienciaEconomia/100).
  * La eficiencia de Economia representa la calidad pura de gestion del ministerio
  * (0-100%), sin ponderar por presupuesto. El PIB depende de la economia general,

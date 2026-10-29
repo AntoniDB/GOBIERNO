@@ -23,6 +23,7 @@ import { calculateExpenses } from "./economy";
 import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
 import { collectibleBase, debtToGdp, evasionRate, settlePublicDebt } from "./fiscal";
+import { applyCentralBankPolicy, calculateInflation, monetaryEmission } from "./monetary";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
 import {
@@ -34,7 +35,6 @@ import {
   calculateCrime,
   calculateEducation,
   calculateGini,
-  calculateInflationSimple,
   calculateSocialMobility,
   calculateLifeExpectancy,
 } from "./indicators";
@@ -567,9 +567,24 @@ export function processTurn(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 2: Calcular ingresos fiscales
+  // PASO 1i: Banco Central autónomo (Economía, Fase 2)
+  // Fija la tasa de interés con la regla de Taylor y anula la emisión, por encima
+  // de lo que haya pedido el jugador este mes.
+  // ═══════════════════════════════════════════════════════════════════════
+  allNotifications.push(...applyCentralBankPolicy(newState, input.subDecisionChanges?.ECONOMY));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 2: Calcular ingresos fiscales (+ emisión monetaria, ingreso no tributario)
   // ═══════════════════════════════════════════════════════════════════════
   const income = calculateIncome(newState);
+  const emission = monetaryEmission(newState.ministries, income);
+  if (emission > 0) {
+    allNotifications.push({
+      type: "warning",
+      title: "Emisión monetaria",
+      description: `Se emitieron M$ ${(emission / 1_000_000).toFixed(1)} para financiar al Estado. Alivia el tesoro, pero presiona la inflación de los próximos meses.`,
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 3: Calcular gastos
@@ -579,7 +594,7 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 4: Actualizar tesoro
   // ═══════════════════════════════════════════════════════════════════════
-  newState.treasury = calculateTreasury(newState.treasury, income, expenses);
+  newState.treasury = calculateTreasury(newState.treasury, income + emission, expenses);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 4b: Avanzar decisiones de varios meses (LRD)
@@ -720,14 +735,16 @@ export function processTurn(
   // Cada indicador se deriva de la eficiencia ministerial real calculada
   // en el paso 5. Se persisten en GameState para que los pasos siguientes
   // (eventos, aprobación, snapshot) usen valores frescos.
+  // La inflación va primero: tiene memoria (parte de la del mes anterior) y la
+  // pobreza y la aprobación la leen del estado.
   // ═══════════════════════════════════════════════════════════════════════
+  newState.inflation = calculateInflation(newState, { taxRevenue: income, expenses, emission }).inflation;
   newState.povertyRate = calculatePoverty(newState);
   newState.unemploymentRate = calculateUnemployment(newState);
   newState.sickRate = calculateHealthRegional(newState);
   newState.foodSecurity = calculateFoodSecurity(newState);
   newState.crimeRate = calculateCrime(newState);
   newState.educationLevel = calculateEducation(newState);
-  newState.inflation = calculateInflationSimple(newState);
   newState.gdp = calculateGDP(newState);
 
   // Esperanza de vida: se calcula a partir de los indicadores ya frescos

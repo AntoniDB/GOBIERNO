@@ -406,7 +406,12 @@ Rango tipico: 30-50% en pais en desarrollo.`} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 12 }}>
           <MiniIndicatorCard label="EDUCACIÓN" value={gameState.educationLevel} color={valueColor(gameState.educationLevel)} />
           <MiniIndicatorCard label="DESIGUALDAD (GINI)" value={giniVal} color={valueColor(giniVal, true)} suffix="" />
-          <MiniIndicatorCard label="INFLACIÓN" value={gameState.inflation} color={valueColor(gameState.inflation, true)} />
+          <MiniIndicatorCard
+            label="INFLACIÓN ANUAL"
+            value={gameState.inflation}
+            color={gameState.inflation < 5 ? "#00C87E" : gameState.inflation < 15 ? "#E08800" : "#FF2090"}
+            titleHint="Inflación anual. Tiene inercia: baja hacia la meta (3%) más rápido con un Banco Central autónomo."
+          />
           <MiniIndicatorCard label="DESEMPLEO" value={gameState.unemploymentRate} color={valueColor(gameState.unemploymentRate, true)} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>

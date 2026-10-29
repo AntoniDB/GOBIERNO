@@ -10,6 +10,10 @@ import { numberRange } from "@/lib/engine/sub-decisions";
 import { subDecisionDeltas, describeSubDecisionEffects, suppressedSubDecisions } from "@/lib/engine/sub-decision-effects";
 import { calculateTaxRevenue } from "@/lib/engine/economy";
 import { debtAnnualRate, debtToGdp } from "@/lib/engine/fiscal";
+import {
+  centralBank, isCentralBankAutonomous, monetaryCredibility, monetaryEmission, policyRate, taylorRate,
+} from "@/lib/engine/monetary";
+import { BALANCE } from "@/lib/balance";
 
 interface SubDecisionsProps {
   ministryKey: string;
@@ -50,6 +54,8 @@ function SliderControl({
   onChange,
   leftLabel,
   rightLabel,
+  disabled,
+  hint,
 }: {
   label: string;
   value: number;
@@ -60,6 +66,10 @@ function SliderControl({
   onChange: (v: number) => void;
   leftLabel?: string;
   rightLabel?: string;
+  /** Bloqueado (p. ej. lo decide el Banco Central) */
+  disabled?: boolean;
+  /** Nota bajo el control */
+  hint?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -75,7 +85,9 @@ function SliderControl({
         max={max}
         step={step ?? 1}
         onValueChange={(v) => onChange(Array.isArray(v) ? v[0] : v)}
+        disabled={disabled}
       />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       {(leftLabel || rightLabel) && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{leftLabel ?? ""}</span>
@@ -221,6 +233,13 @@ function EconomyDecisions({
   subDecisions: Record<string, number | boolean>;
   onChange: (key: string, value: number | boolean) => void;
 }) {
+  // Un Banco Central autónomo decide la tasa y no emite: los controles quedan bloqueados
+  const organisms = useGameStore((s) => s.gameState?.organisms);
+  const bankName = useMemo(
+    () => (organisms && isCentralBankAutonomous(organisms) ? centralBank(organisms)?.name : undefined),
+    [organisms],
+  );
+  const lockedHint = bankName ? `Lo decide ${bankName} (autónomo).` : undefined;
   return (
     <div className="space-y-5">
       <SliderControl
@@ -231,6 +250,8 @@ function EconomyDecisions({
         step={0.5}
         unit="%"
         onChange={(v) => onChange("tasaInteres", v)}
+        disabled={!!bankName}
+        hint={lockedHint}
       />
       <NumberInputControl
         label="Salario mínimo (USD)"
@@ -272,6 +293,16 @@ function EconomyDecisions({
         unit="%"
         onChange={(v) => onChange("impuestoSociedades", v)}
       />
+      <SliderControl
+        label="Emisión monetaria (% de la recaudación por mes)"
+        value={(subDecisions.emisionMonetaria as number) ?? 0}
+        min={0}
+        max={30}
+        unit="%"
+        onChange={(v) => onChange("emisionMonetaria", v)}
+        disabled={!!bankName}
+        hint={lockedHint ?? "Financia al Estado imprimiendo dinero: sube la inflación de los meses siguientes."}
+      />
     </div>
   );
 }
@@ -285,14 +316,17 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
   const summary = useMemo(() => {
     if (!gameState) return null;
     const current = calculateTaxRevenue(gameState);
-    const proposed = calculateTaxRevenue({
-      ...gameState,
-      ministries: gameState.ministries.map((m) =>
-        m.key === "ECONOMY" ? { ...m, subDecisions: { ...m.subDecisions, ...subDecisions } } : m,
-      ),
-    });
+    const proposedMinistries = gameState.ministries.map((m) =>
+      m.key === "ECONOMY" ? { ...m, subDecisions: { ...m.subDecisions, ...subDecisions } } : m,
+    );
+    const proposed = calculateTaxRevenue({ ...gameState, ministries: proposedMinistries });
     const debt = gameState.publicDebt ?? 0;
     return {
+      inflation: gameState.inflation,
+      credibility: monetaryCredibility(gameState.organisms ?? []),
+      taylor: taylorRate(gameState.inflation),
+      rate: policyRate(proposedMinistries),
+      emission: monetaryEmission(proposedMinistries, proposed.revenue),
       current: current.revenue,
       proposed: proposed.revenue,
       evasion: proposed.evasion,
@@ -319,10 +353,27 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
         <span className="font-mono tabular-nums">{(summary.evasion * 100).toFixed(1)}%</span>
       </div>
       <div className="flex justify-between gap-2">
+        <span>Emisión monetaria</span>
+        <span className="font-mono tabular-nums">{fmt(summary.emission)}/mes</span>
+      </div>
+      <div className="flex justify-between gap-2">
         <span>Deuda pública</span>
         <span className="font-mono tabular-nums">
           {fmt(summary.debt)} ({(summary.debtRatio * 100).toFixed(1)}% del PIB, {(summary.debtRate * 100).toFixed(1)}% anual)
         </span>
+      </div>
+      <p className="font-medium text-muted-foreground pt-2">Política monetaria</p>
+      <div className="flex justify-between gap-2">
+        <span>Inflación anual (meta {BALANCE.INFLATION_TARGET}%)</span>
+        <span className="font-mono tabular-nums">{summary.inflation.toFixed(1)}%</span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Tasa vigente / regla de Taylor</span>
+        <span className="font-mono tabular-nums">{summary.rate.toFixed(1)}% / {summary.taylor.toFixed(1)}%</span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Credibilidad monetaria</span>
+        <span className="font-mono tabular-nums">{Math.round(summary.credibility * 100)}%</span>
       </div>
     </div>
   );

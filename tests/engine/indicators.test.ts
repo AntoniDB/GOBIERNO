@@ -8,7 +8,6 @@ import {
   calculateCrime,
   calculateEducation,
   calculateGini,
-  calculateInflationSimple,
 } from "@/lib/engine/indicators";
 import { BALANCE } from "@/lib/balance";
 
@@ -75,9 +74,9 @@ describe("calculatePoverty", () => {
     const state = crearEstadoBase();
     // socialDevImpact = eff(50) * budgetFactor(7%) = 50 * 0.442 = 22.1
     // economyImpact = app, unemployment = -0.26*28.25+25 ≈ 17.65
-    // raw = -0.50*22.1 + 0.5*17.65 + 0.3*0.2 + 43 ≈ 40.8
+    // raw = -0.50*22.1 + 0.5*17.65 + 0.3*5 (inflación anual del estado) + 43 ≈ 42.3
     const poverty = calculatePoverty(state);
-    expect(poverty).toBeCloseTo(40.8, 0);
+    expect(poverty).toBeCloseTo(42.3, 0);
   });
 
   it("eficiencia alta reduce la pobreza", () => {
@@ -190,15 +189,6 @@ describe("calculateGini", () => {
   });
 });
 
-describe("calculateInflationSimple", () => {
-  it("devuelve un valor numérico positivo", () => {
-    const state = crearEstadoBase();
-    const inflation = calculateInflationSimple(state);
-    expect(inflation).toBeGreaterThanOrEqual(0);
-    expect(typeof inflation).toBe("number");
-  });
-});
-
 describe("todos los indicadores en rango", () => {
   it("todos los indicadores devuelven valores en [0, 100]", () => {
     const state = crearEstadoBase();
@@ -210,7 +200,6 @@ describe("todos los indicadores en rango", () => {
       calculateCrime(state),
       calculateEducation(state),
       calculateGini(state, []),
-      calculateInflationSimple(state),
     ];
     for (const val of indicadores) {
       expect(val).toBeGreaterThanOrEqual(0);

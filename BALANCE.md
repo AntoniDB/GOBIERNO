@@ -82,15 +82,15 @@ crimen = CRIME_SECURITY_FACTOR * impactoSeguridad
 educacion = EDUCATION_EDU_FACTOR * impactoEducacion + EDUCATION_BASE
 ```
 
-### Inflacion (`economy.ts:calculateInflation`)
+### Inflacion (`monetary.ts:calculateInflation`)
+Inflación **anual** (%) con memoria; se calcula una vez por mes (paso 8 del turno) y los demás
+indicadores la leen del estado. Detalle en "Política monetaria (Economía, Fase 2)".
 ```
-deficit% = max(0, gastos − ingresos) / ingresos × 100
-inflacion = BASE_INFLATION + deficit% * INFLATION_DEFICIT_FACTOR   (+ sub-decisiones; mínimo 0)
+inflación = anterior + INFLATION_ADJUST × credibilidad × (equilibrio − anterior)
+equilibrio = INFLATION_TARGET + presiones × (1 + INFLATION_CRED_AMPLIFIER × (1 − credibilidad))
 ```
-- `BASE_INFLATION` (0.2): inflación mensual sin déficit (≈ 2,4 % anual)
-- `INFLATION_DEFICIT_FACTOR` (0.02): puntos de inflación por cada 1 % de déficit sobre el ingreso
-- Con los valores sembrados la inflación ronda 0,2–0,5; `INFLATION_CRISIS_THRESHOLD` (15) solo se alcanza con
-  déficits enormes, y entonces dispara la penalizacion de aprobacion
+- `INFLATION_CRISIS_THRESHOLD` (15): por encima, penalización de aprobación de todas las clases.
+- Los presets arrancan con su inflación (2,5 / 6 / 18 / 10) y desde ahí convergen a la meta.
 
 ---
 
@@ -372,12 +372,13 @@ costo     = Σ (coeficiente × unidades), escalado por población (COST_REFERENC
 | Educación | `superior` | 25 | grupo etapas (suma 100) | educación +0.02, PIB % +0.08, Gini +0.02 | — | — |
 | Educación | `enfoqueSTEM` | 60 | 0–100 | PIB % +0.04, desempleo -0.012, educación -0.015 | — | — |
 | Educación | `becas` | sí | al cambiar | educación -1 | pob. extrema -1, pobreza -1.5, media -1 | -1.500.000 |
-| Economía | `tasaInteres` | 4.5 | 1–20 | inflación -0.01, desempleo +0.1, PIB % -0.35 | — | — |
-| Economía | `salarioMinimo` | 350 | 100–1000 | pobreza -0.005, desempleo +0.004, inflación +0.0003 | pobreza +0.004, pob. extrema +0.003, élite -0.003 | — |
+| Economía | `tasaInteres` | 4.5 | 1–20 | desempleo +0.1, PIB % -0.35 (inflación: ver política monetaria) | — | — |
+| Economía | `salarioMinimo` | 350 | 100–1000 | pobreza -0.005, desempleo +0.004, inflación +0.0036 | pobreza +0.004, pob. extrema +0.003, élite -0.003 | — |
 | Economía | `politicaIndustrial` | 50 | 0–100 | PIB % +0.03, desempleo +0.02, Gini +0.03 | pobreza -0.02, élite +0.02 | — |
-| Economía | `iva` | 16 | 0–30 | pobreza +0.08, inflación +0.005 | pob. extrema -0.18, pobreza -0.18, media -0.09 | — (cambia la recaudación) |
+| Economía | `iva` | 16 | 0–30 | pobreza +0.08, inflación +0.06 | pob. extrema -0.18, pobreza -0.18, media -0.09 | — (cambia la recaudación) |
 | Economía | `impuestoRenta` | 25 | 0–50 | Gini -0.08, PIB % -0.03 | élite -0.12, media -0.04, pobreza +0.02 | — (cambia la recaudación) |
 | Economía | `impuestoSociedades` | 25 | 0–45 | PIB % -0.08, desempleo +0.04 | élite -0.12 | — (cambia la recaudación) |
+| Economía | `emisionMonetaria` | 0 | 0–30 | — (inflación: ver política monetaria) | media -0.02, élite -0.02 | — (entra al tesoro) |
 | Defensa | `tropasActivas` | 50000 | 10000–200000 | desempleo -0.000008, crimen -0.000005 | élite +0.000008 | +150 |
 | Defensa | `gastoEquipamiento` | 40 | 0–100 | crimen -0.01 | élite +0.02 | +50.000 |
 | Defensa | `servicioMilitar` | no | al cambiar | desempleo -0.8, crimen -0.3 | pob. extrema -1.5, pobreza -2, media -2, élite +1 | +1.000.000 |
@@ -425,6 +426,51 @@ ministerios con los pesos 14/16/18/10/12/8/10/12, así que el primer mes cierra 
 
 Para ajustar: cambiar `INITIAL_COMPTROLLER_BUDGET` o `BASE_SALARY_PER_MINISTER` mueve la suma inicial
 (el reparto se recalcula solo); los pesos relativos están en `generateMinistries`.
+
+## Política monetaria (Economía, Fase 2)
+
+Antes la inflación no tenía memoria: se recalculaba desde cero en cada llamada (≈0,2 "mensual"),
+así que el 18 % de `crisis_economica` desaparecía en el primer mes, el shock de inflación de los
+eventos se perdía y la crisis económica nunca se disparaba (comparaba la constante 0,2 con 15).
+Ahora (`engine/monetary.ts`, paso 8 del turno) la inflación es **anual** y tiene inercia:
+
+```
+credibilidad = MONETARY_CRED_MIN sin Banco Central (o disuelto)
+             = MIN + (MAX − MIN) × autonomía/100 × (0,5 + efectividad/200)   con Banco Central
+presiones    = INFLATION_DEFICIT_FACTOR × déficit%           (gasto − recaudación, sobre la recaudación)
+             + INFLATION_EMISSION_FACTOR × emisión%          (dinero emitido, sobre la recaudación)
+             − INFLATION_RATE_FACTOR × (tasaInteres − 4,5)
+             + sub-decisiones (columna "inflación" de la tabla: IVA, salario mínimo)
+equilibrio   = max(0, INFLATION_TARGET + presiones × (1 + INFLATION_CRED_AMPLIFIER × (1 − credibilidad)))
+inflación    = clamp(anterior + INFLATION_ADJUST × credibilidad × (equilibrio − anterior), 0, 100)
+               + shocks de eventos (persisten: el mes siguiente parten de ahí)
+```
+
+- `INFLATION_TARGET` (3), `INFLATION_ADJUST` (0.15), `INFLATION_CRED_AMPLIFIER` (1).
+- `INFLATION_DEFICIT_FACTOR` (0.3), `INFLATION_EMISSION_FACTOR` (1.5), `INFLATION_RATE_FACTOR` (0.5): puntos
+  anuales de equilibrio por cada 1 % de déficit, por cada 1 % emitido y por cada punto de tasa.
+- `MONETARY_CRED_MIN` (0.3), `MONETARY_CRED_MAX` (0.85). Sin Banco Central la inflación del 18 % baja a ~8 %
+  en 24 meses; con uno autónomo (80) a ~4 % (prueba e2e), a costa de más desempleo y menos PIB por la tasa alta.
+- **Banco Central** (organismo `CENTRAL_BANK`, creable desde Justicia con titular Presidente del Banco
+  Central). Con autonomía ≥ `CB_AUTONOMY_THRESHOLD` (50) decide él, por encima del jugador:
+  - tasa: hacia la regla de Taylor `CB_NEUTRAL_REAL_RATE` (1.5) + inflación + `TAYLOR_INFLATION_WEIGHT` (0.5)
+    × (inflación − meta), acotada a [1, 20], moviéndose como mucho `CB_MAX_RATE_STEP` (1) por mes;
+  - emisión: siempre 0 (no financia al gobierno). El jugador recibe un aviso si intentó cambiarlas.
+- **Emisión monetaria** (sub-decisión `emisionMonetaria`, % de la recaudación por mes): ese monto entra al
+  tesoro cada mes como ingreso no tributario. En la e2e, emitir 20 % seis meses lleva la inflación de
+  2,5 % a ~15 %, y tarda más de un año en bajar.
+- Las columnas "inflación" de la tabla de sub-decisiones son ahora presiones en puntos anuales (antes,
+  en la escala mensual: se multiplicaron ×12). La tasa de interés dejó la tabla y actúa por
+  `INFLATION_RATE_FACTOR`, para no contarla dos veces.
+- **Crisis económica** (evento): se dispara con inflación > `EVENT_ECONOMIC_CRISIS_INFLATION` (15).
+  Severidad = `EVENT_ECONOMIC_CRISIS_BASE_SEVERITY` (30) + (inflación − 15) ×
+  `EVENT_ECONOMIC_CRISIS_SEVERITY_PER_POINT` (4), máx. 100. Efectos por punto de severidad: inflación
+  `EVENT_ECONOMIC_CRISIS_INFLATION_SHOCK` (0.05), costo `EVENT_ECONOMIC_CRISIS_COST_PER_CAPITA` (0.5) por
+  habitante, desempleo `EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT` (0.05). Con los valores anteriores (shock
+  +severidad, costo ×5) cada crisis empujaba más inflación y otra crisis.
+- La pobreza (`POVERTY_INFLATION_FACTOR`, 0.3) y la aprobación leen la inflación anual: en una partida
+  estable (≈3 %) la pobreza queda ~0,8 puntos más alta que con la escala mensual anterior.
+- Partidas existentes: su inflación guardada (≈0,2) se lee como anual y converge a la meta.
 
 ## Política fiscal y deuda pública (Economía, Fase 1)
 

@@ -25,6 +25,7 @@ export const SUB_DECISION_SPECS: Record<string, Record<string, SubDecisionSpec>>
     iva: { type: "number", min: 0, max: 30, step: 0.5 },
     impuestoRenta: { type: "number", min: 0, max: 50, step: 1 },
     impuestoSociedades: { type: "number", min: 0, max: 45, step: 1 },
+    emisionMonetaria: { type: "number", min: 0, max: 30, step: 1 },
   },
   DEFENSE: {
     tropasActivas: { type: "number", min: 0, max: 2_000_000, step: 1000 },

@@ -97,9 +97,9 @@ function getEventEffects(
       };
     case "ECONOMIC_CRISIS":
       return {
-        treasuryCost: Math.round(severity * population * 5),
-        inflationIncrease: Math.round(severity),
-        unemploymentIncrease: Math.round(severity * 0.5),
+        treasuryCost: Math.round(severity * population * BALANCE.EVENT_ECONOMIC_CRISIS_COST_PER_CAPITA),
+        inflationIncrease: Math.round(severity * BALANCE.EVENT_ECONOMIC_CRISIS_INFLATION_SHOCK * 10) / 10,
+        unemploymentIncrease: Math.round(severity * BALANCE.EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT * 10) / 10,
         gdpPenalty: -Math.round(severity * BALANCE.GDP_CRISIS_PENALTY / 100),
       };
     default:
@@ -168,8 +168,8 @@ export function triggerRandomEvents(
     Math.min(100, BALANCE.CRIME_BASE - BALANCE.CRIME_SECURITY_FACTOR * securityImpact)
   );
 
-  // Inflación: estimación simple
-  const inflation = BALANCE.BASE_INFLATION;
+  // Inflación anual del estado (antes era la constante BASE_INFLATION y la crisis nunca se disparaba)
+  const inflation = Number.isFinite(state.inflation) ? state.inflation : BALANCE.INFLATION_TARGET;
 
   // ── Verificar si alguna clase social cumple condiciones de protesta ─────
   const classProtestCondition = state.socialClasses.some(
@@ -250,7 +250,8 @@ export function triggerRandomEvents(
       type: "ECONOMIC_CRISIS",
       condition: inflation > BALANCE.EVENT_ECONOMIC_CRISIS_INFLATION,
       baseProb: 0.1,
-      severityFn: () => Math.min(100, inflation * 5),
+      severityFn: () => Math.min(100, BALANCE.EVENT_ECONOMIC_CRISIS_BASE_SEVERITY
+        + (inflation - BALANCE.EVENT_ECONOMIC_CRISIS_INFLATION) * BALANCE.EVENT_ECONOMIC_CRISIS_SEVERITY_PER_POINT),
     },
   ];
 
