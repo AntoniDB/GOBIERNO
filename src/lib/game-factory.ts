@@ -337,7 +337,7 @@ export function generateMinistries(totalPercent = 100): MinistryData[] {
   const base: Array<Omit<MinistryData, "budgetPercent"> & { weight: number }> = [
     { key: "HEALTH", weight: 14, subDecisions: { vacunacion: true, saludMental: false } },
     { key: "EDUCATION", weight: 16, subDecisions: { primaria: 40, secundaria: 35, superior: 25, enfoqueSTEM: 60, becas: true } },
-    { key: "ECONOMY", weight: 18, subDecisions: { tasaInteres: 4.5, salarioMinimo: 350, politicaIndustrial: 50 } },
+    { key: "ECONOMY", weight: 18, subDecisions: { tasaInteres: 4.5, salarioMinimo: 350, politicaIndustrial: 50, iva: 16, impuestoRenta: 25, impuestoSociedades: 25 } },
     { key: "DEFENSE", weight: 10, subDecisions: { tropasActivas: 50000, gastoEquipamiento: 40, servicioMilitar: false } },
     { key: "SECURITY", weight: 12, subDecisions: { patrullajeUrbano: 60, politicaDrogas: 50, inversionCarceles: 30 } },
     { key: "JUSTICE", weight: 8, subDecisions: { juecesContratados: 200, prioridadCorrupcion: 60, durezaPenal: 50 } },

@@ -22,6 +22,7 @@ import { calculateIncome } from "./economy";
 import { calculateExpenses } from "./economy";
 import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
+import { collectibleBase, debtToGdp, evasionRate, settlePublicDebt } from "./fiscal";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
 import {
@@ -878,7 +879,8 @@ export function processTurn(
 
   newState.sickRate = Math.max(0, Math.min(100, newState.sickRate + eventDeltas.sickRateDelta));
   newState.crimeRate = Math.max(0, Math.min(100, newState.crimeRate + eventDeltas.crimeRateDelta));
-  newState.treasury = Math.max(0, newState.treasury - eventDeltas.treasuryDelta);
+  // Sin piso en 0: un desastre que supera la caja se financia con deuda al cerrar el mes.
+  newState.treasury -= eventDeltas.treasuryDelta;
   newState.foodSecurity = Math.max(0, Math.min(100, newState.foodSecurity + eventDeltas.foodDelta));
   newState.inflation = Math.max(0, Math.min(100, newState.inflation + eventDeltas.inflationDelta));
   newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
@@ -1152,6 +1154,32 @@ export function processTurn(
     if (newPopulationPercents[sc.key] !== undefined) {
       sc.populationPercent = newPopulationPercents[sc.key];
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 13b: Cerrar la caja del mes (Economía, Fase 1)
+  // - Tesoro negativo → se emite deuda pública por el faltante (tesoro 0).
+  // - Caja por encima de la reserva (DEBT_CASH_RESERVE_MONTHS meses de gasto) → amortiza deuda.
+  // - Primer turno: se fija la base imponible de referencia con la que se mide la recaudación.
+  // ═══════════════════════════════════════════════════════════════════════
+  const debtSettlement = settlePublicDebt(newState, expenses);
+  if (debtSettlement.issued > 0) {
+    allNotifications.push({
+      type: "warning",
+      title: "Emisión de deuda pública",
+      description: `El tesoro no alcanzó para cubrir los gastos del mes: se emitieron M$ ${(debtSettlement.issued / 1_000_000).toFixed(1)} de deuda. La deuda total es M$ ${((newState.publicDebt ?? 0) / 1_000_000).toFixed(1)} (${(debtToGdp(newState.publicDebt ?? 0, newState.gdp) * 100).toFixed(1)}% del PIB) y paga intereses cada mes.`,
+    });
+  }
+  if (debtSettlement.amortized > 0) {
+    allNotifications.push({
+      type: "info",
+      title: "Amortización de deuda",
+      description: `El superávit permitió amortizar M$ ${(debtSettlement.amortized / 1_000_000).toFixed(1)} de deuda pública. Deuda restante: M$ ${((newState.publicDebt ?? 0) / 1_000_000).toFixed(1)}.`,
+    });
+  }
+  if (!(newState.fiscalBaseReference && newState.fiscalBaseReference > 0)) {
+    const reference = collectibleBase(newState.gdp, evasionRate(newState.officials, newState.organisms));
+    newState.fiscalBaseReference = reference > 0 ? reference : null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════

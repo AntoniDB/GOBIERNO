@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Game" ADD COLUMN     "fiscalBaseReference" DOUBLE PRECISION,
+ADD COLUMN     "publicDebt" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "MonthSnapshot" ADD COLUMN     "publicDebt" DOUBLE PRECISION NOT NULL DEFAULT 0;

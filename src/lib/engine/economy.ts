@@ -5,32 +5,63 @@ import type { GameState, LawCatalogEntry } from "./types";
 import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
 import { subDecisionDeltas, subDecisionContext } from "./sub-decision-effects";
+import { collectibleBase, economyFactor, evasionRate, monthlyDebtInterest, taxMixFactor } from "./fiscal";
+
+/** Suma de modificadores de la tasa impositiva de las leyes activas (en fracción). */
+function lawTaxRateModifier(state: Pick<GameState, "activeLaws">): number {
+  let modifier = 0;
+  for (const law of state.activeLaws ?? []) {
+    const effects = law.effectsJson as Record<string, unknown>;
+    const rateMod = effects["taxRateModifier"];
+    if (typeof rateMod === "number") modifier += rateMod;
+    const taxRev = effects["taxRevenue"];
+    if (typeof taxRev === "number") modifier += taxRev / 100; // taxRevenue viene en %, convertir a decimal
+  }
+  return modifier;
+}
+
+export interface TaxRevenueBreakdown {
+  /** Tasa efectiva: TAX_RATE_BASE × mezcla de impuestos + modificadores de leyes. */
+  taxRate: number;
+  /** Factor de la estructura de impuestos (IVA, renta, sociedades); 1 con las tasas iniciales. */
+  taxMix: number;
+  /** Fracción evadida de la base imponible (corrupción vs. Agencia Tributaria). */
+  evasion: number;
+  /** Recaudación relativa al primer mes por el tamaño de la base (PIB neto de evasión). */
+  economyFactor: number;
+  /** Recaudación con la economía del primer mes. */
+  potential: number;
+  /** Recaudación del mes. */
+  revenue: number;
+}
 
 /**
- * Ingresos fiscales = poblaciónActiva * ingresoPerCápita * tasaImpositiva.
- * - poblaciónActiva = 60% de population
- * - ingresoPerCápita = BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA
- * - tasaImpositiva = BALANCE.TAX_RATE_BASE + suma de modificadores de leyes activas
+ * Recaudación mensual (Economía, Fase 1):
+ *   potencial = poblaciónActiva × ingresoPerCápita × (TAX_RATE_BASE × mezcla + leyes)
+ *   recaudación = potencial × (base / base del primer mes)^elasticidad,  base = PIB × (1 − evasión)
+ * La mezcla refleja las tasas de IVA/renta/sociedades con su curva de Laffer; el factor de economía
+ * hace que un PIB que cae o una evasión que sube recauden menos. Sin referencia (primer turno, o
+ * estados mínimos de tests) el factor vale 1, así que el equilibrio inicial se conserva.
  */
-export function calculateIncome(state: GameState): number {
+export function calculateTaxRevenue(state: GameState): TaxRevenueBreakdown {
   const activePopulation = state.population * BALANCE.ACTIVE_POPULATION_SHARE;
-  const incomePerCapita = BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA;
+  const ministries = state.ministries ?? [];
+  const taxMix = taxMixFactor(ministries);
+  const taxRate = BALANCE.TAX_RATE_BASE * taxMix + lawTaxRateModifier(state);
+  const potential = activePopulation * BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA * taxRate;
 
-  // Tasa impositiva base + modificadores de leyes activas
-  let taxRate = BALANCE.TAX_RATE_BASE;
-  for (const law of state.activeLaws) {
-    const effects = law.effectsJson as Record<string, unknown>;
-    const modifier = effects["taxRateModifier"];
-    if (typeof modifier === "number") {
-      taxRate += modifier;
-    }
-    const taxRev = effects["taxRevenue"];
-    if (typeof taxRev === "number") {
-      taxRate += taxRev / 100; // taxRevenue viene en %, convertir a decimal
-    }
-  }
+  const evasion = evasionRate(state.officials ?? [], state.organisms ?? []);
+  const reference = state.fiscalBaseReference;
+  const factor = reference && reference > 0 && ministries.length > 0
+    ? economyFactor(collectibleBase(calculateGDP(state), evasion), reference)
+    : 1;
 
-  return activePopulation * incomePerCapita * taxRate;
+  return { taxRate, taxMix, evasion, economyFactor: factor, potential, revenue: potential * factor };
+}
+
+/** Ingresos fiscales del mes (ver calculateTaxRevenue). */
+export function calculateIncome(state: GameState): number {
+  return calculateTaxRevenue(state).revenue;
 }
 
 /**
@@ -44,7 +75,8 @@ export function baseMonthlyIncome(population: number): number {
 /**
  * Gastos que no dependen del presupuesto de los ministerios (se cobran aunque
  * estos reciban 0): salarios de funcionarios activos, presupuestos de organismos,
- * costo mensual de leyes activas y costo (o ahorro) de las sub-decisiones.
+ * costo mensual de leyes activas, costo (o ahorro) de las sub-decisiones e
+ * intereses de la deuda pública.
  */
 function fixedExpenseBreakdown(state: GameState) {
   // Salarios de officials (cada official activo cobra salario base)
@@ -74,6 +106,9 @@ function fixedExpenseBreakdown(state: GameState) {
   // Costo (o ahorro) de las sub-decisiones respecto de su valor sembrado
   const subDecisionCost = subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).cost;
 
+  // Intereses de la deuda pública (Economía, Fase 1)
+  const debtInterest = monthlyDebtInterest(state);
+
   return {
     activeOfficialCount,
     officialSalaries,
@@ -81,7 +116,8 @@ function fixedExpenseBreakdown(state: GameState) {
     lawCosts,
     lawDetails,
     subDecisionCost,
-    total: officialSalaries + organismExpenses + lawCosts + subDecisionCost,
+    debtInterest,
+    total: officialSalaries + organismExpenses + lawCosts + subDecisionCost + debtInterest,
   };
 }
 
@@ -117,7 +153,7 @@ export function calculateCommittedSpendingPercent(state: GameState): number {
 /**
  * Gastos = presupuestos ministeriales (% del ingreso) + salarios officials
  *          + presupuestos de organismos + costo de leyes activas
- *          + costo de sub-decisiones.
+ *          + costo de sub-decisiones + intereses de la deuda.
  */
 export function calculateExpenses(state: GameState): number {
   const income = calculateIncome(state);
@@ -129,7 +165,7 @@ export function calculateExpenses(state: GameState): number {
   }
 
   const fixed = fixedExpenseBreakdown(state);
-  const { activeOfficialCount, officialSalaries, organismExpenses, lawCosts, lawDetails, subDecisionCost } = fixed;
+  const { activeOfficialCount, officialSalaries, organismExpenses, lawCosts, lawDetails, subDecisionCost, debtInterest } = fixed;
 
   const total = ministryExpenses + fixed.total;
 
@@ -151,6 +187,7 @@ export function calculateExpenses(state: GameState): number {
     console.log(`    ${l.key}: ${fmt(l.cost)} AKN/mes`);
   }
   console.log(`  Sub-decisiones:           ${fmt(subDecisionCost)} AKN`);
+  console.log(`  Intereses de la deuda:    ${fmt(debtInterest)} AKN`);
   console.log(`  ────────────────────────────────────`);
   console.log(`  GASTO TOTAL:             ${fmt(total)} AKN`);
   console.log(`  DÉFICIT/SUPERÁVIT:       ${fmt(income - total)} AKN`);

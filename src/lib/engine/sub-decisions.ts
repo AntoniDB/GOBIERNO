@@ -22,6 +22,9 @@ export const SUB_DECISION_SPECS: Record<string, Record<string, SubDecisionSpec>>
     tasaInteres: { type: "number", min: 1, max: 20, step: 0.5 },
     salarioMinimo: { type: "number", min: 1, max: 10_000, step: 10 },
     politicaIndustrial: pct,
+    iva: { type: "number", min: 0, max: 30, step: 0.5 },
+    impuestoRenta: { type: "number", min: 0, max: 50, step: 1 },
+    impuestoSociedades: { type: "number", min: 0, max: 45, step: 1 },
   },
   DEFENSE: {
     tropasActivas: { type: "number", min: 0, max: 2_000_000, step: 1000 },

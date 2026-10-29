@@ -113,5 +113,6 @@ export function createMonthSnapshot(
     tradeBalance: state.tradeBalance,
     totalImports: state.totalImports,
     totalExports: state.totalExports,
+    publicDebt: state.publicDebt ?? 0,
   };
 }

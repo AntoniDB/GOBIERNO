@@ -12,6 +12,7 @@ import { initialEconomy, snapshotIndicators } from "@/lib/initial-economy";
 import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { resolveLawEnactments } from "@/lib/engine/economy";
+import { settlePublicDebt } from "@/lib/engine/fiscal";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   GameState, MinistryProgramState, MonthSnapshotData, RegimeMetricsState, LawCatalogEntry,
@@ -231,6 +232,8 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
       deactivatedAt: p.deactivatedAt ? (p.deactivatedAt as Date).toISOString() : null,
     })),
     sanctionsMultiplier: (game.sanctionsMultiplier as number) ?? 1.0,
+    publicDebt: (game.publicDebt as number) ?? 0,
+    fiscalBaseReference: (game.fiscalBaseReference as number | null) ?? null,
     tradeGoods: (game.tradeGoods ?? []).map((tg: Record<string, unknown>) => ({
       id: tg.id as string,
       gameId: tg.gameId as string,
@@ -452,7 +455,11 @@ export async function advanceMonth(
   }
   const enactment = resolveLawEnactments(enactedKeys, lawCatalogMap, newState.population);
   newState.treasury -= enactment.totalCost;
-  monthSnapshot.treasury -= enactment.totalCost;
+  // Si el costo de promulgar supera la caja, el faltante se financia con deuda (sin amortizar:
+  // el cierre del mes ya se hizo en el motor).
+  settlePublicDebt(newState, 0, false);
+  monthSnapshot.treasury = newState.treasury;
+  monthSnapshot.publicDebt = newState.publicDebt ?? 0;
 
   // Persistir en transacción atómica
   await prisma.$transaction(

@@ -540,6 +540,16 @@ vacío se pasa como `null` para conservar el texto de ayuda. Un test (`tests/ui-
 **Verificación:** en navegador real el tipo muestra "Fiscalía Anticorrupción" y el titular "Ofelia Cruz Perez (Fiscal)". El diálogo
 "Asignar titular" de `organism-list.tsx` lleva el mismo arreglo y lo cubre el test, pero no se abrió en el navegador.
 
+## 20. ~~Los déficits se borraban sin costo (piso del tesoro en 0)~~ — RESUELTO (Economía, Fase 1)
+
+**Qué pasaba:** `trade.ts` descontaba las importaciones con `treasury = max(0, treasury − importaciones)` y los desastres hacían lo
+mismo en `turn.ts`. Como el paso de comercio corre después de cobrar ingresos y gastos, cualquier tesoro negativo del mes
+volvía a 0: el déficit desaparecía sin deuda, intereses ni consecuencia.
+
+**Solución:** se quitaron los dos pisos y el faltante de caja se financia con deuda pública (`engine/fiscal.ts:settlePublicDebt`,
+PASO 13b), que paga intereses como gasto fijo y se amortiza con el superávit. Detalle y constantes en BALANCE.md, sección
+"Política fiscal y deuda pública".
+
 ## Nota para producción: Auth.js exige host de confianza
 
 Con `next start` (modo producción) Auth.js v5 responde `UntrustedHost: Host must be trusted` y el inicio de sesión falla si no se

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { numberRange } from "@/lib/engine/sub-decisions";
 import { subDecisionDeltas, describeSubDecisionEffects, suppressedSubDecisions } from "@/lib/engine/sub-decision-effects";
+import { calculateTaxRevenue } from "@/lib/engine/economy";
+import { debtAnnualRate, debtToGdp } from "@/lib/engine/fiscal";
 
 interface SubDecisionsProps {
   ministryKey: string;
@@ -245,6 +247,83 @@ function EconomyDecisions({
         leftLabel="Proteccionismo"
         rightLabel="Apertura total"
       />
+      <SliderControl
+        label="IVA"
+        value={(subDecisions.iva as number) ?? 16}
+        min={0}
+        max={30}
+        step={0.5}
+        unit="%"
+        onChange={(v) => onChange("iva", v)}
+      />
+      <SliderControl
+        label="Impuesto a la renta (tasa máxima)"
+        value={(subDecisions.impuestoRenta as number) ?? 25}
+        min={0}
+        max={50}
+        unit="%"
+        onChange={(v) => onChange("impuestoRenta", v)}
+      />
+      <SliderControl
+        label="Impuesto a las sociedades"
+        value={(subDecisions.impuestoSociedades as number) ?? 25}
+        min={0}
+        max={45}
+        unit="%"
+        onChange={(v) => onChange("impuestoSociedades", v)}
+      />
+    </div>
+  );
+}
+
+/**
+ * Resumen fiscal de Economía: recaudación estimada con las tasas propuestas frente a las vigentes,
+ * evasión y deuda pública. Usa las mismas funciones puras que el motor.
+ */
+function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number | boolean> }) {
+  const gameState = useGameStore((s) => s.gameState);
+  const summary = useMemo(() => {
+    if (!gameState) return null;
+    const current = calculateTaxRevenue(gameState);
+    const proposed = calculateTaxRevenue({
+      ...gameState,
+      ministries: gameState.ministries.map((m) =>
+        m.key === "ECONOMY" ? { ...m, subDecisions: { ...m.subDecisions, ...subDecisions } } : m,
+      ),
+    });
+    const debt = gameState.publicDebt ?? 0;
+    return {
+      current: current.revenue,
+      proposed: proposed.revenue,
+      evasion: proposed.evasion,
+      debt,
+      debtRatio: debtToGdp(debt, gameState.gdp),
+      debtRate: debtAnnualRate(gameState),
+    };
+  }, [gameState, subDecisions]);
+  if (!summary) return null;
+  const fmt = (n: number) => `M$ ${(n / 1_000_000).toFixed(1)}`;
+  const diff = summary.proposed - summary.current;
+  return (
+    <div className="border-t border-border pt-3 space-y-1 text-xs">
+      <p className="font-medium text-muted-foreground">Política fiscal</p>
+      <div className="flex justify-between gap-2">
+        <span>Recaudación estimada</span>
+        <span className="font-mono tabular-nums">
+          {fmt(summary.proposed)}/mes
+          {Math.abs(diff) >= 50_000 && ` (${diff > 0 ? "+" : "−"}${fmt(Math.abs(diff))})`}
+        </span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Evasión fiscal</span>
+        <span className="font-mono tabular-nums">{(summary.evasion * 100).toFixed(1)}%</span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Deuda pública</span>
+        <span className="font-mono tabular-nums">
+          {fmt(summary.debt)} ({(summary.debtRatio * 100).toFixed(1)}% del PIB, {(summary.debtRate * 100).toFixed(1)}% anual)
+        </span>
+      </div>
     </div>
   );
 }
@@ -497,6 +576,7 @@ export function SubDecisions({ ministryKey, subDecisions, onSubDecisionChange }:
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <h3 className="text-sm font-heading font-medium text-foreground">Decisiones de política</h3>
       {renderDecisions()}
+      {ministryKey === "ECONOMY" && <FiscalSummary subDecisions={effectiveSubDecisions} />}
       <div className="border-t border-border pt-3 space-y-1">
         <p className="text-xs font-medium text-muted-foreground">
           Efecto de esta configuración (respecto del punto de partida)

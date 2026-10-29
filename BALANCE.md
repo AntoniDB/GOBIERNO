@@ -375,6 +375,9 @@ costo     = Σ (coeficiente × unidades), escalado por población (COST_REFERENC
 | Economía | `tasaInteres` | 4.5 | 1–20 | inflación -0.01, desempleo +0.1, PIB % -0.35 | — | — |
 | Economía | `salarioMinimo` | 350 | 100–1000 | pobreza -0.005, desempleo +0.004, inflación +0.0003 | pobreza +0.004, pob. extrema +0.003, élite -0.003 | — |
 | Economía | `politicaIndustrial` | 50 | 0–100 | PIB % +0.03, desempleo +0.02, Gini +0.03 | pobreza -0.02, élite +0.02 | — |
+| Economía | `iva` | 16 | 0–30 | pobreza +0.08, inflación +0.005 | pob. extrema -0.18, pobreza -0.18, media -0.09 | — (cambia la recaudación) |
+| Economía | `impuestoRenta` | 25 | 0–50 | Gini -0.08, PIB % -0.03 | élite -0.12, media -0.04, pobreza +0.02 | — (cambia la recaudación) |
+| Economía | `impuestoSociedades` | 25 | 0–45 | PIB % -0.08, desempleo +0.04 | élite -0.12 | — (cambia la recaudación) |
 | Defensa | `tropasActivas` | 50000 | 10000–200000 | desempleo -0.000008, crimen -0.000005 | élite +0.000008 | +150 |
 | Defensa | `gastoEquipamiento` | 40 | 0–100 | crimen -0.01 | élite +0.02 | +50.000 |
 | Defensa | `servicioMilitar` | no | al cambiar | desempleo -0.8, crimen -0.3 | pob. extrema -1.5, pobreza -2, media -2, élite +1 | +1.000.000 |
@@ -422,4 +425,59 @@ ministerios con los pesos 14/16/18/10/12/8/10/12, así que el primer mes cierra 
 
 Para ajustar: cambiar `INITIAL_COMPTROLLER_BUDGET` o `BASE_SALARY_PER_MINISTER` mueve la suma inicial
 (el reparto se recalcula solo); los pesos relativos están en `generateMinistries`.
+
+## Política fiscal y deuda pública (Economía, Fase 1)
+
+Antes la recaudación solo dependía de la población y de las leyes: el PIB, la corrupción y la
+gestión de Economía no la movían, y un déficit que vaciaba el tesoro se borraba sin costo (los pisos
+en 0 de importaciones y desastres). Ahora (`engine/fiscal.ts`, `economy.ts:calculateTaxRevenue`):
+
+```
+mezcla     = Σ peso_i × rendimiento(tasa_i / tasaInicial_i)          i = IVA, renta, sociedades
+rendim.(x) = max(0, x × (1 − TAX_LAFFER × (x − 1)))                   curva de Laffer: 1 → 1, 0 → 0
+tasa       = TAX_RATE_BASE × mezcla + modificadores de leyes
+potencial  = poblaciónActiva × ingresoPerCápita × tasa
+evasión    = clamp(base + factor × corrupciónGlobal/100 − agencia, mín, máx)
+agencia    = máx × efectividad/100 × (0,5 + autonomía/200)            Agencia Tributaria no disuelta
+base       = PIB × (1 − evasión)
+recaudación = potencial × (base / base del primer mes)^TAX_BASE_ELASTICITY
+```
+
+- Pesos de la mezcla (`TAX_MIX_SHARES`): IVA 0,4, renta 0,35, sociedades 0,25. Con las tasas
+  sembradas (16/25/25) la mezcla vale exactamente 1.
+- `TAX_LAFFER` (0.35): cada punto de tasa rinde menos que el anterior (la base se erosiona). El
+  máximo de un impuesto está en (1 + L)/(2L) ≈ 1,93 veces su tasa inicial; más allá recauda menos.
+- `TAX_BASE_ELASTICITY` (1): la recaudación es proporcional a la base imponible. Un PIB 20% menor
+  (p. ej. peor eficiencia de Economía) recauda 20% menos; más corrupción → más evasión → menos.
+- Evasión: `TAX_EVASION_BASE` (0.1) + `TAX_EVASION_CORRUPTION_FACTOR` (0.4) × corrupción global,
+  acotada a [`TAX_EVASION_MIN` (0.02), `TAX_EVASION_MAX` (0.6)]. Una Agencia Tributaria (organismo
+  `TAX_AGENCY`, creable desde Justicia con un titular de rol Contralor) la reduce hasta
+  `TAX_AGENCY_MAX_EVASION_REDUCTION` (0.15).
+- **Referencia**: la "base del primer mes" (`Game.fiscalBaseReference`) se fija al cerrar el primer
+  turno que se juega con esta versión. Hasta entonces el factor vale 1, así que el equilibrio inicial
+  (Issue 8) no cambia y las partidas existentes arrancan neutras.
+- Las tres tasas son sub-decisiones de Economía (tabla de arriba): además de la recaudación tienen
+  efectos sociales (el IVA es regresivo, la renta reduce el Gini, sociedades frena el PIB).
+- La ley `impuesto-progresivo` suma +0,15 a la tasa (`taxRateModifier`): se acumula con
+  `impuestoRenta`; no se anulan entre sí.
+
+**Deuda pública** (`settlePublicDebt`, PASO 13b del turno; `Game.publicDebt`):
+
+```
+tesoro < 0                    → se emite deuda por el faltante, tesoro = 0 (aviso al jugador)
+tesoro > reserva (con deuda)  → el excedente amortiza deuda; reserva = gasto del mes × meses de reserva
+tasa anual = DEBT_BASE_ANNUAL_RATE + traspaso × (tasaInteres − 4,5)/100
+           + DEBT_RISK_PREMIUM × max(0, deuda/PIB − DEBT_SAFE_GDP_RATIO)      (mín. DEBT_MIN_ANNUAL_RATE)
+intereses/mes = deuda × tasa anual / 12                                       (gasto fijo del mes)
+```
+
+- `DEBT_BASE_ANNUAL_RATE` (0.04), `DEBT_POLICY_RATE_PASSTHROUGH` (0.5): subir la tasa de referencia
+  encarece la deuda. `DEBT_SAFE_GDP_RATIO` (0.6) y `DEBT_RISK_PREMIUM` (0.05): por encima del 60% del
+  PIB se paga prima de riesgo. `DEBT_MIN_ANNUAL_RATE` (0.01). `DEBT_CASH_RESERVE_MONTHS` (1).
+- Los intereses entran en el gasto comprometido (`calculateCommittedSpending`), así que la UI de
+  presupuesto los descuenta del margen de los ministerios.
+- Importaciones (`trade.ts`) y desastres (eventos) ya no tienen piso en 0: lo que supera la caja se
+  financia con deuda. El costo único de promulgar leyes, que se cobra después del motor, también.
+- La UI muestra la recaudación estimada, la evasión y la deuda en las decisiones de Economía, y el
+  indicador "Deuda / PIB" en el panel.
 

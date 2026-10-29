@@ -15,6 +15,58 @@ export const BALANCE = {
   /** Fracción de la población que tributa (población activa) */
   ACTIVE_POPULATION_SHARE: 0.6,
 
+  // ─── Política fiscal (Economía, Fase 1) ─────────────────────────────────
+  // recaudación = poblaciónActiva × ingresoPerCápita × (TAX_RATE_BASE × mezcla + leyes) × factorEconómico
+  //   mezcla         = Σ peso_i × rendimiento(tasa_i / neutral_i)       (IVA, renta, sociedades)
+  //   rendimiento(x) = x × (1 − TAX_LAFFER × (x − 1))                   (subir la tasa erosiona la base)
+  //   factorEconómico = (PIB × (1 − evasión) / referencia)^TAX_BASE_ELASTICITY
+  // La referencia es la base del primer mes de la partida (Game.fiscalBaseReference): al empezar el
+  // factor vale 1 y el equilibrio inicial (Issue 8) no cambia; después la recaudación sigue al PIB.
+
+  /** Peso de cada impuesto en la recaudación con las tasas iniciales (suma 1) */
+  TAX_MIX_SHARES: { iva: 0.4, impuestoRenta: 0.35, impuestoSociedades: 0.25 },
+
+  /**
+   * Erosión de la base al subir una tasa (curva de Laffer simplificada). Con 0,35 el máximo está en
+   * ≈1,93 veces la tasa inicial (casi el tope de los sliders; la renta al 50 % ya lo pasa apenas) y
+   * cada punto rinde menos que el anterior: subir el IVA de 16 % a 30 % (×1,9) recauda ×1,3 por ese
+   * impuesto, no ×1,9.
+   */
+  TAX_LAFFER: 0.35,
+
+  /** Elasticidad de la recaudación respecto de la base (PIB neto de evasión). 1 = proporcional */
+  TAX_BASE_ELASTICITY: 1,
+
+  /** Evasión fiscal = base + factor × corrupción global/100 − Agencia Tributaria, acotada */
+  TAX_EVASION_BASE: 0.1,
+  TAX_EVASION_CORRUPTION_FACTOR: 0.4,
+  TAX_EVASION_MIN: 0.02,
+  TAX_EVASION_MAX: 0.6,
+
+  /**
+   * Reducción máxima de evasión de una Agencia Tributaria (efectividad 100 y autonomía 100).
+   * reducción = máx × efectividad/100 × (0,5 + autonomía/200): con 50/50 baja la evasión ≈5,6 pts.
+   */
+  TAX_AGENCY_MAX_EVASION_REDUCTION: 0.15,
+
+  // ─── Deuda pública ──────────────────────────────────────────────────────
+  // Si el tesoro cierra el mes en negativo, el faltante se cubre emitiendo deuda (el tesoro queda en 0).
+  // La deuda paga intereses cada mes (gasto fijo):
+  //   tasa anual = DEBT_BASE_ANNUAL_RATE + traspaso × (tasaInteres − 4,5)/100
+  //              + DEBT_RISK_PREMIUM × max(0, deuda/PIB − DEBT_SAFE_GDP_RATIO)
+  // Con un superávit, lo que exceda DEBT_CASH_RESERVE_MONTHS meses de gasto amortiza deuda.
+
+  DEBT_BASE_ANNUAL_RATE: 0.04,
+  /** Fracción de la tasa de interés de referencia (sub-decisión) que se traslada a la deuda */
+  DEBT_POLICY_RATE_PASSTHROUGH: 0.5,
+  /** Deuda/PIB a partir de la cual los mercados piden prima de riesgo */
+  DEBT_SAFE_GDP_RATIO: 0.6,
+  /** Prima anual por cada punto (1,0) de deuda/PIB por encima del umbral seguro */
+  DEBT_RISK_PREMIUM: 0.05,
+  DEBT_MIN_ANNUAL_RATE: 0.01,
+  /** Meses de gasto que se conservan en caja antes de amortizar deuda con el superávit */
+  DEBT_CASH_RESERVE_MONTHS: 1,
+
   /**
    * Población con la que se calibraron los costos fijos en USD (programas,
    * hospitales, investigación, contratación, compra de afinidad). A esa
@@ -773,6 +825,12 @@ export const SUB_DECISION_EFFECTS: Record<string, Record<string, SubDecisionEffe
     salarioMinimo: { neutral: 350, range: [100, 1000], indicators: { povertyRate: -0.005, unemploymentRate: 0.004, inflation: 0.0003 }, approval: { POVERTY: 0.004, EXTREME_POVERTY: 0.003, ELITE: -0.003 } },
     // 0 = proteccionismo, 100 = apertura total: más PIB y élite contenta, más desempleo y desigualdad
     politicaIndustrial: { neutral: 50, range: [0, 100], indicators: { gdpPct: 0.03, unemploymentRate: 0.02, gini: 0.03 }, approval: { POVERTY: -0.02, ELITE: 0.02 } },
+    // Impuestos (tasas en %; su efecto en la recaudación lo calcula engine/fiscal.ts). Aquí, los efectos
+    // secundarios: el IVA es regresivo (pobreza, aprobación de las clases bajas, algo de inflación); la renta
+    // progresiva reduce la desigualdad y molesta a la élite; sociedades frena la inversión (PIB y empleo).
+    iva: { neutral: 16, range: [0, 30], indicators: { povertyRate: 0.08, inflation: 0.005 }, approval: { EXTREME_POVERTY: -0.18, POVERTY: -0.18, MIDDLE: -0.09 } },
+    impuestoRenta: { neutral: 25, range: [0, 50], indicators: { gini: -0.08, gdpPct: -0.03 }, approval: { ELITE: -0.12, MIDDLE: -0.04, POVERTY: 0.02 } },
+    impuestoSociedades: { neutral: 25, range: [0, 45], indicators: { gdpPct: -0.08, unemploymentRate: 0.04 }, approval: { ELITE: -0.12 } },
   },
   DEFENSE: {
     // Cabezas de tropa (rango 10.000-200.000): absorben desempleo y crimen; cuestan 150 USD/soldado/mes

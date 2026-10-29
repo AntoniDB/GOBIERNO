@@ -73,6 +73,8 @@ function buildGameState(
     population: latestSnapshot?.population ?? initial.population,
     ...snapshotIndicators(latestSnapshot, initial),
     seed: game.seed,
+    publicDebt: game.publicDebt ?? 0,
+    fiscalBaseReference: game.fiscalBaseReference ?? null,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
@@ -353,6 +355,7 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
       politicalPluralism: 0, civilLiberties: 0, transparency: 0, militarySubordination: 0,
     }) as MonthSnapshotData["regimeMetrics"],
     diseasePrevalences: (s.diseasePrevalences as Array<{ diseaseId: string; name: string; category: string; prevalence: number }> | undefined) ?? undefined,
+    publicDebt: Number(s.publicDebt) || 0,
   }));
 }
 

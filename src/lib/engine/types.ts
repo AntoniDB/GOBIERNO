@@ -45,6 +45,13 @@ export interface GameState {
   tradeBalance: number;
   totalImports: number;
   totalExports: number;
+  /** Deuda pública acumulada (Economía, Fase 1). Sin dato = 0. */
+  publicDebt?: number;
+  /**
+   * Base imponible (PIB neto de evasión) del primer mes jugado: la recaudación se mide contra ella.
+   * null/ausente = aún sin fijar (se fija al cerrar el primer turno).
+   */
+  fiscalBaseReference?: number | null;
 }
 
 export interface ResourceStockState {
@@ -351,6 +358,8 @@ export interface MonthSnapshotData {
   tradeBalance: number;
   totalImports: number;
   totalExports: number;
+  /** Deuda pública al cierre del mes. */
+  publicDebt?: number;
 }
 
 export interface TurnNotification {

@@ -338,7 +338,7 @@ describe("processTradeFlows", () => {
     expect(updatedFlow.monthlyVolume).toBeLessThan(100);
   });
 
-  it("does not go below 0 treasury", () => {
+  it("descuenta las importaciones completas aunque el tesoro no alcance (el faltante se financia con deuda)", () => {
     const good = crearTradeGood("MEDICAMENTS_GENERIC");
     const flow = crearTradeFlow({
       id: "tf-1",
@@ -351,9 +351,11 @@ describe("processTradeFlows", () => {
       tradeFlows: [flow],
     });
 
-    processTradeFlows(state);
+    const result = processTradeFlows(state);
 
-    expect(state.treasury).toBeGreaterThanOrEqual(0);
+    // Sin piso en 0: el tesoro queda negativo por el faltante y settlePublicDebt lo convierte en deuda
+    expect(result.totalImports).toBeGreaterThan(100);
+    expect(state.treasury).toBeCloseTo(100 - result.totalImports, 6);
   });
 });
 

@@ -160,8 +160,9 @@ export function processTradeFlows(state: GameState): {
     totalImports += monthlyCost;
   }
 
-  // Descontar importaciones del tesoro
-  state.treasury = Math.max(0, state.treasury - totalImports);
+  // Descontar importaciones del tesoro. Sin piso en 0: si no alcanza, el faltante se financia
+  // con deuda al cerrar el mes (settlePublicDebt); un piso borraría el déficit sin costo.
+  state.treasury -= totalImports;
 
   const tradeBalance = totalExports - totalImports;
 

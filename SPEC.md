@@ -260,7 +260,7 @@ Sub-decisiones por ministerio (2–3 cada uno, mínimo):
 
 - **Salud**: balance hospitales públicos/privados (0–100), campañas de vacunación (on/off, costo), enfoque en salud mental (on/off)
 - **Educación**: nivel de inversión por etapa (primaria/secundaria/superior, suma 100), enfoque curricular (STEM vs humanidades), becas estudiantiles
-- **Economía**: tasa de interés referencial, salario mínimo, política industrial (proteccionismo vs apertura)
+- **Economía**: tasa de interés referencial, salario mínimo, política industrial (proteccionismo vs apertura), tasas de IVA, impuesto a la renta e impuesto a las sociedades (la recaudación depende de ellas, del PIB y de la evasión; ver BALANCE.md, "Política fiscal y deuda pública")
 - **Defensa**: tropas activas, gasto en equipamiento, servicio militar obligatorio (on/off)
 - **Seguridad**: patrullaje urbano vs rural, política antidrogas (represiva vs preventiva), inversión en cárceles
 - **Justicia**: cantidad de jueces y fiscales contratados, prioridad (corrupción vs crimen común), dureza penal (0–100)
@@ -431,7 +431,7 @@ Deja comentarios `// TODO: fase 2` claros en el código donde estos módulos se 
    1. Aplicar decisiones del jugador (presupuestos, sub-decisiones, leyes recién aprobadas)
    2. Calcular ingresos del estado (impuestos según tax rate × población activa × productividad)
    3. Calcular gastos (ministerios + organismos + leyes activas)
-   4. Actualizar tesoro
+   4. Actualizar tesoro (al cierre del mes, el faltante de caja se financia con deuda pública que paga intereses; el superávit la amortiza)
    5. Calcular eficiencia de cada ministerio
    6. Aplicar evolución de corrupción individual y global
    7. Recalcular indicadores sociales

@@ -6,6 +6,7 @@ import { getGameState, getSnapshots } from "@/app/actions/game";
 import { getDemoGameId } from "@/app/actions/demo";
 import { LongRunningDecisionsPanel } from "@/components/game/long-running-decisions-panel";
 import Link from "next/link";
+import { debtToGdp } from "@/lib/engine/fiscal";
 
 /* ── Colores de ministerios ─────────────────────────────────────────────────── */
 const MIN_CFG: Record<string, { abbr: string; color: string }> = {
@@ -322,6 +323,9 @@ export default function DashboardPage() {
   const treasuryLabel = treasuryRaw >= 1e9
     ? `${(treasuryRaw / 1e9).toFixed(1)}B`
     : `${(treasuryRaw / 1e6).toFixed(0)}M`;
+  const debtRaw       = gameState.publicDebt ?? 0;
+  const debtLabel     = debtRaw >= 1e9 ? `${(debtRaw / 1e9).toFixed(1)}B` : `${(debtRaw / 1e6).toFixed(0)}M`;
+  const debtRatioPct  = debtToGdp(debtRaw, gdpRaw) * 100;
   const giniVal       = snap?.gini ?? 0;
   const regimeLabel   = snap?.regimeType ?? "—";
   const regimeColorVal = regimeLabel.includes("plena")
@@ -407,6 +411,12 @@ Rango tipico: 30-50% en pais en desarrollo.`} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
           <MiniIndicatorCard label="ESP. DE VIDA" value={gameState.lifeExpectancy ?? 68} color={valueColor(gameState.lifeExpectancy ?? 68)} suffix="a" />
+          <MiniIndicatorCard
+            label="DEUDA / PIB"
+            value={debtRatioPct}
+            color={debtRatioPct < 60 ? "#00C87E" : debtRatioPct < 90 ? "#E08800" : "#FF2090"}
+            titleHint="Deuda pública sobre el PIB anual. Por encima del 60% la deuda paga prima de riesgo."
+          />
         </div>
       </div>
 
@@ -420,6 +430,9 @@ Rango tipico: 30-50% en pais en desarrollo.`} />
               </div>
               <div style={{ fontFamily: FFM, fontSize: 24, color: "#0A0A0A", fontWeight: 700, lineHeight: 1 }}>
                 {treasuryLabel} <span style={{ fontSize: 13, fontWeight: 600, color: "#888" }}>AKN</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
+                Deuda pública: <span style={{ fontFamily: FFM, fontWeight: 700, color: "#0A0A0A" }}>{debtLabel} AKN</span>
               </div>
             </div>
             <div>

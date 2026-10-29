@@ -30,12 +30,14 @@ const ORGANISM_TYPES = [
   { key: "COMPTROLLER", label: "Contraloría General" },
   { key: "ANTICORRUPTION_PROSECUTION", label: "Fiscalía Anticorrupción" },
   { key: "INTELLIGENCE", label: "Servicio de Inteligencia" },
+  { key: "TAX_AGENCY", label: "Agencia Tributaria" },
 ] as const;
 
 const ORGANISM_ROLE_MAP: Record<string, string> = {
   COMPTROLLER: "COMPTROLLER",
   ANTICORRUPTION_PROSECUTION: "PROSECUTOR",
   INTELLIGENCE: "CHIEF_OF_INTELLIGENCE",
+  TAX_AGENCY: "COMPTROLLER",
 };
 
 const FALLBACK_ROLES = ["MINISTER", "JUDGE", "PROSECUTOR", "GENERAL"];

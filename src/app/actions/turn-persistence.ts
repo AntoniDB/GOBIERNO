@@ -44,7 +44,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       "regimeType", "regimeMetrics", "lifeExpectancy",
       "activeLrdCount", "lrdMonthlyCost", "lrdCompletedThisMonth", "lrdCancelledThisMonth",
       "activeProgramsCount", "programMonthlyCost",
-      "diseasePrevalences", "tradeBalance", "totalImports", "totalExports"
+      "diseasePrevalences", "tradeBalance", "totalImports", "totalExports", "publicDebt"
     ) VALUES (
       ${snapId}::uuid, ${gameId}::uuid, ${snapYear}, ${snapMonth},
       ${monthSnapshot.treasury}, ${monthSnapshot.gdp}, ${monthSnapshot.population},
@@ -58,7 +58,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       ${monthSnapshot.lrdCompletedThisMonth}, ${monthSnapshot.lrdCancelledThisMonth},
       ${monthSnapshot.activeProgramsCount}, ${monthSnapshot.programMonthlyCost},
       ${diseasePrevalencesJson}::jsonb, ${monthSnapshot.tradeBalance},
-      ${monthSnapshot.totalImports}, ${monthSnapshot.totalExports}
+      ${monthSnapshot.totalImports}, ${monthSnapshot.totalExports}, ${monthSnapshot.publicDebt ?? 0}
     )
     ON CONFLICT ("gameId", "year", "month")
     DO UPDATE SET
@@ -87,7 +87,8 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       "diseasePrevalences" = ${diseasePrevalencesJson}::jsonb,
       "tradeBalance" = ${monthSnapshot.tradeBalance},
       "totalImports" = ${monthSnapshot.totalImports},
-      "totalExports" = ${monthSnapshot.totalExports}
+      "totalExports" = ${monthSnapshot.totalExports},
+      "publicDebt" = ${monthSnapshot.publicDebt ?? 0}
   `;
 
   // b. Ministerios (una sola sentencia)
@@ -126,6 +127,8 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
         consecutiveSaturationMonths: newState.consecutiveSaturationMonths ?? {},
         status: gameOver ? ("FINISHED" as const) : undefined,
         sanctionsMultiplier: newState.sanctionsMultiplier ?? 1.0,
+        publicDebt: newState.publicDebt ?? 0,
+        fiscalBaseReference: newState.fiscalBaseReference ?? null,
       },
     });
 

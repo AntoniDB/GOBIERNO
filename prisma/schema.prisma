@@ -199,6 +199,10 @@ model Game {
   // Versión de las migraciones de datos de siembra ya aplicadas (lib/seed-integrity.ts).
   // Las partidas nuevas nacen con SEED_VERSION; las anteriores a una migración tienen menos.
   seedVersion   Int       @default(0)
+  // Deuda pública acumulada y base imponible de referencia (PIB neto de evasión del primer mes;
+  // null hasta cerrar el primer turno). Ver lib/engine/fiscal.ts.
+  publicDebt          Float  @default(0)
+  fiscalBaseReference Float?
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -265,6 +269,7 @@ model MonthSnapshot {
   tradeBalance      Float      @default(0)
   totalImports      Float      @default(0)
   totalExports      Float      @default(0)
+  publicDebt        Float      @default(0)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
