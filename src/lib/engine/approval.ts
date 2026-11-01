@@ -36,7 +36,34 @@ function isNegativeEventType(eventType: string): boolean {
 }
 
 /**
- * Calcula la aprobación de una clase social específica.
+ * Aprobación de una clase tras aplicar la inercia: se acerca a su valor objetivo una fracción
+ * APPROVAL_INERTIA cada mes (ver balance.ts). Pura; redondea a 0,1 y acota a [0, 100].
+ */
+export function smoothApproval(previous: number, target: number): number {
+  const prev = Number.isFinite(previous) ? previous : target;
+  const next = prev + BALANCE.APPROVAL_INERTIA * (target - prev);
+  return Math.max(0, Math.min(100, Math.round(next * 10) / 10));
+}
+
+/**
+ * Aprobación general vigente: promedio de la aprobación guardada de cada clase (la que ya pasó por la
+ * inercia en el paso 13 del turno), ponderado por su población. Es la que ven el jugador, el fin de
+ * partida (golpe, renuncia, asesinato), las elecciones y los eventos. Sin clases devuelve APPROVAL_BASE.
+ */
+export function currentApproval(state: Pick<GameState, "socialClasses">): number {
+  let weighted = 0;
+  let total = 0;
+  for (const sc of state.socialClasses ?? []) {
+    weighted += sc.approval * sc.populationPercent;
+    total += sc.populationPercent;
+  }
+  return total > 0 ? Math.round((weighted / total) * 10) / 10 : BALANCE.APPROVAL_BASE;
+}
+
+/**
+ * Calcula la aprobación OBJETIVO de una clase social: lo que dicen hoy las condiciones (leyes,
+ * sub-decisiones, eventos del mes, indicadores, corrupción), sin memoria. La aprobación real de
+ * la clase se acerca a este valor con `smoothApproval` (inercia).
  *
  * @param socialClass - La clase social a evaluar
  * @param state - Estado completo del juego
@@ -188,8 +215,9 @@ export function calculateClassDemands(
 }
 
 /**
- * Calcula la aprobación general del gobierno como promedio ponderado
- * de la aprobación de cada clase social por su porcentaje poblacional.
+ * Calcula la aprobación general OBJETIVO del gobierno (sin inercia) como promedio ponderado
+ * de la aprobación objetivo de cada clase social por su porcentaje poblacional. La aprobación
+ * vigente es `currentApproval`.
  *
  * @param state - Estado completo del juego
  * @param eventsThisMonth - Eventos ocurridos este mes

@@ -39,7 +39,7 @@ import {
   calculateLifeExpectancy,
 } from "./indicators";
 // ── Funciones escritas en este módulo ────────────────────────────────────
-import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "./approval";
+import { calculateApprovalByClass, currentApproval, smoothApproval, calculateClassDemands } from "./approval";
 import { advanceJudicialCases, openAutoCases } from "./justice";
 import { evaluateMotions } from "./congress";
 import {
@@ -768,7 +768,7 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 9.5: Evaluar mociones del congreso (censura, juicio político)
   // ═══════════════════════════════════════════════════════════════════════
-  const currentApproval = calculateGeneralApproval(newState, []);
+  const generalApproval = currentApproval(newState);
   const motions = evaluateMotions(
     {
       officials: newState.officials.map((o) => ({
@@ -777,7 +777,7 @@ export function processTurn(
       })),
       senators: newState.senators,
       parties: newState.parties,
-      generalApproval: currentApproval,
+      generalApproval,
     },
     rng,
   );
@@ -1149,9 +1149,12 @@ export function processTurn(
   // PASO 13: Recalcular aprobación por clase social
   // Ahora se ejecuta DESPUÉS de eventos (paso 11) y coberturas (paso 12),
   // por lo que ambos afectan la aprobación final de cada clase.
+  // La aprobación tiene inercia: se acerca al valor objetivo de este mes (calculateApprovalByClass)
+  // una fracción APPROVAL_INERTIA, partiendo de la del mes anterior (más el impacto de las coberturas
+  // del paso 12b). Así un mes malo aislado no dispara el fin de partida.
   // ═══════════════════════════════════════════════════════════════════════
   for (const sc of newState.socialClasses) {
-    sc.approval = calculateApprovalByClass(sc, newState, eventsThisMonth);
+    sc.approval = smoothApproval(sc.approval, calculateApprovalByClass(sc, newState, eventsThisMonth));
     sc.demands = calculateClassDemands(sc, newState);
   }
 
@@ -1205,7 +1208,7 @@ export function processTurn(
   // ═══════════════════════════════════════════════════════════════════════
 
   // Actualizar contador de meses consecutivos con baja aprobacion (<10%)
-  const postApproval = calculateGeneralApproval(newState, eventsThisMonth);
+  const postApproval = currentApproval(newState);
   if (postApproval < 10) {
     newState.consecutiveLowApprovalMonths = (newState.consecutiveLowApprovalMonths ?? 0) + 1;
   } else {

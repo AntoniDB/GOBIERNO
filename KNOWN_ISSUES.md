@@ -598,12 +598,15 @@ código. Una protesta de severidad 36 quitaba ~58 puntos a la clase pobre; un de
 separado (negativos / positivos) con tope por clase (`APPROVAL_EVENT_MAX_PENALTY` 25, `APPROVAL_EVENT_MAX_BONUS` 10). Una protesta de
 severidad 36 resta ~11 puntos a la clase pobre. BALANCE.md, sección "Aprobacion".
 
-**Verificación (Postgres, 6 partidas × 36 turnos por escenario, sin intervención del jugador):** la aprobación general queda entre 17 y 53
-(antes 4–100) y `estable_democratico`, `pobre_con_potencial` y `crisis_economica` sobreviven las 6 partidas. En `post_conflicto`
-4 de 6 terminan en golpe de estado en el mes 3: ya no por eventos moderados, sino por el colapso hospitalario de severidad 100 que
-la red sembrada produce desde el mes 3 (saturación ~230 %, calibrada a propósito en el Issue 11: "post-conflicto hasta 10"). Con el
-signo corregido ese colapso ahora sí cuesta aprobación (antes la subía). Pendiente de decisión: darle inercia a la aprobación
-(un mes malo no dispara el fin de partida) o relajar la red inicial de ese escenario.
+**Inercia de la aprobación:** el colapso hospitalario de severidad 100 que producen los escenarios pobres (Issue 11) seguía
+costando ~21 puntos de aprobación en el mes en que ocurre y disparaba un golpe en `post_conflicto` (4 de 6 partidas, mes 3), porque
+la aprobación se recalculaba cada mes sin memoria. Ahora cada clase se acerca al valor objetivo una fracción `APPROVAL_INERTIA`
+(0,35) por mes y esa aprobación vigente es la que leen el panel, el snapshot, el fin de partida y las elecciones (antes el fin de
+partida usaba otra cuenta, con todos los eventos históricos). BALANCE.md, sección "Aprobacion".
+
+**Verificación (Postgres, 6 partidas × 36 turnos por escenario, sin intervención del jugador):** las 24 partidas sobreviven y la
+aprobación general queda entre 31 y 56 (antes de los arreglos, 4–100). Con mala gestión sostenida (presupuestos al 2 %, corrupción
+85) el juego sí termina en golpe de estado en 1–3 meses.
 
 ## Nota para producción: Auth.js exige host de confianza
 

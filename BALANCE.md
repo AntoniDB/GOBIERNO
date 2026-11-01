@@ -96,8 +96,27 @@ equilibrio = INFLATION_TARGET + presiones × (1 + INFLATION_CRED_AMPLIFIER × (1
 
 ## Aprobacion (`approval.ts:calculateApprovalByClass`)
 
+La aprobación tiene **inercia** (`smoothApproval`, paso 13 del turno): `calculateApprovalByClass` da la aprobación
+*objetivo* del mes (lo que dicen hoy las condiciones) y la de cada clase se acerca a ella:
+
 ```
-aprobacion = APPROVAL_BASE (50)
+aprobación(t) = aprobación(t−1) + APPROVAL_INERTIA × (objetivo − aprobación(t−1))
+```
+
+- `APPROVAL_INERTIA` (0.35): un mes malo aislado baja la aprobación ~1/3 de lo que cayó el objetivo y se recupera en pocos
+  meses; una situación sostenida la arrastra (≈90 % del camino en 5 meses).
+- La aprobación guardada de cada clase (`SocialClass.approval`) es la única que se usa: el panel, el snapshot, el fin de partida
+  (golpe, renuncia, asesinato, estado fallido), las elecciones (votos = aprobación vigente de cada clase × su población), los eventos
+  y las mociones del Congreso. `currentApproval` = promedio ponderado de esas aprobaciones. Antes el fin de partida la recalculaba
+  con TODOS los eventos históricos y sin memoria, distinta de la que ve el jugador.
+- El impacto de las coberturas de medios (paso 12b) se suma a la aprobación previa antes de acercarla al objetivo, así que se
+  disipa en unos meses (antes se perdía: el paso 13 lo sobrescribía).
+- Prueba e2e con mala gestión sostenida (presupuestos al 2 %, corrupción 85): el juego sí termina en golpe, en pocos meses.
+
+Aprobación objetivo:
+
+```
+objetivo = APPROVAL_BASE (50)
            + efectos de leyes activas
            + efectos de sub-decisiones (por clase)
            - impacto de eventos negativos del mes (Σ severidad * APPROVAL_EVENT_WEIGHT * classMultiplier,

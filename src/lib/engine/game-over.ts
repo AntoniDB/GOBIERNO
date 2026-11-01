@@ -12,7 +12,7 @@
 //  - Estado fallido: crimen >80, corrupcion >80, aprobacion <15
 
 import type { GameState, GameOverResult, GameOverConfig, RegimeMetricsState } from "./types";
-import { calculateGeneralApproval, calculateApprovalByClass } from "./approval";
+import { currentApproval } from "./approval";
 import { calculateGlobalCorruption } from "./corruption";
 import { BALANCE } from "../balance";
 
@@ -36,7 +36,9 @@ export function checkGameOverConditions(
   config: GameOverConfig = DEFAULT_CONFIG,
   motionNotifications?: { type: string; title: string }[]
 ): GameOverResult | null {
-  const approval = calculateGeneralApproval(state, state.events);
+  // Aprobación vigente (con inercia, ya calculada en el paso 13 del turno). Antes se recalculaba aquí
+  // con TODOS los eventos históricos y sin memoria, distinta de la que ve el jugador.
+  const approval = currentApproval(state);
   const corruption = calculateGlobalCorruption(state.officials);
   const crimeRate = state.crimeRate;
   const { regimeMetrics } = state;
@@ -208,7 +210,7 @@ export function electionResult(state: GameState): {
   let totalPopulation = 0;
 
   for (const sc of state.socialClasses) {
-    const approval = calculateApprovalByClass(sc, state, []);
+    const approval = sc.approval; // aprobación vigente de la clase (con inercia)
     const populationWeight = sc.populationPercent / 100;
     totalVotes += approval * populationWeight;
     totalPopulation += sc.populationPercent;
@@ -232,7 +234,7 @@ export function canBeAssassinated(
   state: GameState,
   rng: () => number
 ): GameOverResult | null {
-  const approval = calculateGeneralApproval(state, state.events);
+  const approval = currentApproval(state);
   const corruption = calculateGlobalCorruption(state.officials);
   const intelligenceOrg = state.organisms.find(
     (o) => o.type === "INTELLIGENCE"

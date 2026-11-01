@@ -272,6 +272,17 @@ export const BALANCE = {
   /** Aprobación base (sin modificadores) */
   APPROVAL_BASE: 50,
 
+  /**
+   * Inercia de la aprobación: fracción de la distancia entre la aprobación de la clase y su valor
+   * "objetivo" (lo que dicen hoy las condiciones, calculateApprovalByClass) que se recorre cada mes.
+   *   aprobación(t) = aprobación(t−1) + APPROVAL_INERTIA × (objetivo − aprobación(t−1))
+   * Un mes malo aislado mueve la aprobación ~1/3 de lo que bajó el objetivo y se recupera en pocos meses;
+   * una situación sostenida sí la arrastra (≈90 % del camino en 5 meses). Antes la aprobación era
+   * el objetivo de ese mes, sin memoria: un solo evento grave podía disparar un golpe de estado.
+   * Rige para la aprobación que ven el jugador, el fin de partida y las elecciones.
+   */
+  APPROVAL_INERTIA: 0.35,
+
   // ─── Régimen ─────────────────────────────────────────────────────────────
 
   /** Umbrales para clasificación de régimen */

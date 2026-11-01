@@ -8,7 +8,7 @@ import type {
   TurnNotification,
 } from "./types";
 import { BALANCE } from "../balance";
-import { calculateGeneralApproval } from "./approval";
+import { currentApproval } from "./approval";
 
 /**
  * Deltas acumulados de efectos de eventos sobre el estado del juego.
@@ -157,7 +157,7 @@ export function triggerRandomEvents(
   const povertyApproval = povertyClass?.approval ?? 50;
 
   // Aprobación general (promedio ponderado por población de las 4 clases)
-  const generalApproval = calculateGeneralApproval(state, []);
+  const generalApproval = currentApproval(state);
 
   // Subordinación militar: de las métricas de régimen
   const militarySub = state.regimeMetrics.militarySubordination;

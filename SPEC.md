@@ -315,7 +315,7 @@ Cada cambio en una sub-decisión modifica los indicadores correspondientes el si
   - Impuesto progresivo: `ELITE −5 aprobación, POVERTY +3, EXTREME_POVERTY +5`
   - Liberalización económica: `ELITE +5, MIDDLE +2, POVERTY −3, EXTREME_POVERTY −5`
   - Subsidio alimentario: `EXTREME_POVERTY +8, POVERTY +4, MIDDLE −1, ELITE −2`
-- Aprobación general = promedio ponderado por porcentaje poblacional
+- Aprobación general = promedio ponderado por porcentaje poblacional. La aprobación de cada clase tiene inercia: cada mes se acerca a lo que dicen las condiciones, no salta (ver BALANCE.md, "Aprobacion")
 - Si una clase tiene aprobación <20% y representa >25% de la población, puede disparar evento de protesta masiva o disturbios
 
 ### 4.6 Régimen emergente

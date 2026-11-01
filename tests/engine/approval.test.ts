@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { BALANCE } from "@/lib/balance";
 import type { GameState, SocialClassState, EventState } from "@/lib/engine/types";
-import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "@/lib/engine/approval";
+import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands, smoothApproval, currentApproval } from "@/lib/engine/approval";
 
 function crearEstadoBase(overrides?: Partial<GameState>): GameState {
   return {
@@ -214,5 +214,43 @@ describe("calculateClassDemands", () => {
     const sc = crearClaseSocial({ key: "MIDDLE", healthAccess: 20, educationLevel: 20 });
     const demands = calculateClassDemands(sc, state);
     expect(demands.length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("inercia de la aprobación (#24)", () => {
+  it("smoothApproval recorre APPROVAL_INERTIA de la distancia al objetivo", () => {
+    expect(smoothApproval(60, 20)).toBeCloseTo(60 - 40 * BALANCE.APPROVAL_INERTIA, 1);
+    expect(smoothApproval(20, 60)).toBeCloseTo(20 + 40 * BALANCE.APPROVAL_INERTIA, 1);
+    expect(smoothApproval(40, 40)).toBe(40);
+  });
+
+  it("acota a [0, 100] y tolera una aprobación previa inválida", () => {
+    expect(smoothApproval(5, -200)).toBe(0);
+    expect(smoothApproval(95, 400)).toBe(100);
+    expect(smoothApproval(Number.NaN, 30)).toBe(30);
+  });
+
+  it("un mes malo aislado baja menos de la mitad de lo que baja el objetivo y se recupera", () => {
+    let a = 45;
+    a = smoothApproval(a, 20); // mes malo: el objetivo cae 25 puntos
+    expect(45 - a).toBeLessThan(25 / 2);
+    expect(a).toBeGreaterThan(30);
+    for (let i = 0; i < 5; i++) a = smoothApproval(a, 45);
+    expect(a).toBeGreaterThan(42);
+  });
+
+  it("una situación sostenida sí arrastra la aprobación (≈90 % del camino en 5 meses)", () => {
+    let a = 45;
+    for (let i = 0; i < 5; i++) a = smoothApproval(a, 20);
+    expect(a).toBeLessThan(25);
+  });
+
+  it("currentApproval promedia la aprobación guardada de las clases por su población", () => {
+    const clases = [
+      crearClaseSocial({ key: "POVERTY", populationPercent: 75, approval: 20 }),
+      crearClaseSocial({ key: "ELITE", populationPercent: 25, approval: 60 }),
+    ];
+    expect(currentApproval({ socialClasses: clases })).toBe(30);
+    expect(currentApproval({ socialClasses: [] })).toBe(BALANCE.APPROVAL_BASE);
   });
 });

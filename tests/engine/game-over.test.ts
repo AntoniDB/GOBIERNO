@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkGameOverConditions, canBeAssassinated, electionResult } from "@/lib/engine/game-over";
-import type { GameState, EventState } from "@/lib/engine/types";
+import type { GameState } from "@/lib/engine/types";
 
 function baseState(overrides: Partial<GameState> = {}): GameState {
   return {
@@ -68,38 +68,25 @@ function baseState(overrides: Partial<GameState> = {}): GameState {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-/** Evento PROTEST: en EXTREME_POVERTY baja aprobacion severidad*1.6 */
-function protest(severity: number, year = 1, month = 1): EventState {
-  return {
-    id: `protest-${severity}`, type: "PROTEST", severity, year, month,
-    description: "Protesta", effectsApplied: {}, resolvedAt: null,
-  };
-}
+/** Una sola clase con la aprobación vigente dada (la aprobación tiene inercia: el fin de partida lee la guardada). */
+const conAprobacion = (approval: number) => [
+  { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 100, averageIncome: 100, approval, demands: [], educationLevel: 10, healthAccess: 20 },
+];
 
-/**
- * Config para aprobacion ~17 (entre 10 y 25):
- * - 1 oficial corruption=60 → penalty=12
- * - PROTEST severidad=13 → impacto=13*1.6=20.8 en EXTREME_POVERTY
- * - approval = 50-12-20.8 = 17.2
- */
+/** Config para aprobacion vigente 17,2 (entre 10 y 25), con un oficial corrupto (corruption=60). */
 function cfgModerate(overrides: Partial<GameState> = {}): GameState {
   return baseState({
     officials: [{ id: "off-x", name: "Golpista", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 80 }, corruption: 60, skill: 50, reputation: 20, status: "ACTIVE" }],
-    events: [protest(13)],
+    socialClasses: conAprobacion(17.2),
     ...overrides,
   });
 }
 
-/**
- * Config para aprobacion ~0 (por debajo de 10):
- * - 1 oficial corruption=95 → penalty=19
- * - PROTEST severidad=100 → impacto=100*1.6=160
- * - approval clamped to 0
- */
+/** Config para aprobacion vigente 0 (por debajo de 10), con un oficial muy corrupto (corruption=95). */
 function cfgCritical(overrides: Partial<GameState> = {}): GameState {
   return baseState({
     officials: [{ id: "off-x", name: "Corrupto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 95, skill: 30, reputation: 10, status: "ACTIVE" }],
-    events: [protest(100)],
+    socialClasses: conAprobacion(0),
     ...overrides,
   });
 }
@@ -157,7 +144,7 @@ describe("checkGameOverConditions", () => {
       officials: [
         { id: "off-x", name: "Impopular", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
       ],
-      events: [protest(80)],
+      socialClasses: conAprobacion(5),
     });
     const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).not.toBeNull();
@@ -171,7 +158,7 @@ describe("checkGameOverConditions", () => {
       officials: [
         { id: "off-x", name: "Impopular", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 80, skill: 30, reputation: 10, status: "ACTIVE" },
       ],
-      events: [protest(80)],
+      socialClasses: conAprobacion(5),
     });
     const result = checkGameOverConditions(state, { electionIntervalYears: 5, termLimit: 2, consecutiveLowApprovalMonths: 6 });
     expect(result).toBeNull();
@@ -185,10 +172,10 @@ describe("checkGameOverConditions", () => {
         { id: "off-1", name: "Corrupto", role: "GENERAL", specialty: null, ministryId: "m-def", partyId: null, loyalty: 10, ambition: 90, wealth: 500000, ideology: { economic: 0, social: 0, authority: 0 }, corruption: 20, skill: 50, reputation: 20, status: "ACTIVE" },
       ],
       socialClasses: [
-        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 50, demands: [], educationLevel: 10, healthAccess: 20 },
-        { id: "sc-p", key: "POVERTY", populationPercent: 30, averageIncome: 300, approval: 50, demands: [], educationLevel: 20, healthAccess: 35 },
-        { id: "sc-m", key: "MIDDLE", populationPercent: 30, averageIncome: 1000, approval: 50, demands: [], educationLevel: 40, healthAccess: 50 },
-        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 50, demands: [], educationLevel: 80, healthAccess: 90 },
+        { id: "sc-ep", key: "EXTREME_POVERTY", populationPercent: 30, averageIncome: 100, approval: 35, demands: [], educationLevel: 10, healthAccess: 20 },
+        { id: "sc-p", key: "POVERTY", populationPercent: 30, averageIncome: 300, approval: 35, demands: [], educationLevel: 20, healthAccess: 35 },
+        { id: "sc-m", key: "MIDDLE", populationPercent: 30, averageIncome: 1000, approval: 35, demands: [], educationLevel: 40, healthAccess: 50 },
+        { id: "sc-e", key: "ELITE", populationPercent: 10, averageIncome: 10000, approval: 35, demands: [], educationLevel: 80, healthAccess: 90 },
       ],
     });
     const result = checkGameOverConditions(state);
@@ -261,8 +248,9 @@ describe("electionResult", () => {
       ],
     });
     const result = electionResult(state);
-    expect(result.votePercent).toBeCloseTo(48.6, 0);
-    expect(result.winner).toBe(false);
+    // Σ aprobación vigente de cada clase × su peso: 50×0,25 + 40×0,35 + 60×0,30 + 55×0,10
+    expect(result.votePercent).toBeCloseTo(50, 1);
+    expect(result.winner).toBe(true);
     expect(result.perClassVotes["EXTREME_POVERTY"]).toBeDefined();
     expect(result.perClassVotes["MIDDLE"]).toBeDefined();
   });

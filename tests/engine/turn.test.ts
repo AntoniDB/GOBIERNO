@@ -300,3 +300,24 @@ describe("processTurn — las sub-decisiones mueven los indicadores del mes", ()
     expect(con.monthSnapshot.povertyRate).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("processTurn: inercia de la aprobación (#24)", () => {
+  const clasesAl = (approval: number) =>
+    crearEstadoBase().socialClasses.map((c) => ({ ...c, approval }));
+  const protesta = { id: "e-p", type: "PROTEST", severity: 100, year: 2024, month: 1, description: "Protesta", effectsApplied: {}, resolvedAt: null };
+
+  it("un evento grave en un mes mueve la aprobación solo una fracción de lo que baja el objetivo", () => {
+    const sin = processTurn(crearEstadoBase({ socialClasses: clasesAl(50) }), {}, createRNG("inercia")).monthSnapshot.approval;
+    const con = processTurn(crearEstadoBase({ socialClasses: clasesAl(50), events: [protesta as never] }), {}, createRNG("inercia")).monthSnapshot.approval;
+    expect(con).toBeLessThan(sin);
+    // El objetivo cae hasta APPROVAL_EVENT_MAX_PENALTY; la aprobación baja solo APPROVAL_INERTIA de eso
+    expect(sin - con).toBeLessThanOrEqual(BALANCE.APPROVAL_EVENT_MAX_PENALTY * BALANCE.APPROVAL_INERTIA + 0.5);
+  });
+
+  it("el snapshot, la clase guardada y el fin de partida leen la misma aprobación", () => {
+    const out = processTurn(crearEstadoBase({ socialClasses: clasesAl(40) }), {}, createRNG("inercia-2"));
+    const ponderada = out.newState.socialClasses.reduce((s, c) => s + c.approval * c.populationPercent, 0)
+      / out.newState.socialClasses.reduce((s, c) => s + c.populationPercent, 0);
+    expect(out.monthSnapshot.approval).toBeCloseTo(ponderada, 1);
+  });
+});

@@ -3,7 +3,7 @@
 // histórica. Funciones puras y deterministas.
 
 import type { GameState, MonthSnapshotData } from "./types";
-import { calculateApprovalByClass, calculateGeneralApproval } from "./approval";
+import { currentApproval } from "./approval";
 import { calculateGlobalCorruption } from "./corruption";
 import { classifyRegime } from "./regime";
 import {
@@ -34,9 +34,6 @@ export function createMonthSnapshot(
   month: number
 ): MonthSnapshotData {
   // ── Eventos de este mes ────────────────────────────────────────────────
-  const eventsThisMonth = state.events.filter(
-    (e) => e.year === year && e.month === month
-  );
 
   // ── Indicadores sociales (desde indicators.ts) ─────────────────────────
   const povertyRate = calculatePoverty(state);
@@ -50,8 +47,8 @@ export function createMonthSnapshot(
   const gini = calculateGini(state, state.activeLaws);
   const gdp = calculateGDP(state);
 
-  // ── Aprobación general ─────────────────────────────────────────────────
-  const approval = calculateGeneralApproval(state, eventsThisMonth);
+  // ── Aprobación general (la vigente, con inercia: paso 13 del turno) ─────
+  const approval = currentApproval(state);
 
   // ── Corrupción global (promedio ponderado de funcionarios) ──────────────
   const corruption = calculateGlobalCorruption(state.officials);
