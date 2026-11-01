@@ -579,18 +579,31 @@ la primera** y nunca creaba la suya (el Banco Central de una partida no se guard
 **Datos existentes:** por decisión del usuario no se migran. Las filas ya cruzadas (de partidas jugadas antes del arreglo)
 quedan como están; las partidas nuevas no generan choques.
 
-## 23. Las crisis sanitarias suben la aprobación — ABIERTO
+## 23. ~~Las crisis sanitarias suben la aprobación~~ — RESUELTO
 
-**Qué pasa (verificado):** `approval.ts:isNegativeEventType` no incluye `DISEASE_OUTBREAK`, `HOSPITAL_COLLAPSE`,
-`MEDICATION_SHORTAGE` ni `MALPRACTICE_SCANDAL`, así que cuentan como eventos **positivos**: un colapso hospitalario (severidad
-100) sube la aprobación del mes a ~90 %. Explica los saltos de aprobación 45 → 93 → 45 de las pruebas e2e.
+**Qué pasaba (verificado):** `approval.ts:isNegativeEventType` no incluía `DISEASE_OUTBREAK`, `HOSPITAL_COLLAPSE`, `MEDICATION_SHORTAGE`
+ni `MALPRACTICE_SCANDAL` (ni `LEAK`, la filtración que expone corrupción), así que contaban como eventos **positivos**: un colapso
+hospitalario (severidad 100) subía la aprobación del mes a ~90 %. Explicaba los saltos 45 → 93 → 45 de las pruebas e2e.
 
-## 24. Un evento negativo moderado puede hundir la aprobación del mes — ABIERTO
+**Solución:** los cinco tipos pasan a negativos (el avance médico sigue siendo positivo) y tienen su peso por clase en
+`EVENT_CLASS_IMPACT` (antes caían en el 1,0 por defecto). Tests por tipo en `tests/engine/approval.test.ts`.
 
-**Qué pasa (verificado):** el impacto de un evento es `severidad × APPROVAL_EVENT_WEIGHT × 10 × multiplicador de clase`; un
-desastre de severidad 36 bajó la aprobación de 40 a 7 en `post_conflicto` y disparó un golpe de estado en el mes 2. La
-aprobación no tiene memoria, así que al mes siguiente vuelve, pero el fin de partida se evalúa ese mes. Revisar la escala
-(o darle inercia a la aprobación) junto con el #23.
+## 24. ~~Un evento negativo moderado hundía la aprobación del mes~~ — RESUELTO
+
+**Qué pasaba (verificado):** el impacto era `severidad × APPROVAL_EVENT_WEIGHT (0,1) × 10 × peso de clase`: el ×10 estaba oculto en el
+código. Una protesta de severidad 36 quitaba ~58 puntos a la clase pobre; un desastre de 36 bajó la aprobación de 40 a 7 en
+`post_conflicto` y disparó un golpe de estado en el mes 2. Varios eventos en el mismo mes se sumaban sin tope.
+
+**Solución:** `APPROVAL_EVENT_WEIGHT` pasa a 0,2 (puntos por punto de severidad, sin el ×10 oculto) y los eventos del mes se suman por
+separado (negativos / positivos) con tope por clase (`APPROVAL_EVENT_MAX_PENALTY` 25, `APPROVAL_EVENT_MAX_BONUS` 10). Una protesta de
+severidad 36 resta ~11 puntos a la clase pobre. BALANCE.md, sección "Aprobacion".
+
+**Verificación (Postgres, 6 partidas × 36 turnos por escenario, sin intervención del jugador):** la aprobación general queda entre 17 y 53
+(antes 4–100) y `estable_democratico`, `pobre_con_potencial` y `crisis_economica` sobreviven las 6 partidas. En `post_conflicto`
+4 de 6 terminan en golpe de estado en el mes 3: ya no por eventos moderados, sino por el colapso hospitalario de severidad 100 que
+la red sembrada produce desde el mes 3 (saturación ~230 %, calibrada a propósito en el Issue 11: "post-conflicto hasta 10"). Con el
+signo corregido ese colapso ahora sí cuesta aprobación (antes la subía). Pendiente de decisión: darle inercia a la aprobación
+(un mes malo no dispara el fin de partida) o relajar la red inicial de ese escenario.
 
 ## Nota para producción: Auth.js exige host de confianza
 

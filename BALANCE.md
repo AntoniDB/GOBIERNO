@@ -100,15 +100,21 @@ equilibrio = INFLATION_TARGET + presiones × (1 + INFLATION_CRED_AMPLIFIER × (1
 aprobacion = APPROVAL_BASE (50)
            + efectos de leyes activas
            + efectos de sub-decisiones (por clase)
-           - impacto de eventos negativos del mes (severidad * APPROVAL_EVENT_WEIGHT * 10 * classMultiplier;
-             los eventos no negativos suman la mitad)
+           - impacto de eventos negativos del mes (Σ severidad * APPROVAL_EVENT_WEIGHT * classMultiplier,
+             máx. APPROVAL_EVENT_MAX_PENALTY); los no negativos suman APPROVAL_EVENT_POSITIVE_FACTOR de eso
+             (máx. APPROVAL_EVENT_MAX_BONUS)
            - (pobreza − 30) * APPROVAL_INDICATOR_WEIGHT si pobreza > 30% y clase es POBREZA/EXTREMA_POBREZA
            - (inflacion − INFLATION_CRISIS_THRESHOLD) * APPROVAL_INDICATOR_WEIGHT si supera el umbral
            - corrupcion promedio de funcionarios * APPROVAL_CORRUPTION_WEIGHT
            (clamped [0, 100])
 ```
 - `APPROVAL_BASE` (50): punto de partida
-- `APPROVAL_EVENT_WEIGHT` (0.1): peso de eventos en aprobacion
+- `APPROVAL_EVENT_WEIGHT` (0.2): puntos de aprobación por punto de severidad (antes había además un ×10 oculto:
+  una protesta de severidad 36 quitaba 58 puntos a la clase pobre y un desastre moderado causaba un golpe)
+- `APPROVAL_EVENT_POSITIVE_FACTOR` (0.5): fracción que suman los eventos positivos
+- `APPROVAL_EVENT_MAX_PENALTY` (25) y `APPROVAL_EVENT_MAX_BONUS` (10): tope mensual de los eventos por clase
+- Negativos: epidemia, escándalo, protesta, ola de crimen, golpe, desastre, crisis económica, brote de enfermedad,
+  colapso hospitalario, escasez de medicamentos, mala praxis y filtración. Positivos: avance médico, descubrimiento y otros
 - `APPROVAL_INDICATOR_WEIGHT` (0.3): peso de pobreza/inflacion en aprobacion
 - `APPROVAL_CORRUPTION_WEIGHT` (0.2): penalizacion por corrupcion
 
@@ -122,6 +128,12 @@ aprobacion = APPROVAL_BASE (50)
 | COUP_ATTEMPT | 0.3 | 0.5 | 1.3 | 1.4 |
 | DISASTER | 1.5 | 1.3 | 0.7 | 0.3 |
 | ECONOMIC_CRISIS | 0.7 | 1.0 | 1.4 | 0.6 |
+| DISEASE_OUTBREAK | 1.5 | 1.3 | 0.7 | 0.3 |
+| HOSPITAL_COLLAPSE | 1.5 | 1.3 | 0.8 | 0.3 |
+| MEDICATION_SHORTAGE | 1.3 | 1.2 | 0.9 | 0.4 |
+| MALPRACTICE_SCANDAL, LEAK | 0.4 | 0.5 | 1.2 | 1.3 |
+
+Un tipo que no está en la tabla pesa 1.0 en todas las clases.
 
 ---
 

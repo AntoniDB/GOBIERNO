@@ -254,8 +254,20 @@ export const BALANCE = {
   /** Peso de corrupción en aprobación (inverso) */
   APPROVAL_CORRUPTION_WEIGHT: 0.2,
 
-  /** Peso de eventos recientes en aprobación */
-  APPROVAL_EVENT_WEIGHT: 0.1,
+  /**
+   * Puntos de aprobación que quita un evento negativo por punto de severidad (0-100), antes de
+   * multiplicar por su peso en la clase (EVENT_CLASS_IMPACT). Antes el motor aplicaba además un ×10
+   * oculto (0,1 × 10 = 1 punto por punto de severidad): una protesta de severidad 36 bajaba 58 puntos
+   * a la clase pobre y un desastre moderado disparaba un golpe de estado (KNOWN_ISSUES #24).
+   */
+  APPROVAL_EVENT_WEIGHT: 0.2,
+
+  /** Un evento positivo (descubrimiento, avance médico) suma esta fracción de lo que restaría uno negativo */
+  APPROVAL_EVENT_POSITIVE_FACTOR: 0.5,
+
+  /** Tope de lo que los eventos del mes pueden quitar / sumar a la aprobación de una clase */
+  APPROVAL_EVENT_MAX_PENALTY: 25,
+  APPROVAL_EVENT_MAX_BONUS: 10,
 
   /** Aprobación base (sin modificadores) */
   APPROVAL_BASE: 50,
@@ -335,6 +347,13 @@ export const BALANCE = {
     COUP_ATTEMPT:   { EXTREME_POVERTY: 0.3, POVERTY: 0.5, MIDDLE: 1.3, ELITE: 1.4 },
     DISASTER:       { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.3 },
     ECONOMIC_CRISIS:{ EXTREME_POVERTY: 0.7, POVERTY: 1.0, MIDDLE: 1.4, ELITE: 0.6 },
+    // Crisis sanitarias: golpean más a quienes dependen de la salud pública
+    DISEASE_OUTBREAK:   { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.7, ELITE: 0.3 },
+    HOSPITAL_COLLAPSE:  { EXTREME_POVERTY: 1.5, POVERTY: 1.3, MIDDLE: 0.8, ELITE: 0.3 },
+    MEDICATION_SHORTAGE:{ EXTREME_POVERTY: 1.3, POVERTY: 1.2, MIDDLE: 0.9, ELITE: 0.4 },
+    // Escándalo de mala praxis y filtraciones: como un escándalo
+    MALPRACTICE_SCANDAL:{ EXTREME_POVERTY: 0.4, POVERTY: 0.5, MIDDLE: 1.2, ELITE: 1.3 },
+    LEAK:               { EXTREME_POVERTY: 0.4, POVERTY: 0.5, MIDDLE: 1.2, ELITE: 1.3 },
   } as const,
 
   // ─── Medios ──────────────────────────────────────────────────────────────

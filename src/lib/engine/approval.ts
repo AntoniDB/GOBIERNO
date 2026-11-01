@@ -23,6 +23,14 @@ function isNegativeEventType(eventType: string): boolean {
     "COUP_ATTEMPT",
     "DISASTER",
     "ECONOMIC_CRISIS",
+    // Crisis sanitarias (Salud-3A/3B): antes no figuraban y contaban como positivas (KNOWN_ISSUES #23).
+    // MEDICAL_BREAKTHROUGH sí es una buena noticia y sigue como positivo.
+    "DISEASE_OUTBREAK",
+    "HOSPITAL_COLLAPSE",
+    "MEDICATION_SHORTAGE",
+    "MALPRACTICE_SCANDAL",
+    // Reportaje que expone corrupción del gobierno
+    "LEAK",
   ];
   return negativeTypes.includes(eventType);
 }
@@ -63,10 +71,13 @@ export function calculateApprovalByClass(
   // Cada tipo de evento afecta de forma diferenciada a cada clase social.
   // El multiplicador por clase está en BALANCE.EVENT_CLASS_IMPACT.
   // Ej: una protesta golpea ×1.6 a POVERTY y solo ×0.2 a ELITE.
+  // Punto de aprobación = severidad × APPROVAL_EVENT_WEIGHT × multiplicador de clase. Los eventos del mes
+  // se suman por separado (negativos / positivos) y cada total se acota: varias crisis a la vez no
+  // pueden hundir a una clase por sí solas (el resto de los factores sigue pesando).
+  let eventPenalty = 0;
+  let eventBonus = 0;
   for (const event of eventsThisMonth) {
-    const isNegative = isNegativeEventType(event.type);
-    const impactBase =
-      event.severity * BALANCE.APPROVAL_EVENT_WEIGHT * 10;
+    const impactBase = event.severity * BALANCE.APPROVAL_EVENT_WEIGHT;
 
     const classImpactMap =
       BALANCE.EVENT_CLASS_IMPACT[event.type as keyof typeof BALANCE.EVENT_CLASS_IMPACT];
@@ -75,12 +86,14 @@ export function calculateApprovalByClass(
 
     const impact = impactBase * classMultiplier;
 
-    if (isNegative) {
-      approval -= impact;
+    if (isNegativeEventType(event.type)) {
+      eventPenalty += impact;
     } else {
-      approval += impact * 0.5;
+      eventBonus += impact * BALANCE.APPROVAL_EVENT_POSITIVE_FACTOR;
     }
   }
+  approval -= Math.min(BALANCE.APPROVAL_EVENT_MAX_PENALTY, eventPenalty);
+  approval += Math.min(BALANCE.APPROVAL_EVENT_MAX_BONUS, eventBonus);
 
   // ── Modificadores por indicadores sociales ──────────────────────────────
   const povertyRate = calculatePoverty(state);

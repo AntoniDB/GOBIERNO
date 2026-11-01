@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { BALANCE } from "@/lib/balance";
 import type { GameState, SocialClassState, EventState } from "@/lib/engine/types";
 import { calculateApprovalByClass, calculateGeneralApproval, calculateClassDemands } from "@/lib/engine/approval";
 
@@ -103,6 +104,49 @@ describe("calculateApprovalByClass", () => {
     };
     const conEventos = calculateApprovalByClass(socialClass, state, [eventoNegativo]);
     expect(conEventos).toBeLessThan(sinEventos);
+  });
+
+  const evento = (type: string, severity: number, id = `evt-${type}`): EventState => ({
+    id, type, severity, year: 2024, month: 1, description: type, effectsApplied: {}, resolvedAt: null,
+  });
+
+  it.each(["DISEASE_OUTBREAK", "HOSPITAL_COLLAPSE", "MEDICATION_SHORTAGE", "MALPRACTICE_SCANDAL", "LEAK"])(
+    "%s es un evento negativo: baja la aprobación (#23)", (tipo) => {
+      const state = crearEstadoBase();
+      const clase = crearClaseSocial();
+      expect(calculateApprovalByClass(clase, state, [evento(tipo, 60)])).toBeLessThan(calculateApprovalByClass(clase, state, []));
+    });
+
+  it("un avance médico sí sube la aprobación", () => {
+    const state = crearEstadoBase();
+    const clase = crearClaseSocial();
+    expect(calculateApprovalByClass(clase, state, [evento("MEDICAL_BREAKTHROUGH", 40)])).toBeGreaterThan(calculateApprovalByClass(clase, state, []));
+  });
+
+  it("escala: puntos = severidad × APPROVAL_EVENT_WEIGHT × peso de la clase (#24)", () => {
+    const state = crearEstadoBase();
+    const clase = crearClaseSocial({ key: "POVERTY" });
+    const base = calculateApprovalByClass(clase, state, []);
+    // Protesta de severidad 36 sobre la clase pobre (×1,6): antes quitaba 58 puntos, ahora ≈ 11,5
+    const baja = base - calculateApprovalByClass(clase, state, [evento("PROTEST", 36)]);
+    expect(baja).toBeCloseTo(36 * BALANCE.APPROVAL_EVENT_WEIGHT * 1.6, 0);
+    expect(baja).toBeLessThan(15);
+  });
+
+  it("varias crisis a la vez no superan el tope mensual (#24)", () => {
+    const state = crearEstadoBase();
+    const clase = crearClaseSocial({ key: "POVERTY" });
+    const base = calculateApprovalByClass(clase, state, []);
+    const crisis = ["PROTEST", "DISASTER", "HOSPITAL_COLLAPSE", "DISEASE_OUTBREAK", "ECONOMIC_CRISIS"].map((t, i) => evento(t, 100, `e${i}`));
+    expect(base - calculateApprovalByClass(clase, state, crisis)).toBeCloseTo(BALANCE.APPROVAL_EVENT_MAX_PENALTY, 0);
+  });
+
+  it("los eventos positivos también tienen tope", () => {
+    const state = crearEstadoBase();
+    const clase = crearClaseSocial();
+    const base = calculateApprovalByClass(clase, state, []);
+    const buenos = Array.from({ length: 10 }, (_, i) => evento("MEDICAL_BREAKTHROUGH", 100, `b${i}`));
+    expect(calculateApprovalByClass(clase, state, buenos) - base).toBeCloseTo(BALANCE.APPROVAL_EVENT_MAX_BONUS, 0);
   });
 
   it("corrupción alta de funcionarios reduce la aprobación", () => {
