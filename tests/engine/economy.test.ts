@@ -157,13 +157,15 @@ describe("calculateGDP", () => {
     });
     const gdp = calculateGDP(state);
     const baseGDP = state.population * BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA * 12;
-    expect(gdp).toBe(baseGDP * 0.8);
+    // La eficiencia de Economía (80) también mejora la competitividad exportadora (Fase 4): el PIB sube un poco más
+    const competitividad = (80 + BALANCE.EXPORT_REFERENCE_EFFICIENCY) / 2 / BALANCE.EXPORT_REFERENCE_EFFICIENCY;
+    expect(gdp).toBeCloseTo(baseGDP * 0.8 * (1 + BALANCE.EXPORT_GDP_LINK * (competitividad - 1)), 0);
   });
 
   it("usa 50 como eficiencia por defecto si no hay ministerio de economía", () => {
     const state = crearEstadoBase({ ministries: [] });
     const gdp = calculateGDP(state);
     const baseGDP = state.population * BALANCE.BASE_MONTHLY_INCOME_PER_CAPITA * 12;
-    expect(gdp).toBe(baseGDP * 0.5);
+    expect(gdp).toBeCloseTo(baseGDP * 0.5, 0); // sin Economía ni Agricultura la competitividad vale 1
   });
 });

@@ -140,8 +140,11 @@ describe("calculateTaxRevenue", () => {
   it("un PIB más bajo (peor gestión de Economía) recauda menos", () => {
     const state = conReferencia(estadoInicial());
     const antes = calculateIncome(state);
-    state.ministries.find((m) => m.key === "ECONOMY")!.efficiency = 44; // 20% menos de PIB
-    expect(calculateIncome(state) / antes).toBeCloseTo(0.8 ** BALANCE.TAX_BASE_ELASTICITY, 6);
+    const gdpAntes = calculateGDP(state);
+    state.ministries.find((m) => m.key === "ECONOMY")!.efficiency = 44; // 20% menos de PIB (más la menor competitividad exportadora)
+    const razonPib = calculateGDP(state) / gdpAntes;
+    expect(razonPib).toBeLessThan(0.8);
+    expect(calculateIncome(state) / antes).toBeCloseTo(razonPib ** BALANCE.TAX_BASE_ELASTICITY, 6);
   });
 
   it("más corrupción → más evasión → menos recaudación", () => {

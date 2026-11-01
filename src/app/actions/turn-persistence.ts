@@ -46,7 +46,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       "regimeType", "regimeMetrics", "lifeExpectancy",
       "activeLrdCount", "lrdMonthlyCost", "lrdCompletedThisMonth", "lrdCancelledThisMonth",
       "activeProgramsCount", "programMonthlyCost",
-      "diseasePrevalences", "tradeBalance", "totalImports", "totalExports", "publicDebt", "creditScore"
+      "diseasePrevalences", "tradeBalance", "totalImports", "totalExports", "publicDebt", "creditScore", "exchangeRate"
     ) VALUES (
       ${snapId}::uuid, ${gameId}::uuid, ${snapYear}, ${snapMonth},
       ${monthSnapshot.treasury}, ${monthSnapshot.gdp}, ${monthSnapshot.population},
@@ -60,7 +60,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       ${monthSnapshot.lrdCompletedThisMonth}, ${monthSnapshot.lrdCancelledThisMonth},
       ${monthSnapshot.activeProgramsCount}, ${monthSnapshot.programMonthlyCost},
       ${diseasePrevalencesJson}::jsonb, ${monthSnapshot.tradeBalance},
-      ${monthSnapshot.totalImports}, ${monthSnapshot.totalExports}, ${monthSnapshot.publicDebt ?? 0}, ${monthSnapshot.creditScore ?? 0}
+      ${monthSnapshot.totalImports}, ${monthSnapshot.totalExports}, ${monthSnapshot.publicDebt ?? 0}, ${monthSnapshot.creditScore ?? 0}, ${monthSnapshot.exchangeRate ?? 100}
     )
     ON CONFLICT ("gameId", "year", "month")
     DO UPDATE SET
@@ -91,7 +91,8 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
       "totalImports" = ${monthSnapshot.totalImports},
       "totalExports" = ${monthSnapshot.totalExports},
       "publicDebt" = ${monthSnapshot.publicDebt ?? 0},
-      "creditScore" = ${monthSnapshot.creditScore ?? 0}
+      "creditScore" = ${monthSnapshot.creditScore ?? 0},
+      "exchangeRate" = ${monthSnapshot.exchangeRate ?? 100}
   `;
 
   // b. Ministerios (una sola sentencia)
@@ -138,6 +139,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
         marketsClosedMonths: newState.marketsClosedMonths ?? 0,
         monthsSinceDefault: newState.monthsSinceDefault ?? null,
         indicatorShocks: newState.indicatorShocks ?? {},
+        exchangeRate: newState.exchangeRate ?? 100,
       },
     });
 

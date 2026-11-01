@@ -68,6 +68,11 @@ function buildGameState(
   return {
     gameId: game.id,
     countryName: game.countryName,
+    // Comercio exterior del último mes (el panel de Economía lo muestra) y sanciones vigentes
+    tradeBalance: latestSnapshot?.tradeBalance ?? 0,
+    totalImports: latestSnapshot?.totalImports ?? 0,
+    totalExports: latestSnapshot?.totalExports ?? 0,
+    sanctionsMultiplier: (game.sanctionsMultiplier as number) ?? 1,
     currentYear: game.currentYear,
     currentMonth: game.currentMonth,
     treasury: latestSnapshot?.treasury ?? initial.treasury,
@@ -82,6 +87,7 @@ function buildGameState(
     marketsClosedMonths: game.marketsClosedMonths ?? 0,
     monthsSinceDefault: game.monthsSinceDefault ?? null,
     indicatorShocks: (game.indicatorShocks ?? {}) as GameState["indicatorShocks"],
+    exchangeRate: game.exchangeRate ?? 100,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
@@ -364,6 +370,7 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
     diseasePrevalences: (s.diseasePrevalences as Array<{ diseaseId: string; name: string; category: string; prevalence: number }> | undefined) ?? undefined,
     publicDebt: Number(s.publicDebt) || 0,
     creditScore: Number(s.creditScore) || 0,
+    exchangeRate: Number(s.exchangeRate) || 100,
   }));
 }
 

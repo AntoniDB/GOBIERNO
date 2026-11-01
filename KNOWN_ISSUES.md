@@ -638,6 +638,12 @@ sobre los indicadores". Sin migración (los choques nuevos viajan en el mismo JS
 **Verificación:** `tests/engine/event-effects.test.ts` (18 tests); Postgres: 24 partidas × 36 turnos sobreviven (aprobación 31–56) y un turno con crisis
 económica, golpe y escándalo forzados cambia PIB, régimen, corrupción y reputación como indica la tabla.
 
+## 27. El PIB cae ~8 % en 24 meses sin intervención del jugador — ABIERTO (informativo)
+
+**Qué se observa (e2e, `estable_democratico`, 24 meses sin tocar nada):** el PIB baja de ~176 a ~163 miles de millones. La eficiencia de Economía baja ~0,2 puntos
+por mes (la corrupción de los funcionarios sube sin contrapeso suficiente). No se investigó a fondo si es el diseño buscado o un desajuste de `CORRUPTION_BASE_INCREASE`
+frente a la Contraloría. Con la Fase 4 la caída arrastra también la productividad exportadora (~1 punto más de PIB en 24 meses).
+
 ## Nota para producción: Auth.js exige host de confianza
 
 Con `next start` (modo producción) Auth.js v5 responde `UntrustedHost: Host must be trusted` y el inicio de sesión falla si no se

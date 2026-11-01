@@ -9,6 +9,7 @@
 
 import { BALANCE, SUB_DECISION_EFFECTS } from "../balance";
 import { subDecisionIndicator } from "./sub-decision-effects";
+import { fxInflationPressure } from "./foreign-trade";
 import type { GameState, MinistryState, OrganismState, TurnNotification } from "./types";
 
 type MinistryLike = Pick<MinistryState, "key" | "subDecisions">;
@@ -142,6 +143,8 @@ export interface InflationBreakdown {
   emission: number;
   rate: number;
   subDecisions: number;
+  /** Presión de la depreciación del tipo de cambio */
+  fx: number;
   /** Inflación a la que tiende la economía con estas políticas */
   equilibrium: number;
   /** Inflación del mes */
@@ -169,10 +172,12 @@ export function calculateInflation(state: GameState, inputs: InflationInputs): I
   const emission = BALANCE.INFLATION_EMISSION_FACTOR * emissionPct;
   const rate = -BALANCE.INFLATION_RATE_FACTOR * (policyRate(state.ministries ?? []) - NEUTRAL_RATE);
   const subDecisions = subDecisionIndicator(state, "inflation");
+  // Inflación importada: la depreciación del tipo de cambio encarece lo que se compra afuera (Fase 4)
+  const fx = fxInflationPressure(state);
 
   const amplifier = 1 + BALANCE.INFLATION_CRED_AMPLIFIER * (1 - credibility);
-  const equilibrium = Math.max(0, BALANCE.INFLATION_TARGET + (deficit + emission + rate + subDecisions) * amplifier);
+  const equilibrium = Math.max(0, BALANCE.INFLATION_TARGET + (deficit + emission + rate + subDecisions + fx) * amplifier);
   const inflation = clamp(previous + BALANCE.INFLATION_ADJUST * credibility * (equilibrium - previous), 0, 100);
 
-  return { credibility, deficit, emission, rate, subDecisions, equilibrium, inflation };
+  return { credibility, deficit, emission, rate, subDecisions, fx, equilibrium, inflation };
 }

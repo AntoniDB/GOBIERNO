@@ -213,6 +213,8 @@ model Game {
   monthsSinceDefault  Int?
   // Choques persistentes de eventos sobre indicadores (lib/engine/shocks.ts): { unemploymentRate, sickRate, crimeRate, foodSecurity }
   indicatorShocks     Json   @default("{}")
+  // Tipo de cambio real (índice, 100 = inicial; lib/engine/foreign-trade.ts)
+  exchangeRate        Float  @default(100)
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -281,6 +283,7 @@ model MonthSnapshot {
   totalExports      Float      @default(0)
   publicDebt        Float      @default(0)
   creditScore       Float      @default(0)
+  exchangeRate      Float      @default(100)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)

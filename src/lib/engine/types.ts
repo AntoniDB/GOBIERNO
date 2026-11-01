@@ -57,6 +57,8 @@ export interface GameState {
     "unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity" | "gdpPct" | "healthEfficiency" | "securityEfficiency",
     number
   >>;
+  /** Tipo de cambio real (índice, 100 = inicial; más alto = más depreciado). Ausente = 100. Ver engine/foreign-trade.ts. */
+  exchangeRate?: number;
   /** Puntaje de calificación crediticia 0-100 (engine/rating.ts). null/ausente = aún sin calcular (primer turno). */
   creditScore?: number | null;
   /** Crisis de deuda abierta: turnos que lleva sin resolverse (0 = no hay crisis). Ver engine/debt-crisis.ts. */
@@ -382,6 +384,8 @@ export interface MonthSnapshotData {
   publicDebt?: number;
   /** Puntaje de calificación crediticia (0-100) al cierre del mes. */
   creditScore?: number;
+  /** Tipo de cambio real al cierre del mes (índice, 100 = inicial). */
+  exchangeRate?: number;
 }
 
 export interface TurnNotification {

@@ -6,6 +6,7 @@ import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
 import { subDecisionDeltas, subDecisionContext } from "./sub-decision-effects";
 import { indicatorShock } from "./shocks";
+import { exportCompetitiveness } from "./foreign-trade";
 import { collectibleBase, economyFactor, evasionRate, monthlyDebtInterest, taxMixFactor } from "./fiscal";
 
 /** Suma de modificadores de la tasa impositiva de las leyes activas (en fracción). */
@@ -274,6 +275,9 @@ export function calculateGDP(state: GameState): number {
 
   // Sub-decisiones (STEM, tasa de interés, apertura...): modificador en % del PIB
   gdp += gdp * (subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).indicators.gdpPct / 100);
+
+  // Competitividad exportadora (apertura, aranceles de represalia, tipo de cambio, sanciones): mueve el PIB (Fase 4)
+  gdp += gdp * BALANCE.EXPORT_GDP_LINK * (exportCompetitiveness(state) - 1);
 
   // Choque de eventos (crisis económica, protesta, desastre): % del PIB que se pierde y se recupera solo (Issue 26)
   gdp += gdp * (indicatorShock(state, "gdpPct") / 100);

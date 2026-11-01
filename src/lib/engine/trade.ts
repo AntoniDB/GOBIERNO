@@ -24,6 +24,7 @@ import type {
   TradeGoodCategory,
 } from "./types";
 import { BALANCE } from "../balance";
+import { exchangeRateOf } from "./foreign-trade";
 import { TRADE_GOOD_CATALOG, type TradeGoodSeed } from "../seed-catalogs";
 
 const DEFAULT_GOOD_ID_PREFIX: Record<TradeGoodCategory, string> = {
@@ -124,9 +125,11 @@ export function processTradeFlows(state: GameState): {
 } {
   const treasury = state.treasury;
   const sanctionsMultiplier = state.sanctionsMultiplier ?? BALANCE.TRADE_SANCTIONS_MULTIPLIER;
+  // Los medicamentos se pagan en moneda extranjera: la depreciación los encarece (tipo de cambio 100 = sin efecto)
+  const fxFactor = exchangeRateOf(state) / BALANCE.FX_BASE;
 
   let totalImports = 0;
-  let totalExports = 0;
+  const totalExports = 0; // las exportaciones agregadas las calcula foreign-trade.ts (paso 5d)
 
   // Determinar target volumes desde la sub-decision de TradeFlow
   // (valores persistidos en los flujos existentes)
@@ -148,7 +151,7 @@ export function processTradeFlows(state: GameState): {
     const volumeAfterTreasury = targetVolume * treasuryFactor;
     const { volume, unitCost } = applySanctions(
       volumeAfterTreasury,
-      good.baseCostPerUnit,
+      good.baseCostPerUnit * fxFactor,
       sanctionsMultiplier,
     );
     const monthlyCost = volume * unitCost;

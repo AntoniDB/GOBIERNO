@@ -16,6 +16,7 @@ import {
   calculateGini,
 } from "./indicators";
 import { calculateGDP } from "./economy";
+import { BALANCE } from "../balance";
 
 /**
  * Crea un snapshot mensual del estado del país.
@@ -112,5 +113,6 @@ export function createMonthSnapshot(
     totalExports: state.totalExports,
     publicDebt: state.publicDebt ?? 0,
     creditScore: state.creditScore ?? 0,
+    exchangeRate: state.exchangeRate ?? BALANCE.FX_BASE,
   };
 }

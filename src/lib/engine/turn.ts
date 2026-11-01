@@ -26,6 +26,10 @@ import { collectibleBase, debtToGdp, evasionRate } from "./fiscal";
 import { applyCentralBankPolicy, calculateInflation, monetaryEmission } from "./monetary";
 import { addEventShocks, decayIndicatorShocks, indicatorShock } from "./shocks";
 import { applyEventStateEffects } from "./event-effects";
+import {
+  exchangeRateOf, exchangeRateTarget, interventionCost, interventionLevel, monthlyExports, monthlyOtherImports,
+  nextExchangeRate, tariffRevenueDelta,
+} from "./foreign-trade";
 import { advanceDebtCrisis, applyDebtCrisisResponse, settleMonth, updateCreditScore } from "./debt-crisis";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
@@ -717,9 +721,38 @@ export function processTurn(
   // - Descuenta costo total del tesoro
   // ═══════════════════════════════════════════════════════════════════════
   const tradeFlowsSnapshot = processTradeFlows(newState);
-  newState.tradeBalance = tradeFlowsSnapshot.tradeBalance;
-  newState.totalImports = tradeFlowsSnapshot.totalImports;
-  newState.totalExports = tradeFlowsSnapshot.totalExports;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PASO 5d: Comercio exterior agregado y tipo de cambio (Economía, Fase 4)
+  // - Exportaciones (productividad, apertura, tipo de cambio, represalia por aranceles, sanciones)
+  // - Otras importaciones (apertura, aranceles, tipo de cambio) y su ingreso arancelario neto al tesoro
+  // - Balanza → presión sobre el tipo de cambio, que se mueve con inercia; la intervención cambiaria cuesta tesoro
+  // ═══════════════════════════════════════════════════════════════════════
+  const monthlyGdp = calculateGDP(newState) / 12;
+  const exportsValue = monthlyExports(newState, monthlyGdp);
+  const otherImports = monthlyOtherImports(newState, monthlyGdp);
+  const totalImports = tradeFlowsSnapshot.totalImports + otherImports;
+  newState.totalExports = exportsValue;
+  newState.totalImports = totalImports;
+  newState.tradeBalance = exportsValue - totalImports;
+  newState.treasury += tariffRevenueDelta(newState.ministries, otherImports);
+
+  const previousFx = exchangeRateOf(newState);
+  const fxStep = nextExchangeRate(
+    previousFx,
+    exchangeRateTarget({ tradeDeficit: -newState.tradeBalance, monthlyGdp, inflation: newState.inflation, creditScore: newState.creditScore }),
+    interventionLevel(newState.ministries),
+  );
+  newState.treasury -= interventionCost(fxStep.avoidedMove, monthlyGdp);
+  newState.exchangeRate = fxStep.rate;
+  const fxMovePct = ((fxStep.rate - previousFx) / previousFx) * 100;
+  if (Math.abs(fxMovePct) >= BALANCE.FX_WARN_MOVE) {
+    allNotifications.push({
+      type: "warning",
+      title: fxMovePct > 0 ? "Depreciación fuerte de la moneda" : "Apreciación fuerte de la moneda",
+      description: `El tipo de cambio se movió ${fxMovePct > 0 ? "+" : ""}${fxMovePct.toFixed(1)}% este mes (índice ${fxStep.rate.toFixed(0)}). ${fxMovePct > 0 ? "Encarece lo importado y presiona la inflación, pero abarata tus exportaciones." : "Abarata lo importado, pero resta competitividad a tus exportaciones."}`,
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 6: Actualizar corrupción individual de cada funcionario

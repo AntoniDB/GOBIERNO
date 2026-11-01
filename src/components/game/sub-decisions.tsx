@@ -12,6 +12,7 @@ import { calculateTaxRevenue } from "@/lib/engine/economy";
 import { debtAnnualRate, debtToGdp, monthlyDebtInterest } from "@/lib/engine/fiscal";
 import { interestBurden, ratingFromScore, ratingSpread } from "@/lib/engine/rating";
 import { isDebtCrisisOpen } from "@/lib/engine/debt-crisis";
+import { exchangeRateOf, monthlyOtherImports, tariffRevenueDelta } from "@/lib/engine/foreign-trade";
 import {
   centralBank, isCentralBankAutonomous, monetaryCredibility, monetaryEmission, policyRate, taylorRate,
 } from "@/lib/engine/monetary";
@@ -305,6 +306,27 @@ function EconomyDecisions({
         disabled={!!bankName}
         hint={lockedHint ?? "Financia al Estado imprimiendo dinero: sube la inflación de los meses siguientes."}
       />
+      <SliderControl
+        label="Aranceles a la importación"
+        value={(subDecisions.aranceles as number) ?? 10}
+        min={0}
+        max={40}
+        unit="%"
+        onChange={(v) => onChange("aranceles", v)}
+        hint="Más aranceles: más ingreso y protección industrial, pero encarecen las importaciones y los socios responden bajando tus exportaciones."
+      />
+      <SliderControl
+        label="Intervención cambiaria"
+        value={(subDecisions.intervencionCambiaria as number) ?? 0}
+        min={0}
+        max={100}
+        step={5}
+        unit="%"
+        onChange={(v) => onChange("intervencionCambiaria", v)}
+        leftLabel="Flotación libre"
+        rightLabel="Tipo de cambio fijo"
+        hint="Frena los movimientos de la moneda, pero cada mes cuesta tesoro."
+      />
     </div>
   );
 }
@@ -325,6 +347,14 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
     const debt = gameState.publicDebt ?? 0;
     return {
       inflation: gameState.inflation,
+      exportsLast: gameState.totalExports ?? 0,
+      importsLast: gameState.totalImports ?? 0,
+      balance: gameState.tradeBalance ?? 0,
+      fx: exchangeRateOf(gameState),
+      tariffNet: tariffRevenueDelta(
+        proposedMinistries,
+        monthlyOtherImports({ ministries: proposedMinistries, exchangeRate: gameState.exchangeRate }, (gameState.gdp ?? 0) / 12),
+      ),
       credibility: monetaryCredibility(gameState.organisms ?? []),
       taylor: taylorRate(gameState.inflation),
       rate: policyRate(proposedMinistries),
@@ -420,6 +450,25 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
         <span className="font-mono tabular-nums">
           {Number.isFinite(summary.burden) ? `${(summary.burden * 100).toFixed(1)}%` : "—"} (crisis desde {Math.round(BALANCE.DEBT_CRISIS_INTEREST_BURDEN * 100)}%)
         </span>
+      </div>
+      <p className="font-medium text-muted-foreground pt-2">Comercio exterior</p>
+      <div className="flex justify-between gap-2">
+        <span>Exportaciones / importaciones (último mes)</span>
+        <span className="font-mono tabular-nums">{fmt(summary.exportsLast)} / {fmt(summary.importsLast)}</span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Balanza comercial</span>
+        <span className={`font-mono tabular-nums ${summary.balance < 0 ? "text-destructive" : ""}`}>
+          {summary.balance < 0 ? "−" : "+"}{fmt(Math.abs(summary.balance))}
+        </span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Tipo de cambio (100 = inicial; más alto = moneda más débil)</span>
+        <span className="font-mono tabular-nums">{summary.fx.toFixed(1)}</span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Ingreso arancelario neto vs. inicial (estimado)</span>
+        <span className="font-mono tabular-nums">{summary.tariffNet < 0 ? "−" : "+"}{fmt(Math.abs(summary.tariffNet))}/mes</span>
       </div>
       <p className="font-medium text-muted-foreground pt-2">Política monetaria</p>
       <div className="flex justify-between gap-2">

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Game" ADD COLUMN     "exchangeRate" DOUBLE PRECISION NOT NULL DEFAULT 100;
+
+-- AlterTable
+ALTER TABLE "MonthSnapshot" ADD COLUMN     "exchangeRate" DOUBLE PRECISION NOT NULL DEFAULT 100;

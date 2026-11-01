@@ -324,6 +324,7 @@ export default function DashboardPage() {
   const treasuryLabel = treasuryRaw >= 1e9
     ? `${(treasuryRaw / 1e9).toFixed(1)}B`
     : `${(treasuryRaw / 1e6).toFixed(0)}M`;
+  const fxIndex       = gameState.exchangeRate ?? 100;
   const debtRaw       = gameState.publicDebt ?? 0;
   const debtLabel     = debtRaw >= 1e9 ? `${(debtRaw / 1e9).toFixed(1)}B` : `${(debtRaw / 1e6).toFixed(0)}M`;
   const debtRatioPct  = debtToGdp(debtRaw, gdpRaw) * 100;
@@ -419,6 +420,13 @@ Rango tipico: 30-50% en pais en desarrollo.`} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
           <MiniIndicatorCard label="ESP. DE VIDA" value={gameState.lifeExpectancy ?? 68} color={valueColor(gameState.lifeExpectancy ?? 68)} suffix="a" />
+          <MiniIndicatorCard
+            label="TIPO DE CAMBIO"
+            value={fxIndex}
+            color={fxIndex <= 115 ? "#00C87E" : fxIndex <= 140 ? "#E08800" : "#FF2090"}
+            suffix=""
+            titleHint="Índice real: 100 = inicial. Más alto = moneda más débil (importar es más caro, exportar más fácil)."
+          />
           <MiniIndicatorCard
             label="DEUDA / PIB"
             value={debtRatioPct}

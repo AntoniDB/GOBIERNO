@@ -903,6 +903,54 @@ export const BALANCE = {
   /** Multiplicador de mortalidad por escasez: salud mental afectada marginalmente */
   TRADE_SHORTAGE_MORTALITY_MULTIPLIER_MENTAL: 1.1,
 
+  // ─── Comercio exterior agregado y tipo de cambio (Economía, Fase 4) ──────────
+  // Además de los medicamentos importados (arriba), la economía exporta y compra bienes en el exterior
+  // (engine/foreign-trade.ts). Todo vale 1 (o 100) en el estado inicial, así que el equilibrio inicial no cambia:
+  //   competitividad = productividad × apertura × tipoCambio^ε × represalia / sanciones
+  //   exportaciones  = PIB/12 × EXPORT_GDP_SHARE × competitividad
+  //   otras importaciones = PIB/12 × IMPORT_GDP_SHARE × apertura × tipoCambio^−ε × ((1+arancel)/(1+arancelInicial))^−ε_arancel
+  //   PIB = fórmula × (1 + EXPORT_GDP_LINK × (competitividad − 1))
+
+  /** Exportaciones e importaciones (distintas de los medicamentos) en % del PIB mensual con todo en su valor inicial */
+  EXPORT_GDP_SHARE: 0.12,
+  IMPORT_GDP_SHARE: 0.12,
+  /** Eficiencia (promedio de Economía y Agricultura) con la que la productividad exportadora vale 1 */
+  EXPORT_REFERENCE_EFFICIENCY: 55,
+  /** Cuánto suben las exportaciones / importaciones con la apertura (politicaIndustrial 100 vs 50) */
+  EXPORT_OPENNESS_EFFECT: 0.25,
+  IMPORT_OPENNESS_EFFECT: 0.4,
+  /** Elasticidad de exportaciones e importaciones al tipo de cambio (depreciar exporta más e importa menos) */
+  EXPORT_FX_ELASTICITY: 0.8,
+  IMPORT_FX_ELASTICITY: 0.8,
+  /** Represalia: fracción de exportaciones que se pierde por cada 100 puntos de arancel sobre el inicial */
+  EXPORT_RETALIATION: 0.5,
+  /** Elasticidad de las importaciones al precio con arancel */
+  IMPORT_TARIFF_ELASTICITY: 1.2,
+  /** Cuánto mueve el PIB la competitividad exportadora (0,1 → +10 % de competitividad = +1 % de PIB) */
+  EXPORT_GDP_LINK: 0.1,
+
+  /** Tipo de cambio real (índice, 100 = inicial; más alto = más depreciado) y sus límites */
+  FX_BASE: 100,
+  FX_MIN: 50,
+  FX_MAX: 300,
+  /**
+   * objetivo = 100 × (1 + FX_TRADE_WEIGHT × déficit comercial/(PIB/12) + FX_INFLATION_WEIGHT × (inflación − meta)
+   *                     + FX_RATING_WEIGHT × max(0, FX_RATING_OK − puntaje))
+   * y cada mes recorre FX_ADJUST de la distancia al objetivo (inercia).
+   */
+  FX_TRADE_WEIGHT: 2,
+  FX_INFLATION_WEIGHT: 0.01,
+  FX_RATING_WEIGHT: 0.004,
+  FX_RATING_OK: 60,
+  FX_ADJUST: 0.2,
+  /** Intervención cambiaria al 100 %: fracción del movimiento que se evita, y su costo (× PIB mensual × movimiento evitado en puntos/100) */
+  FX_DEFENSE_MAX: 0.9,
+  FX_DEFENSE_COST: 0.5,
+  /** Movimiento mensual del tipo de cambio (%) a partir del cual se avisa al jugador */
+  FX_WARN_MOVE: 10,
+  /** Puntos de inflación de equilibrio por cada punto de depreciación sobre 100 (inflación importada) */
+  INFLATION_FX_PASSTHROUGH: 0.1,
+
   // ─── Crisis Sanitarias (Salud-3B-ii) ──────────────────────────────────────
   // 5 crisis específicas del Ministerio de Salud conectadas al catálogo de
   // enfermedades, saturación hospitalaria, comercio exterior y corrupción.
@@ -1022,6 +1070,11 @@ export const SUB_DECISION_EFFECTS: Record<string, Record<string, SubDecisionEffe
     // Emisión monetaria (% de la recaudación por mes; su efecto en tesoro e inflación está en engine/monetary.ts).
     // Aquí: los ahorristas pierden poder adquisitivo (clase media y élite).
     emisionMonetaria: { neutral: 0, range: [0, 30], approval: { MIDDLE: -0.02, ELITE: -0.02 } },
+    // Aranceles (%; su efecto en importaciones, exportaciones e ingreso lo calcula engine/foreign-trade.ts). Aquí, los
+    // efectos secundarios: encarecen lo importado (inflación), protegen empleo industrial, y molestan al consumidor.
+    aranceles: { neutral: 10, range: [0, 40], indicators: { inflation: 0.05, unemploymentRate: -0.03 }, approval: { POVERTY: -0.03, MIDDLE: -0.02, ELITE: 0.02 } },
+    // Intervención cambiaria (0 = flotación libre, 100 = tipo de cambio fijo; su costo lo calcula foreign-trade.ts): estabilidad a quien ahorra
+    intervencionCambiaria: { neutral: 0, range: [0, 100], approval: { MIDDLE: 0.005, ELITE: 0.01 } },
   },
   DEFENSE: {
     // Cabezas de tropa (rango 10.000-200.000): absorben desempleo y crimen; cuestan 150 USD/soldado/mes

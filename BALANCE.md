@@ -411,6 +411,8 @@ costo     = Σ (coeficiente × unidades), escalado por población (COST_REFERENC
 | Economía | `impuestoRenta` | 25 | 0–50 | Gini -0.08, PIB % -0.03 | élite -0.12, media -0.04, pobreza +0.02 | — (cambia la recaudación) |
 | Economía | `impuestoSociedades` | 25 | 0–45 | PIB % -0.08, desempleo +0.04 | élite -0.12 | — (cambia la recaudación) |
 | Economía | `emisionMonetaria` | 0 | 0–30 | — (inflación: ver política monetaria) | media -0.02, élite -0.02 | — (entra al tesoro) |
+| Economía | `aranceles` | 10 | 0–40 | inflación +0.05, desempleo -0.03 | pobreza -0.03, media -0.02, élite +0.02 | — (ingreso arancelario: ver comercio exterior) |
+| Economía | `intervencionCambiaria` | 0 | 0–100 | — | media +0.005, élite +0.01 | — (costo: ver tipo de cambio) |
 | Defensa | `tropasActivas` | 50000 | 10000–200000 | desempleo -0.000008, crimen -0.000005 | élite +0.000008 | +150 |
 | Defensa | `gastoEquipamiento` | 40 | 0–100 | crimen -0.01 | élite +0.02 | +50.000 |
 | Defensa | `servicioMilitar` | no | al cambiar | desempleo -0.8, crimen -0.3 | pob. extrema -1.5, pobreza -2, media -2, élite +1 | +1.000.000 |
@@ -498,6 +500,50 @@ choque(t+1) = choque(t) × EVENT_SHOCK_RETENTION + choques de los eventos del me
 - La referencia fiscal del primer mes (`fiscalBaseReference`) se calcula sin el choque de PIB de un evento de ese mes.
 - Prueba e2e (Postgres, crisis + golpe + escándalo forzados en un turno): PIB −5,3 % que se recupera (choque −5 → −0,84 en 5 meses); subordinación militar y libertades civiles
   bajan 6 y 4 puntos y siguen su regeneración; los choques se guardan en `Game.indicatorShocks`.
+
+## Comercio exterior y tipo de cambio (Economía, Fase 4)
+
+Antes el único comercio eran los medicamentos importados (`trade.ts`), `totalExports` valía siempre 0 y la política industrial no tenía efecto comercial.
+Ahora hay un agregado comercial (`engine/foreign-trade.ts`, paso 5d del turno) que vale 1 (o 100) en el estado inicial, así que el equilibrio inicial no cambia:
+
+```
+competitividad = productividad × apertura × (tipoCambio/100)^EXPORT_FX_ELASTICITY × represalia / sanciones
+  productividad = ((effEconomía + effAgricultura)/2) / EXPORT_REFERENCE_EFFICIENCY
+  apertura      = 1 + EXPORT_OPENNESS_EFFECT × (politicaIndustrial − 50)/50
+  represalia    = 1 − EXPORT_RETALIATION × max(0, arancel − arancelInicial)/100
+exportaciones/mes   = PIB/12 × EXPORT_GDP_SHARE × competitividad
+otras importaciones = PIB/12 × IMPORT_GDP_SHARE × (1 + IMPORT_OPENNESS_EFFECT × (politicaIndustrial − 50)/50)
+                      × (tipoCambio/100)^−IMPORT_FX_ELASTICITY × ((1+arancel)/(1+arancelInicial))^−IMPORT_TARIFF_ELASTICITY
+ingreso arancelario neto = otras importaciones × (arancel − arancelInicial)/100     (al tesoro; negativo si se bajan los aranceles)
+balanza = exportaciones − (medicamentos + otras importaciones)       → snapshot: tradeBalance, totalExports, totalImports
+PIB = fórmula × (1 + EXPORT_GDP_LINK × (competitividad − 1))
+```
+
+- `EXPORT_GDP_SHARE` (0.12) e `IMPORT_GDP_SHARE` (0.12): con todo en su valor inicial se compensan. `EXPORT_REFERENCE_EFFICIENCY` (55) es la eficiencia con la
+  que nacen los ministerios. `EXPORT_OPENNESS_EFFECT` (0.25) y `IMPORT_OPENNESS_EFFECT` (0.4): la apertura total (100) sube las exportaciones 25 % y las importaciones 40 %.
+- `EXPORT_FX_ELASTICITY` (0.8), `IMPORT_FX_ELASTICITY` (0.8): depreciar exporta más e importa menos. `EXPORT_RETALIATION` (0.5): aranceles de 40 % (30 puntos sobre el inicial) quitan 15 %
+  de las exportaciones. `IMPORT_TARIFF_ELASTICITY` (1.2). `EXPORT_GDP_LINK` (0.1): +10 % de competitividad = +1 % de PIB (y de recaudación).
+- El arancel inicial (10 %) ya está en la recaudación base (Issue 8), por eso solo cuenta la diferencia: subirlo da ingreso neto, bajarlo a 0 lo quita (un hueco de ~10 % de la
+  recaudación en `estable_democratico`).
+- Las sanciones del default (`sanctionsMultiplier` 1,5, Fase 3) dividen las exportaciones; los medicamentos importados cuestan `tipoCambio/100` veces más.
+- Sub-decisiones nuevas de Economía (tabla de arriba): `aranceles` 0-40 % (inicial 10) e `intervencionCambiaria` 0-100 % (inicial 0). Las partidas existentes usan el valor inicial.
+
+**Tipo de cambio real** (`GameState.exchangeRate`, `Game.exchangeRate`, `MonthSnapshot.exchangeRate`; índice 100 = inicial, más alto = moneda más débil):
+
+```
+objetivo = clamp(FX_BASE × (1 + FX_TRADE_WEIGHT × déficit comercial/(PIB/12) + FX_INFLATION_WEIGHT × (inflación − meta)
+                              + FX_RATING_WEIGHT × max(0, FX_RATING_OK − puntaje de calificación)), FX_MIN, FX_MAX)
+movimiento = FX_ADJUST × (objetivo − actual) × (1 − FX_DEFENSE_MAX × intervención/100)
+costo de defenderlo = FX_DEFENSE_COST × movimiento evitado/100 × PIB/12      (sale del tesoro; no hay reservas explícitas)
+inflación importada: + INFLATION_FX_PASSTHROUGH × max(0, tipoCambio − 100) puntos de presión de equilibrio (monetary.ts)
+```
+
+- `FX_BASE` (100), `FX_MIN` (50), `FX_MAX` (300), `FX_ADJUST` (0.2), `FX_TRADE_WEIGHT` (2), `FX_INFLATION_WEIGHT` (0.01), `FX_RATING_WEIGHT` (0.004), `FX_RATING_OK` (60),
+  `FX_DEFENSE_MAX` (0.9), `FX_DEFENSE_COST` (0.5), `FX_WARN_MOVE` (10 %: aviso al jugador), `INFLATION_FX_PASSTHROUGH` (0.1).
+- Calibración (e2e, 36 turnos sin intervención): `estable_democratico` queda en ≈ 100 con balanza ≈ 0; `crisis_economica` se deprecia a ~111 (inflación 17 %, calificación B) y
+  tiene superávit comercial (~+300 M/mes); `post_conflicto` se deprecia a ~113 con déficit (~−100 M/mes). La intervención al 100 % deja la moneda en ~103 frente a ~112 y cuesta
+  ~7 % de la recaudación al mes.
+- Lo que sí cambia al activarlo: el PIB de un escenario sin intervención baja ~1 punto más en 24 meses (la productividad exportadora arrastra la caída de eficiencia).
 
 ## Política monetaria (Economía, Fase 2)
 
