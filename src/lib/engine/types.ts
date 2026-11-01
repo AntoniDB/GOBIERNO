@@ -49,6 +49,11 @@ export interface GameState {
   totalExports: number;
   /** Deuda pública acumulada (Economía, Fase 1). Sin dato = 0. */
   publicDebt?: number;
+  /**
+   * Choques persistentes de eventos sobre indicadores (engine/shocks.ts): se suman a la fórmula del indicador
+   * y se disipan cada mes. Ausente = sin choques.
+   */
+  indicatorShocks?: Partial<Record<"unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity", number>>;
   /** Puntaje de calificación crediticia 0-100 (engine/rating.ts). null/ausente = aún sin calcular (primer turno). */
   creditScore?: number | null;
   /** Crisis de deuda abierta: turnos que lleva sin resolverse (0 = no hay crisis). Ver engine/debt-crisis.ts. */

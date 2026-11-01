@@ -241,6 +241,7 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
     debtCrisisCooldown: (game.debtCrisisCooldown as number) ?? 0,
     marketsClosedMonths: (game.marketsClosedMonths as number) ?? 0,
     monthsSinceDefault: (game.monthsSinceDefault as number | null) ?? null,
+    indicatorShocks: (game.indicatorShocks ?? {}) as GameState["indicatorShocks"],
     tradeGoods: (game.tradeGoods ?? []).map((tg: Record<string, unknown>) => ({
       id: tg.id as string,
       gameId: tg.gameId as string,

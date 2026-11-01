@@ -426,6 +426,21 @@ export const BALANCE = {
   /** Puntos de desempleo por punto de severidad */
   EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT: 0.05,
 
+  // ─── Choques de los eventos sobre los indicadores (Issue 25) ─────────────
+  // Antes los deltas de los eventos se sumaban al estado en el paso 11b, pero el snapshot y el paso 8 del
+  // mes siguiente recalculaban los indicadores desde su fórmula y el delta se perdía. Ahora cada evento
+  // suma un "choque" a su indicador que persiste y se disipa (como la inflación, que ya tenía memoria):
+  //   indicador = fórmula + choque;   choque(t+1) = choque(t) × EVENT_SHOCK_RETENTION + nuevos choques
+  /** Fracción del choque que sigue vigente al mes siguiente (0,7 → vida media ≈ 2 meses) */
+  EVENT_SHOCK_RETENTION: 0.7,
+  /** Tope del choque acumulado de un indicador, en puntos (± este valor) */
+  EVENT_SHOCK_MAX: 25,
+  /** Puntos de choque por punto de severidad: crimen en una protesta y en una ola de criminalidad, alimentación en un desastre, enfermos en una epidemia */
+  EVENT_PROTEST_CRIME: 0.03,
+  EVENT_CRIME_SURGE_CRIME: 0.1,
+  EVENT_DISASTER_FOOD: 0.15,
+  EVENT_EPIDEMIC_SICK: 0.1,
+
   /** Multiplicadores de impacto de eventos por clase social.
    *  Epidemias, desastres y protestas golpean más a clases bajas (menos recursos).
    *  Escándalos, golpes y crisis criminal golpean más a clases medias/altas

@@ -458,6 +458,23 @@ ministerios con los pesos 14/16/18/10/12/8/10/12, así que el primer mes cierra 
 Para ajustar: cambiar `INITIAL_COMPTROLLER_BUDGET` o `BASE_SALARY_PER_MINISTER` mueve la suma inicial
 (el reparto se recalcula solo); los pesos relativos están en `generateMinistries`.
 
+## Choques de eventos sobre los indicadores (Issue 25)
+
+Los indicadores sociales se recalculan cada mes desde su fórmula (ministerios, leyes, sub-decisiones). Para que un evento deje huella,
+suma un **choque** que se añade a la fórmula y se disipa solo (`engine/shocks.ts`):
+
+```
+indicador   = fórmula + choque                       desempleo, enfermos, crimen y seguridad alimentaria
+choque(t+1) = choque(t) × EVENT_SHOCK_RETENTION + choques de los eventos del mes     (acotado a ±EVENT_SHOCK_MAX)
+```
+
+- `EVENT_SHOCK_RETENTION` (0.7): vida media ≈ 2 meses. `EVENT_SHOCK_MAX` (25): tope del choque acumulado, en puntos.
+- Puntos de choque por punto de severidad: ola de criminalidad → crimen `EVENT_CRIME_SURGE_CRIME` (0.1); protesta → crimen `EVENT_PROTEST_CRIME` (0.03);
+  desastre → alimentación `EVENT_DISASTER_FOOD` (−0.15); epidemia → enfermos `EVENT_EPIDEMIC_SICK` (0.1); crisis económica → desempleo
+  `EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT` (0.05). Ejemplos: ola de severidad 70 → +7 puntos de crimen (≈ +4,9 al mes siguiente); desastre de 60 → −9 de alimentación.
+- Los efectos de segundo orden salen solos: el desempleo sube el crimen y la pobreza, la pobreza sube el crimen y la aprobación.
+- Se guarda en `Game.indicatorShocks`; las partidas existentes empiezan sin choques.
+
 ## Política monetaria (Economía, Fase 2)
 
 Antes la inflación no tenía memoria: se recalculaba desde cero en cada llamada (≈0,2 "mensual"),
@@ -563,8 +580,8 @@ mercados cerrados  no se emite deuda: el faltante de caja se imprime (inflación
   recaudación); con una deuda mucho mayor solo da tiempo y la crisis vuelve a abrirse tras el enfriamiento (e2e: deuda 68 % del PIB, la
   austeridad frena la deuda y la calificación se estabiliza en BB-B). El default deja la carga de intereses en ~12 %: sin recortes posteriores el
   déficit monetizado empuja la inflación (≈ 20 → 45 % en dos años) y la crisis puede repetirse al reabrirse los mercados.
-- Los efectos del default sobre aprobación e inflación persisten por la inercia de ambas; el desempleo no se modifica (el motor lo recalcula
-  cada mes desde su fórmula, ver KNOWN_ISSUES #25).
+- Los efectos del default sobre aprobación e inflación persisten por la inercia de ambas; el desempleo no se modifica (podría usar un choque
+  de evento, ver "Choques de eventos sobre los indicadores", pero no se usa).
 
 ## Política fiscal y deuda pública (Economía, Fase 1)
 

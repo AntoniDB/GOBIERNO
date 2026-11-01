@@ -24,6 +24,7 @@ import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
 import { collectibleBase, debtToGdp, evasionRate } from "./fiscal";
 import { applyCentralBankPolicy, calculateInflation, monetaryEmission } from "./monetary";
+import { addEventShocks, decayIndicatorShocks } from "./shocks";
 import { advanceDebtCrisis, applyDebtCrisisResponse, settleMonth, updateCreditScore } from "./debt-crisis";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
@@ -736,6 +737,8 @@ export function processTurn(
   // pobreza y la aprobación la leen del estado.
   // ═══════════════════════════════════════════════════════════════════════
   newState.inflation = calculateInflation(newState, { taxRevenue: income, expenses, emission }).inflation;
+  // Los choques de eventos de meses anteriores se disipan antes de recalcular los indicadores (Issue 25)
+  decayIndicatorShocks(newState);
   newState.povertyRate = calculatePoverty(newState);
   newState.unemploymentRate = calculateUnemployment(newState);
   newState.sickRate = calculateHealthRegional(newState);
@@ -891,17 +894,20 @@ export function processTurn(
 
   const eventDeltas = applyEventEffects(eventsThisMonth);
 
-  newState.sickRate = Math.max(0, Math.min(100, newState.sickRate + eventDeltas.sickRateDelta));
-  newState.crimeRate = Math.max(0, Math.min(100, newState.crimeRate + eventDeltas.crimeRateDelta));
+  // Issue 25: los efectos de los eventos sobre desempleo, enfermos, crimen y alimentación entran como choques
+  // persistentes (se suman a la fórmula y se disipan), no como un delta que el snapshot recalculaba y perdía.
+  addEventShocks(newState, eventDeltas);
+  newState.sickRate = calculateHealthRegional(newState);
+  newState.crimeRate = calculateCrime(newState);
   // Sin piso en 0: un desastre que supera la caja se financia con deuda al cerrar el mes.
   newState.treasury -= eventDeltas.treasuryDelta;
   // Un ataque especulativo baja la calificación (se aplica al puntaje del mes anterior; el paso 13b lo actualiza)
   if (eventDeltas.creditScoreDelta > 0 && typeof newState.creditScore === "number") {
     newState.creditScore = Math.max(0, newState.creditScore - eventDeltas.creditScoreDelta);
   }
-  newState.foodSecurity = Math.max(0, Math.min(100, newState.foodSecurity + eventDeltas.foodDelta));
+  newState.foodSecurity = calculateFoodSecurity(newState);
   newState.inflation = Math.max(0, Math.min(100, newState.inflation + eventDeltas.inflationDelta));
-  newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
+  newState.unemploymentRate = calculateUnemployment(newState);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 11c: Disparar crisis sanitarias específicas (Salud-3B-ii)

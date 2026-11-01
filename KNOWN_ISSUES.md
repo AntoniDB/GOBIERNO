@@ -608,17 +608,31 @@ partida usaba otra cuenta, con todos los eventos históricos). BALANCE.md, secci
 aprobación general queda entre 31 y 56 (antes de los arreglos, 4–100). Con mala gestión sostenida (presupuestos al 2 %, corrupción
 85) el juego sí termina en golpe de estado en 1–3 meses.
 
-## 25. Los efectos de los eventos sobre desempleo, enfermos, crimen y alimentación se pierden al cerrar el turno — ABIERTO
+## 25. ~~Los efectos de los eventos sobre desempleo, enfermos, crimen y alimentación se perdían al cerrar el turno~~ — RESUELTO
 
-**Qué pasa (por lectura del código; no se probó en ejecución):** `applyEventEffects` suma deltas de `unemploymentRate`, `sickRate`,
-`crimeRate` y `foodSecurity` al estado (paso 11b), pero el paso 8 recalcula esos indicadores desde su fórmula cada mes y
-`createMonthSnapshot` los vuelve a calcular con `calculateUnemployment` / `calculateHealthRegional` / `calculateCrime` /
-`calculateFoodSecurity`: el snapshot nunca ve el delta del evento. Solo persisten el costo al tesoro y la inflación (que ya tiene memoria).
-Afecta a la crisis económica (`unemploymentIncrease`), a las epidemias, a las olas de crimen y a los desastres. Por eso la Fase 3 no
-usa efectos de desempleo en el default ni en los eventos de mercado.
+**Qué pasaba (confirmado: los tests nuevos fallan sin el arreglo):** `applyEventEffects` sumaba deltas de `unemploymentRate`, `sickRate`,
+`crimeRate` y `foodSecurity` al estado (paso 11b), pero `createMonthSnapshot` y el paso 8 del mes siguiente recalculaban esos
+indicadores desde su fórmula: el delta nunca llegaba al snapshot ni al mes siguiente. Solo persistían el costo al tesoro y la inflación.
+Afectaba a la crisis económica (`unemploymentIncrease`), las olas de criminalidad, las protestas, los desastres y las epidemias. Las magnitudes
+originales (`severidad × 2` puntos de crimen o de enfermos) nunca se habían visto en juego y habrían sido enormes.
 
-**Arreglo propuesto:** darles a esos indicadores un componente de "shock" con inercia (como la inflación) o aplicar el delta dentro de la
-fórmula del mes siguiente.
+**Solución:** cada evento suma un *choque* a su indicador (`engine/shocks.ts`, `GameState.indicatorShocks`, `Game.indicatorShocks`):
+`indicador = fórmula + choque`, el choque se disipa `EVENT_SHOCK_RETENTION` (0,7) por mes y se acota a ±`EVENT_SHOCK_MAX` (25).
+Las fórmulas de desempleo, enfermos, crimen y alimentación lo suman; el crimen y la pobreza heredan el del desempleo. Magnitudes reescaladas
+(`EVENT_CRIME_SURGE_CRIME` 0,1 / `EVENT_PROTEST_CRIME` 0,03 / `EVENT_DISASTER_FOOD` 0,15 / `EVENT_EPIDEMIC_SICK` 0,1 puntos por punto de
+severidad; la crisis económica ya traía 0,05 de desempleo). BALANCE.md, sección "Choques de eventos sobre los indicadores". Las partidas
+existentes arrancan sin choques (migración `20261102000000_indicator_shocks`).
+
+## 26. Varios efectos de los eventos no se aplican a nada — ABIERTO (informativo)
+
+**Qué pasa (por lectura del código):** `getEventEffects` (events.ts) declara efectos que ningún código consume: `healthMinistryPenalty`
+(epidemia), `corruptionIncrease` y `reputationDamage` (escándalo), `economicDisruption` (protesta), `securityPressure` (ola de criminalidad),
+`militarySubordinationPenalty` y `stabilityDamage` (golpe), `infrastructureDamage` (desastre) y `gdpPenalty` (crisis económica);
+`approvalPenalty` tampoco se lee (la aprobación usa la fórmula genérica por severidad de `approval.ts`). Solo se aplican el costo al
+tesoro, la inflación, la calificación y los cuatro indicadores del #25.
+
+**Arreglo propuesto:** decidir caso por caso si cada efecto se conecta (p. ej. `corruptionIncrease` a la corrupción de los funcionarios,
+`gdpPenalty` al PIB) o se elimina de la descripción del evento, para que no prometa algo que no ocurre.
 
 ## Nota para producción: Auth.js exige host de confianza
 

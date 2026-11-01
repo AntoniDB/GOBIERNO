@@ -81,6 +81,7 @@ function buildGameState(
     debtCrisisCooldown: game.debtCrisisCooldown ?? 0,
     marketsClosedMonths: game.marketsClosedMonths ?? 0,
     monthsSinceDefault: game.monthsSinceDefault ?? null,
+    indicatorShocks: (game.indicatorShocks ?? {}) as GameState["indicatorShocks"],
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,

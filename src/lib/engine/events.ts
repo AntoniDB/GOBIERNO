@@ -68,7 +68,7 @@ function getEventEffects(
   switch (type) {
     case "EPIDEMIC":
       return {
-        sickRateIncrease: Math.round(severity * 2),
+        sickRateIncrease: Math.round(severity * BALANCE.EVENT_EPIDEMIC_SICK * 10) / 10,
         healthMinistryPenalty: -Math.round(severity),
         treasuryCost: Math.round(severity * population * 0.5),
       };
@@ -80,13 +80,13 @@ function getEventEffects(
       };
     case "PROTEST":
       return {
-        crimeRateIncrease: Math.round(severity * 0.5),
+        crimeRateIncrease: Math.round(severity * BALANCE.EVENT_PROTEST_CRIME * 10) / 10,
         approvalPenalty: -Math.round(severity),
         economicDisruption: Math.round(severity * 0.3),
       };
     case "CRIME_SURGE":
       return {
-        crimeRateIncrease: Math.round(severity * 2),
+        crimeRateIncrease: Math.round(severity * BALANCE.EVENT_CRIME_SURGE_CRIME * 10) / 10,
         securityPressure: Math.round(severity),
       };
     case "COUP_ATTEMPT":
@@ -98,7 +98,7 @@ function getEventEffects(
     case "DISASTER":
       return {
         treasuryCost: Math.round(severity * population * 2),
-        foodSecurityPenalty: -Math.round(severity),
+        foodSecurityPenalty: -Math.round(severity * BALANCE.EVENT_DISASTER_FOOD * 10) / 10,
         infrastructureDamage: Math.round(severity * 1.5),
       };
     case "CAPITAL_FLIGHT":

@@ -137,6 +137,7 @@ export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<voi
         debtCrisisCooldown: newState.debtCrisisCooldown ?? 0,
         marketsClosedMonths: newState.marketsClosedMonths ?? 0,
         monthsSinceDefault: newState.monthsSinceDefault ?? null,
+        indicatorShocks: newState.indicatorShocks ?? {},
       },
     });
 
