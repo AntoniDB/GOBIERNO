@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import { BALANCE } from "../balance";
 import { createRNG, randomPick } from "../rng";
+import { entityId } from "./ids";
 
 /**
  * Calcula el umbral de meses para una fase judicial usando un hash
@@ -335,7 +336,7 @@ export function openAutoCases(
       );
 
       const newCase: JudicialCaseState = {
-        id: `auto-${state.currentYear}-${state.currentMonth}-${official.id}`,
+        id: entityId(state, "auto", state.currentYear, state.currentMonth, official.id),
         defendantOfficialId: official.id,
         caseType: "CORRUPTION",
         currentPhase: "INVESTIGATION",

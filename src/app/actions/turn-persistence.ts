@@ -10,7 +10,7 @@
 
 import {
   updateMinistries, upsertOfficials, updateSocialClasses, updateRegions,
-  updateDiseases, upsertDiseasePrevalences, upsertResourceStocks,
+  updateDiseases, upsertDiseasePrevalences, upsertResourceStocks, assertIdsBelongToGame,
 } from "./turn-batch";
 
 export interface PersistTurnContext {
@@ -29,6 +29,8 @@ export interface PersistTurnContext {
 
 export async function persistTurn(tx: any, ctx: PersistTurnContext): Promise<void> {
   const { gameId, game, newYear, newMonth, newState, monthSnapshot, newEvents, mediaCoverages, lawResults, enactedKeys, gameOver } = ctx;
+  // 0. Ninguna entidad del motor puede tener el id de una fila de otra partida (#22)
+  await assertIdsBelongToGame(tx, gameId, newState);
   // a. MonthSnapshot: INSERT ON CONFLICT (atómico, nunca P2002/25P02)
   const snapYear = game.currentYear;
   const snapMonth = game.currentMonth;

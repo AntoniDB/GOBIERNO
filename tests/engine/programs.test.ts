@@ -144,7 +144,7 @@ describe("createProgram / createNewPrograms", () => {
   it("crea un programa con ID unico y costo por defecto", () => {
     const state = crearEstadoBase();
     const prog = createProgram(state, "PREVENTION_EDUCATION");
-    expect(prog.id).toBe("prog-2024-1-0");
+    expect(prog.id).toBe("prog-test-2024-1-0");
     expect(prog.type).toBe("PREVENTION_EDUCATION");
     expect(prog.monthlyCost).toBe(BALANCE.PROGRAM_PREVENTION_COST);
     expect(prog.status).toBe("ACTIVE");
@@ -162,8 +162,8 @@ describe("createProgram / createNewPrograms", () => {
     const { programs, rejections } = createNewPrograms(state, input);
     expect(rejections).toEqual([]);
     expect(programs).toHaveLength(2);
-    expect(programs[0].id).toBe("prog-2024-1-0");
-    expect(programs[1].id).toBe("prog-2024-1-1");
+    expect(programs[0].id).toBe("prog-test-2024-1-0");
+    expect(programs[1].id).toBe("prog-test-2024-1-1");
     expect(programs[1].monthlyCost).toBe(BALANCE.PROGRAM_MENTAL_HEALTH_COST);
   });
 

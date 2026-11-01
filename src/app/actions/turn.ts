@@ -52,6 +52,7 @@ function asIdeology(raw: any): Ideology {
 function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, latestSnapshot: MonthSnapshotData | null, lawCatalogMap: Map<string, LawCatalogEntry>): GameState {
   const initial = initialEconomy(game.preset, game.difficulty);
   return {
+    gameId: game.id,
     countryName: game.countryName,
     currentYear: game.currentYear,
     currentMonth: game.currentMonth,

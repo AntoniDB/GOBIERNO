@@ -174,7 +174,7 @@ describe("createNewDecisions (el cliente solo elige tipo y parámetros)", () => 
     expect(rejections).toEqual([]);
     expect(decisions).toHaveLength(1);
     expect(decisions[0]).toMatchObject({
-      id: "lrd-2024-6-0",
+      id: "lrd-test-seed-2024-6-0",
       type: "HOSPITAL_CONSTRUCTION",
       name: "Construcción hospital secondary — Capital",
       totalMonths: BALANCE.HOSPITAL_DURATIONS.secondary,
@@ -238,7 +238,7 @@ describe("createNewDecisions (el cliente solo elige tipo y parámetros)", () => 
       ],
     });
     expect(rejections).toHaveLength(1);
-    expect(decisions.map((d) => d.id)).toEqual(["lrd-2024-6-0", "lrd-2024-6-1"]);
+    expect(decisions.map((d) => d.id)).toEqual(["lrd-test-seed-2024-6-0", "lrd-test-seed-2024-6-1"]);
   });
 
   it("devuelve vacío si no hay newLongRunningDecisions", () => {

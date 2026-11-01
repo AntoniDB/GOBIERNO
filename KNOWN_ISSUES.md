@@ -560,16 +560,24 @@ umbral 15, así que la crisis económica no podía ocurrir.
 **Solución:** inflación anual con inercia, credibilidad y Banco Central (`engine/monetary.ts`), calculada una vez por mes y
 leída del estado por los demás. La crisis usa la inflación real con efectos reescalados. Ver BALANCE.md, "Política monetaria".
 
-## 22. IDs del motor que se repiten entre partidas: una partida pisa filas de otra — ABIERTO (prioridad alta)
+## 22. ~~IDs del motor que se repiten entre partidas: una partida pisa filas de otra~~ — RESUELTO
 
-**Qué pasa (verificado en la e2e de la Fase 2):** el motor genera ids como `org-{año}-{mes}-{i}` (organismos, `turn.ts:81`),
-`cand-…` (candidatos, `candidates.ts:72`), `invest-…` (casos judiciales), `lrd-…` y `prog-…`. No incluyen la partida, y la
-persistencia hace `upsert`/`ON CONFLICT ("id") DO UPDATE`. Si dos partidas crean, p. ej., un organismo en el mismo mes de juego,
-la segunda **actualiza la fila de la primera** (con sus datos) y nunca crea la suya: en la prueba, el Banco Central de una
-partida no se guardó porque `org-1-1-0` ya existía en otra. Con varios jugadores en la misma base, corrompe datos entre partidas.
+**Qué pasaba (verificado en la e2e de la Fase 2):** el motor generaba ids como `org-{año}-{mes}-{i}` (organismos), `cand-…`
+(candidatos), `invest-…` y `auto-…` (casos judiciales), `lrd-…` y `prog-…`, sin la partida, y la persistencia los guarda con
+`upsert` / `ON CONFLICT ("id") DO UPDATE`. Si dos partidas creaban algo el mismo mes de juego, la segunda **actualizaba la fila de
+la primera** y nunca creaba la suya (el Banco Central de una partida no se guardó porque `org-1-1-0` ya existía en otra).
 
-**Arreglo propuesto:** ids únicos por partida (p. ej. derivados de `state.seed` o un uuid determinista sembrado) y, en la
-persistencia, acotar los `upsert` por `gameId`. Revisar filas ya cruzadas en bases existentes.
+**Solución:**
+- `engine/ids.ts:entityId` arma esos ids con la partida: `prefijo-{gameId}-…` (sin `gameId`, p. ej. en tests, usa el seed).
+  `GameState.gameId` se carga desde `Game.id` en los dos `buildGameState`. Sigue siendo determinista.
+- Defensa en la persistencia: `turn-batch.ts:assertIdsBelongToGame` comprueba en una sola consulta, antes de escribir, que
+  ningún id de funcionarios, organismos, casos, decisiones de varios meses o programas pertenezca a otra partida; si alguno
+  choca, aborta el turno (la transacción se revierte) en vez de pisar datos ajenos.
+- Verificado con Postgres: dos partidas que crean un Banco Central y reciben candidatos el mismo mes guardan cada una lo suyo,
+  y un id plantado en otra partida hace fallar el turno sin tocar esa fila.
+
+**Datos existentes:** por decisión del usuario no se migran. Las filas ya cruzadas (de partidas jugadas antes del arreglo)
+quedan como están; las partidas nuevas no generan choques.
 
 ## 23. Las crisis sanitarias suben la aprobación — ABIERTO
 

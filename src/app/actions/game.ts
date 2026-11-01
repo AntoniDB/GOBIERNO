@@ -66,6 +66,7 @@ function buildGameState(
 ): GameState {
   const initial = initialEconomy(game.preset, game.difficulty);
   return {
+    gameId: game.id,
     countryName: game.countryName,
     currentYear: game.currentYear,
     currentMonth: game.currentMonth,

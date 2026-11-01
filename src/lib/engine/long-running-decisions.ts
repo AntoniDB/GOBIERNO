@@ -11,6 +11,7 @@
 import type { GameState, LongRunningDecisionState, TurnInput } from "./types";
 import { BALANCE } from "../balance";
 import { scaleCost, costScaleFactor } from "./cost-scale";
+import { entityId } from "./ids";
 
 /**
  * Avanza todas las LRD activas un mes:
@@ -163,7 +164,7 @@ export function createNewDecisions(
     }
     const { decision } = built;
     decisions.push({
-      id: `lrd-${state.currentYear}-${state.currentMonth}-${decisions.length}`,
+      id: entityId(state, "lrd", state.currentYear, state.currentMonth, decisions.length),
       ...decision,
       monthsRemaining: decision.totalMonths,
       status: "IN_PROGRESS",

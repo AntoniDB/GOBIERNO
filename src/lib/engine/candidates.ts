@@ -8,6 +8,7 @@ import type { GameState, OfficialState } from "./types";
 import { BALANCE } from "../balance";
 import { scaleCost } from "./cost-scale";
 import type { Ideology } from "./types";
+import { entityId } from "./ids";
 
 const ROLES = ["JUDGE", "PROSECUTOR", "JUDGE", "PROSECUTOR", "MINISTER", "GENERAL"];
 
@@ -69,7 +70,7 @@ export function generateCandidates(
     };
 
     candidates.push({
-      id: `cand-${state.currentYear}-${state.currentMonth}-${i}`,
+      id: entityId(state, "cand", state.currentYear, state.currentMonth, i),
       name,
       role,
       specialty: null,

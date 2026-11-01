@@ -26,6 +26,7 @@ import type {
 import { BALANCE } from "../balance";
 import { scaleCost } from "./cost-scale";
 import { diseaseTargetPrevalence } from "./diseases";
+import { entityId } from "./ids";
 
 /**
  * Catalogo de enfermedades que tienen vacuna disponible.
@@ -50,7 +51,7 @@ export function createProgram(
   idx = 0,
 ): MinistryProgramState {
   return {
-    id: `prog-${state.currentYear}-${state.currentMonth}-${idx}`,
+    id: entityId(state, "prog", state.currentYear, state.currentMonth, idx),
     type,
     parameters,
     monthlyCost: defaultCostFor(type, state.population),

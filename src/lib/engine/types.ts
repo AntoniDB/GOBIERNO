@@ -3,6 +3,8 @@
 // objetos planos, haciéndolo puro, testeable y serializable.
 
 export interface GameState {
+  /** Id de la partida (Game.id). Lo usan los ids que crea el motor para ser únicos entre partidas (ids.ts). */
+  gameId?: string;
   countryName: string;
   currentYear: number;
   currentMonth: number;

@@ -190,3 +190,36 @@ export async function upsertResourceStocks(tx, gameId, stocks) {
     DO UPDATE SET "quantity" = EXCLUDED."quantity", "updatedAt" = NOW()
   `;
 }
+
+/**
+ * Defensa ante ids repetidos entre partidas (KNOWN_ISSUES #22). Las entidades que crea el motor
+ * (funcionarios/candidatos, organismos, casos, decisiones de varios meses, programas) se guardan
+ * con `upsert` por id: si un id ya perteneciera a OTRA partida, el `upsert` pisaría esa fila. Los
+ * ids del motor ya incluyen la partida (engine/ids.ts); esto verifica, en una sola consulta, que
+ * ninguno choque con otra partida y, si choca, aborta el turno (la transacción se revierte) en vez
+ * de corromper datos ajenos.
+ */
+export async function assertIdsBelongToGame(tx, gameId, state) {
+  const ids = (rows) => (rows ?? []).map((r) => r.id);
+  const clashes = await tx.$queryRaw`
+    SELECT 'Official' AS "table", "id" FROM "Official"
+      WHERE "id" = ANY(${ids(state.officials)}::text[]) AND "gameId" <> ${gameId}
+    UNION ALL
+    SELECT 'Organism', "id" FROM "Organism"
+      WHERE "id" = ANY(${ids(state.organisms)}::text[]) AND "gameId" <> ${gameId}
+    UNION ALL
+    SELECT 'JudicialCase', "id" FROM "JudicialCase"
+      WHERE "id" = ANY(${ids(state.judicialCases)}::text[]) AND "gameId" <> ${gameId}
+    UNION ALL
+    SELECT 'LongRunningDecision', "id" FROM "LongRunningDecision"
+      WHERE "id" = ANY(${ids(state.longRunningDecisions)}::text[]) AND "gameId" <> ${gameId}
+    UNION ALL
+    SELECT 'MinistryProgram', "id" FROM "MinistryProgram"
+      WHERE "id" = ANY(${ids(state.programs)}::text[]) AND "gameId" <> ${gameId}
+    LIMIT 5
+  `;
+  if (clashes.length > 0) {
+    const list = clashes.map((c) => `${c.table} ${c.id}`).join(", ");
+    throw new Error(`Ids de otra partida en el turno (no se guardó nada para no pisar datos ajenos): ${list}`);
+  }
+}

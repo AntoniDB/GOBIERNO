@@ -7,7 +7,7 @@ import { persistTurn } from "@/app/actions/turn-persistence";
 import { getTransactionOptions } from "@/lib/db-config";
 
 // tx simulado: registra cada sentencia SQL (plantilla etiquetada) y cada operación de modelo
-function fakeTx() {
+function fakeTx(queryRows: unknown[] = []) {
   const sql: { text: string; values: unknown[] }[] = [];
   const ops: string[] = [];
   const executeRaw = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -15,9 +15,15 @@ function fakeTx() {
     ops.push("$executeRaw");
     return 0;
   });
+  // Lecturas crudas (control de ids de otra partida): devuelven `queryRows`
+  const queryRaw = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    sql.push({ text: strings.join("?"), values });
+    ops.push("$queryRaw");
+    return queryRows;
+  });
   const model = (name: string) =>
     new Proxy({}, { get: (_t, method: string) => async () => { ops.push(`${name}.${method}`); return null; } });
-  const tx = new Proxy({ $executeRaw: executeRaw } as Record<string, unknown>, {
+  const tx = new Proxy({ $executeRaw: executeRaw, $queryRaw: queryRaw } as Record<string, unknown>, {
     get: (t, p: string) => (p in t ? t[p] : model(p)),
   });
   return { tx, sql, ops };
@@ -133,10 +139,27 @@ describe("persistTurn: presupuesto de operaciones", () => {
     expect(big.ops.length).toBe(small.ops.length);
   });
 
+  it("verifica en una sola consulta que ningún id del motor sea de otra partida (#22)", async () => {
+    const { tx, sql, ops } = fakeTx();
+    await persistTurn(tx, ctx());
+    expect(ops[0]).toBe("$queryRaw"); // antes de escribir nada
+    expect(ops.filter((o) => o === "$queryRaw")).toHaveLength(1);
+    for (const tabla of ["Official", "Organism", "JudicialCase", "LongRunningDecision", "MinistryProgram"]) {
+      expect(sql[0].text).toContain(`FROM "${tabla}"`);
+    }
+    expect(sql[0].values).toContain("g");
+  });
+
+  it("si un id pertenece a otra partida, aborta el turno sin escribir (#22)", async () => {
+    const { tx, ops } = fakeTx([{ table: "Organism", id: "org-1-1-0" }]);
+    await expect(persistTurn(tx, ctx())).rejects.toThrow(/Organism org-1-1-0/);
+    expect(ops).toEqual(["$queryRaw"]);
+  });
+
   it("solo la ley recién promulgada crea ActiveLaw, y una vez", async () => {
     type Call = { model: string; args: { data: { lawKey: string }[] } };
     const calls: Call[] = [];
-    const tx = new Proxy({ $executeRaw: async () => 0 } as Record<string, unknown>, {
+    const tx = new Proxy({ $executeRaw: async () => 0, $queryRaw: async () => [] } as Record<string, unknown>, {
       get: (t, p: string) => (p in t ? t[p] : new Proxy({}, { get: (_m, method: string) => async (args: Call["args"]) => { calls.push({ model: `${p}.${method}`, args }); return null; } })),
     });
     const c = ctx({ lawResults: [

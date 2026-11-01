@@ -67,24 +67,13 @@ import {
   applyOutbreakEffects,
   updateEfficiencyStreak,
 } from "./health-crises";
+import { entityId } from "./ids";
 
 /**
  * Clona profundamente el estado del juego para mutarlo de forma segura.
  */
 function cloneState(state: GameState): GameState {
   return JSON.parse(JSON.stringify(state)) as GameState;
-}
-
-/**
- * Genera un ID único basado en año, mes y un contador.
- */
-function generateId(
-  prefix: string,
-  year: number,
-  month: number,
-  index: number
-): string {
-  return `${prefix}-${year}-${month}-${index}`;
 }
 
 /**
@@ -232,7 +221,7 @@ export function processTurn(
         });
       }
       const organism: OrganismState = {
-        id: generateId("org", newState.currentYear, newState.currentMonth, orgIndex),
+        id: entityId(newState, "org", newState.currentYear, newState.currentMonth, orgIndex),
         type,
         name: config.name,
         monthlyBudget: resolved.monthlyBudget,
@@ -490,7 +479,8 @@ export function processTurn(
         eligibleJudges.length > 0 ? eligibleJudges[caseIdx % eligibleJudges.length] : null;
 
       const investigationCase: JudicialCaseState = {
-        id: generateId(
+        id: entityId(
+          newState,
           "invest",
           newState.currentYear,
           newState.currentMonth,
@@ -1031,7 +1021,7 @@ export function processTurn(
         );
         if (prosecutors.length > 0 && judges.length > 0) {
           const newCase = {
-            id: `auto-malpractice-${dirId}-${newState.currentYear}-${newState.currentMonth}`,
+            id: entityId(newState, "auto-malpractice", dirId, newState.currentYear, newState.currentMonth),
             defendantOfficialId: dirId,
             caseType: "CORRUPTION" as const,
             currentPhase: "INVESTIGATION" as const,
@@ -1114,7 +1104,7 @@ export function processTurn(
         target
       ) {
         const newCase: JudicialCaseState = {
-          id: `auto-invest-${newState.currentYear}-${newState.currentMonth}-${result.exposedOfficialId}`,
+          id: entityId(newState, "auto-invest", newState.currentYear, newState.currentMonth, result.exposedOfficialId),
           defendantOfficialId: result.exposedOfficialId,
           caseType: "CORRUPTION",
           currentPhase: "INVESTIGATION",
