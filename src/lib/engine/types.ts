@@ -53,7 +53,10 @@ export interface GameState {
    * Choques persistentes de eventos sobre indicadores (engine/shocks.ts): se suman a la fórmula del indicador
    * y se disipan cada mes. Ausente = sin choques.
    */
-  indicatorShocks?: Partial<Record<"unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity", number>>;
+  indicatorShocks?: Partial<Record<
+    "unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity" | "gdpPct" | "healthEfficiency" | "securityEfficiency",
+    number
+  >>;
   /** Puntaje de calificación crediticia 0-100 (engine/rating.ts). null/ausente = aún sin calcular (primer turno). */
   creditScore?: number | null;
   /** Crisis de deuda abierta: turnos que lleva sin resolverse (0 = no hay crisis). Ver engine/debt-crisis.ts. */

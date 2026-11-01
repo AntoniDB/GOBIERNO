@@ -9,7 +9,13 @@
 import { BALANCE } from "../balance";
 import type { GameState } from "./types";
 
-export type ShockKey = "unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity";
+/**
+ * Indicadores con choque. `gdpPct` es un % del PIB (negativo = pérdida); `healthEfficiency` y `securityEfficiency`
+ * son puntos de eficiencia que pierde el ministerio (positivo = pérdida).
+ */
+export type ShockKey =
+  | "unemploymentRate" | "sickRate" | "crimeRate" | "foodSecurity"
+  | "gdpPct" | "healthEfficiency" | "securityEfficiency";
 
 /** Choque vigente de un indicador (0 si no hay o no es un número válido). */
 export function indicatorShock(state: Pick<GameState, "indicatorShocks">, key: ShockKey): number {
@@ -33,13 +39,19 @@ export function decayIndicatorShocks(state: Pick<GameState, "indicatorShocks">):
 /** Suma los deltas de los eventos del mes a los choques (con tope ±EVENT_SHOCK_MAX por indicador). */
 export function addEventShocks(
   state: Pick<GameState, "indicatorShocks">,
-  deltas: { unemploymentDelta: number; sickRateDelta: number; crimeRateDelta: number; foodDelta: number },
+  deltas: {
+    unemploymentDelta: number; sickRateDelta: number; crimeRateDelta: number; foodDelta: number;
+    gdpPctDelta?: number; healthEfficiencyDelta?: number; securityEfficiencyDelta?: number;
+  },
 ): void {
   const add: Record<ShockKey, number> = {
     unemploymentRate: deltas.unemploymentDelta,
     sickRate: deltas.sickRateDelta,
     crimeRate: deltas.crimeRateDelta,
     foodSecurity: deltas.foodDelta,
+    gdpPct: deltas.gdpPctDelta ?? 0,
+    healthEfficiency: deltas.healthEfficiencyDelta ?? 0,
+    securityEfficiency: deltas.securityEfficiencyDelta ?? 0,
   };
   const next = { ...(state.indicatorShocks ?? {}) };
   for (const key of Object.keys(add) as ShockKey[]) {

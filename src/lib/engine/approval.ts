@@ -39,6 +39,15 @@ function isNegativeEventType(eventType: string): boolean {
 }
 
 /**
+ * Penalización de aprobación (puntos, negativa) que declara un evento negativo: severidad × APPROVAL_EVENT_WEIGHT.
+ * `calculateApprovalByClass` la lee de `effectsApplied.approvalPenalty` (× el peso de la clase), así que lo
+ * declarado es lo que se aplica (Issue 26: antes se declaraba y no se leía).
+ */
+export function approvalPenaltyFor(severity: number): number {
+  return -Math.round(severity * BALANCE.APPROVAL_EVENT_WEIGHT * 10) / 10;
+}
+
+/**
  * Aprobación de una clase tras aplicar la inercia: se acerca a su valor objetivo una fracción
  * APPROVAL_INERTIA cada mes (ver balance.ts). Pura; redondea a 0,1 y acota a [0, 100].
  */
@@ -107,7 +116,11 @@ export function calculateApprovalByClass(
   let eventPenalty = 0;
   let eventBonus = 0;
   for (const event of eventsThisMonth) {
-    const impactBase = event.severity * BALANCE.APPROVAL_EVENT_WEIGHT;
+    // Puntos que declara el evento (approvalPenalty, negativo); sin ellos, severidad × peso (como antes)
+    const declared = (event.effectsApplied as Record<string, unknown> | undefined)?.approvalPenalty;
+    const impactBase = typeof declared === "number" && Number.isFinite(declared) && declared < 0
+      ? -declared
+      : event.severity * BALANCE.APPROVAL_EVENT_WEIGHT;
 
     const classImpactMap =
       BALANCE.EVENT_CLASS_IMPACT[event.type as keyof typeof BALANCE.EVENT_CLASS_IMPACT];

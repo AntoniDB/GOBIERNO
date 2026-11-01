@@ -8,7 +8,7 @@ import type {
   TurnNotification,
 } from "./types";
 import { BALANCE } from "../balance";
-import { currentApproval } from "./approval";
+import { approvalPenaltyFor, currentApproval } from "./approval";
 
 /**
  * Deltas acumulados de efectos de eventos sobre el estado del juego.
@@ -22,6 +22,17 @@ export interface EventEffectsDelta {
   unemploymentDelta: number;
   /** Puntos de calificación crediticia que se pierden (ataque especulativo) */
   creditScoreDelta: number;
+  /** Choque sobre el PIB, en % (negativo = pérdida): crisis económica, protesta, desastre */
+  gdpPctDelta: number;
+  /** Puntos de eficiencia que pierden Salud (epidemia) y Seguridad (ola de criminalidad) */
+  healthEfficiencyDelta: number;
+  securityEfficiencyDelta: number;
+  /** Escándalo: puntos de corrupción que suma a los funcionarios activos y reputación que pierden los más corruptos */
+  corruptionDelta: number;
+  reputationDelta: number;
+  /** Intento de golpe: cambio de la subordinación militar (negativo) y de las libertades civiles (negativo) */
+  militarySubordinationDelta: number;
+  civilLibertiesDelta: number;
 }
 
 /**
@@ -69,37 +80,37 @@ function getEventEffects(
     case "EPIDEMIC":
       return {
         sickRateIncrease: Math.round(severity * BALANCE.EVENT_EPIDEMIC_SICK * 10) / 10,
-        healthMinistryPenalty: -Math.round(severity),
+        healthMinistryPenalty: -Math.round(severity * BALANCE.EVENT_EPIDEMIC_HEALTH_EFFICIENCY * 10) / 10,
         treasuryCost: Math.round(severity * population * 0.5),
       };
     case "SCANDAL":
       return {
-        corruptionIncrease: Math.round(severity * 0.5),
-        approvalPenalty: -Math.round(severity),
-        reputationDamage: Math.round(severity * 0.8),
+        corruptionIncrease: Math.round(severity * BALANCE.EVENT_SCANDAL_CORRUPTION * 10) / 10,
+        approvalPenalty: approvalPenaltyFor(severity),
+        reputationDamage: Math.round(severity * BALANCE.EVENT_SCANDAL_REPUTATION * 10) / 10,
       };
     case "PROTEST":
       return {
         crimeRateIncrease: Math.round(severity * BALANCE.EVENT_PROTEST_CRIME * 10) / 10,
-        approvalPenalty: -Math.round(severity),
-        economicDisruption: Math.round(severity * 0.3),
+        approvalPenalty: approvalPenaltyFor(severity),
+        economicDisruption: -Math.round(severity * BALANCE.EVENT_PROTEST_GDP * 10) / 10,
       };
     case "CRIME_SURGE":
       return {
         crimeRateIncrease: Math.round(severity * BALANCE.EVENT_CRIME_SURGE_CRIME * 10) / 10,
-        securityPressure: Math.round(severity),
+        securityPressure: Math.round(severity * BALANCE.EVENT_CRIME_SURGE_SECURITY_EFFICIENCY * 10) / 10,
       };
     case "COUP_ATTEMPT":
       return {
-        militarySubordinationPenalty: -Math.round(severity * 3),
-        approvalPenalty: -Math.round(severity * 2),
-        stabilityDamage: Math.round(severity * 2),
+        militarySubordinationPenalty: -Math.round(severity * BALANCE.EVENT_COUP_MILITARY_SUBORDINATION * 10) / 10,
+        approvalPenalty: approvalPenaltyFor(severity * BALANCE.EVENT_COUP_APPROVAL_MULT),
+        stabilityDamage: Math.round(severity * BALANCE.EVENT_COUP_CIVIL_LIBERTIES * 10) / 10,
       };
     case "DISASTER":
       return {
         treasuryCost: Math.round(severity * population * 2),
         foodSecurityPenalty: -Math.round(severity * BALANCE.EVENT_DISASTER_FOOD * 10) / 10,
-        infrastructureDamage: Math.round(severity * 1.5),
+        infrastructureDamage: -Math.round(severity * BALANCE.EVENT_DISASTER_GDP * 10) / 10,
       };
     case "CAPITAL_FLIGHT":
       return {
@@ -117,7 +128,7 @@ function getEventEffects(
         treasuryCost: Math.round(severity * population * BALANCE.EVENT_ECONOMIC_CRISIS_COST_PER_CAPITA),
         inflationIncrease: Math.round(severity * BALANCE.EVENT_ECONOMIC_CRISIS_INFLATION_SHOCK * 10) / 10,
         unemploymentIncrease: Math.round(severity * BALANCE.EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT * 10) / 10,
-        gdpPenalty: -Math.round(severity * BALANCE.GDP_CRISIS_PENALTY / 100),
+        gdpPenalty: -Math.round(severity * BALANCE.GDP_CRISIS_PENALTY / 100 * 10) / 10,
       };
     default:
       return { severity };
@@ -356,7 +367,15 @@ export function applyEventEffects(
     inflationDelta: 0,
     unemploymentDelta: 0,
     creditScoreDelta: 0,
+    gdpPctDelta: 0,
+    healthEfficiencyDelta: 0,
+    securityEfficiencyDelta: 0,
+    corruptionDelta: 0,
+    reputationDelta: 0,
+    militarySubordinationDelta: 0,
+    civilLibertiesDelta: 0,
   };
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
   for (const event of events) {
     const eff = event.effectsApplied as Record<string, number>;
@@ -382,6 +401,14 @@ export function applyEventEffects(
     if (typeof eff.creditScoreHit === "number") {
       deltas.creditScoreDelta += eff.creditScoreHit;
     }
+    // Issue 26: efectos que se declaraban y nadie leía (penalizaciones negativas, daños positivos)
+    deltas.gdpPctDelta += num(eff.gdpPenalty) + num(eff.economicDisruption) + num(eff.infrastructureDamage);
+    deltas.healthEfficiencyDelta += -num(eff.healthMinistryPenalty);
+    deltas.securityEfficiencyDelta += num(eff.securityPressure);
+    deltas.corruptionDelta += num(eff.corruptionIncrease);
+    deltas.reputationDelta += num(eff.reputationDamage);
+    deltas.militarySubordinationDelta += num(eff.militarySubordinationPenalty);
+    deltas.civilLibertiesDelta += -num(eff.stabilityDamage);
   }
 
   return deltas;

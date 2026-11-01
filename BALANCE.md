@@ -119,7 +119,8 @@ Aprobación objetivo:
 objetivo = APPROVAL_BASE (50)
            + efectos de leyes activas
            + efectos de sub-decisiones (por clase)
-           - impacto de eventos negativos del mes (Σ severidad * APPROVAL_EVENT_WEIGHT * classMultiplier,
+           - impacto de eventos negativos del mes (Σ puntos del evento * classMultiplier, con puntos = effectsApplied.approvalPenalty
+             o, si no lo declara, severidad * APPROVAL_EVENT_WEIGHT;
              máx. APPROVAL_EVENT_MAX_PENALTY); los no negativos suman APPROVAL_EVENT_POSITIVE_FACTOR de eso
              (máx. APPROVAL_EVENT_MAX_BONUS)
            - (pobreza − 30) * APPROVAL_INDICATOR_WEIGHT si pobreza > 30% y clase es POBREZA/EXTREMA_POBREZA
@@ -473,7 +474,30 @@ choque(t+1) = choque(t) × EVENT_SHOCK_RETENTION + choques de los eventos del me
   desastre → alimentación `EVENT_DISASTER_FOOD` (−0.15); epidemia → enfermos `EVENT_EPIDEMIC_SICK` (0.1); crisis económica → desempleo
   `EVENT_ECONOMIC_CRISIS_UNEMPLOYMENT` (0.05). Ejemplos: ola de severidad 70 → +7 puntos de crimen (≈ +4,9 al mes siguiente); desastre de 60 → −9 de alimentación.
 - Los efectos de segundo orden salen solos: el desempleo sube el crimen y la pobreza, la pobreza sube el crimen y la aprobación.
-- Se guarda en `Game.indicatorShocks`; las partidas existentes empiezan sin choques.
+- Se guarda en `Game.indicatorShocks`; las partidas existentes empiezan sin choques. Los choques se disipan **al inicio** del turno (antes de
+  calcular ingresos, eficiencias e indicadores), así que todos los pasos ven el mismo valor.
+
+**Resto de los efectos de los eventos (Issue 26).** Cada evento declara sus efectos en `effectsApplied` y ahora todos tienen destino
+(`events.ts:applyEventEffects` → `shocks.ts` / `event-effects.ts`); las magnitudes originales se reescalaron:
+
+| Efecto declarado (evento) | Destino | Magnitud |
+|---|---|---|
+| `gdpPenalty` (crisis económica) | choque `gdpPct`: `calculateGDP` × (1 + choque/100); también baja la recaudación | −severidad × `GDP_CRISIS_PENALTY` (5) / 100 (−5 % a severidad 100) |
+| `economicDisruption` (protesta) | choque `gdpPct` | −severidad × `EVENT_PROTEST_GDP` (0.01) |
+| `infrastructureDamage` (desastre) | choque `gdpPct` (la producción se recupera mientras se reconstruye) | −severidad × `EVENT_DISASTER_GDP` (0.03) |
+| `healthMinistryPenalty` (epidemia, hoy no se genera) | choque `healthEfficiency`: se resta a la eficiencia de Salud (paso 5) | severidad × `EVENT_EPIDEMIC_HEALTH_EFFICIENCY` (0.1) |
+| `securityPressure` (ola de criminalidad) | choque `securityEfficiency`: se resta a la eficiencia de Seguridad (paso 5) | severidad × `EVENT_CRIME_SURGE_SECURITY_EFFICIENCY` (0.1) |
+| `corruptionIncrease` (escándalo) | suma a la corrupción de cada funcionario activo (persiste; la reducen Contraloría y Fiscalía) | severidad × `EVENT_SCANDAL_CORRUPTION` (0.02) |
+| `reputationDamage` (escándalo) | resta reputación a los `EVENT_SCANDAL_EXPOSED_OFFICIALS` (3) activos más corruptos | severidad × `EVENT_SCANDAL_REPUTATION` (0.1) |
+| `militarySubordinationPenalty` (golpe) | `regimeMetrics.militarySubordination` (se mueve hacia su base con `REGIME_REGENERATION_RATE`) | −severidad × `EVENT_COUP_MILITARY_SUBORDINATION` (0.15) |
+| `stabilityDamage` (golpe) | `regimeMetrics.civilLiberties` | −severidad × `EVENT_COUP_CIVIL_LIBERTIES` (0.1) |
+| `approvalPenalty` (escándalo, protesta, golpe, colapso hospitalario, mala praxis) | aprobación (ver "Aprobacion") | −severidad × `APPROVAL_EVENT_WEIGHT`; el golpe × `EVENT_COUP_APPROVAL_MULT` (2) |
+
+- Los eventos sin `approvalPenalty` (ola de criminalidad, desastre, crisis económica, eventos de mercado…) usan severidad × `APPROVAL_EVENT_WEIGHT`, igual que
+  antes. Con esta escala común el golpe es el único cuyo impacto en la aprobación cambia (×2); colapso hospitalario y mala praxis conservan el suyo.
+- La referencia fiscal del primer mes (`fiscalBaseReference`) se calcula sin el choque de PIB de un evento de ese mes.
+- Prueba e2e (Postgres, crisis + golpe + escándalo forzados en un turno): PIB −5,3 % que se recupera (choque −5 → −0,84 en 5 meses); subordinación militar y libertades civiles
+  bajan 6 y 4 puntos y siguen su regeneración; los choques se guardan en `Game.indicatorShocks`.
 
 ## Política monetaria (Economía, Fase 2)
 

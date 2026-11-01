@@ -623,16 +623,20 @@ Las fórmulas de desempleo, enfermos, crimen y alimentación lo suman; el crimen
 severidad; la crisis económica ya traía 0,05 de desempleo). BALANCE.md, sección "Choques de eventos sobre los indicadores". Las partidas
 existentes arrancan sin choques (migración `20261102000000_indicator_shocks`).
 
-## 26. Varios efectos de los eventos no se aplican a nada — ABIERTO (informativo)
+## 26. ~~Varios efectos de los eventos no se aplicaban a nada~~ — RESUELTO
 
-**Qué pasa (por lectura del código):** `getEventEffects` (events.ts) declara efectos que ningún código consume: `healthMinistryPenalty`
-(epidemia), `corruptionIncrease` y `reputationDamage` (escándalo), `economicDisruption` (protesta), `securityPressure` (ola de criminalidad),
-`militarySubordinationPenalty` y `stabilityDamage` (golpe), `infrastructureDamage` (desastre) y `gdpPenalty` (crisis económica);
-`approvalPenalty` tampoco se lee (la aprobación usa la fórmula genérica por severidad de `approval.ts`). Solo se aplican el costo al
-tesoro, la inflación, la calificación y los cuatro indicadores del #25.
+**Qué pasaba (verificado con grep en `src/`):** `getEventEffects` declaraba `healthMinistryPenalty` (epidemia), `corruptionIncrease` y
+`reputationDamage` (escándalo), `economicDisruption` (protesta), `securityPressure` (ola de criminalidad), `militarySubordinationPenalty` y
+`stabilityDamage` (golpe), `infrastructureDamage` (desastre), `gdpPenalty` (crisis económica) y `approvalPenalty` (también en `health-crises.ts`),
+y ningún código los leía: los eventos prometían efectos que no ocurrían. Las magnitudes (p. ej. −3 × severidad de subordinación militar) nunca se habían visto.
 
-**Arreglo propuesto:** decidir caso por caso si cada efecto se conecta (p. ej. `corruptionIncrease` a la corrupción de los funcionarios,
-`gdpPenalty` al PIB) o se elimina de la descripción del evento, para que no prometa algo que no ocurre.
+**Solución (decisión del usuario: conectar todos):** cada efecto tiene destino y magnitud reescalada con constantes en `balance.ts`:
+PIB, eficiencia de Salud y Seguridad (choques que se disipan, `shocks.ts`), corrupción y reputación de funcionarios, subordinación militar y
+libertades civiles (`event-effects.ts`) y aprobación (`approval.ts` lee `approvalPenalty`). Tabla completa en BALANCE.md, "Choques de eventos
+sobre los indicadores". Sin migración (los choques nuevos viajan en el mismo JSON de #25).
+
+**Verificación:** `tests/engine/event-effects.test.ts` (18 tests); Postgres: 24 partidas × 36 turnos sobreviven (aprobación 31–56) y un turno con crisis
+económica, golpe y escándalo forzados cambia PIB, régimen, corrupción y reputación como indica la tabla.
 
 ## Nota para producción: Auth.js exige host de confianza
 

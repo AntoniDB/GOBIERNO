@@ -24,7 +24,8 @@ import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
 import { collectibleBase, debtToGdp, evasionRate } from "./fiscal";
 import { applyCentralBankPolicy, calculateInflation, monetaryEmission } from "./monetary";
-import { addEventShocks, decayIndicatorShocks } from "./shocks";
+import { addEventShocks, decayIndicatorShocks, indicatorShock } from "./shocks";
+import { applyEventStateEffects } from "./event-effects";
 import { advanceDebtCrisis, applyDebtCrisisResponse, settleMonth, updateCreditScore } from "./debt-crisis";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
@@ -558,6 +559,10 @@ export function processTurn(
     });
   }
 
+  // Los choques de eventos de meses anteriores se disipan al inicio, antes de calcular ingresos, eficiencias e
+  // indicadores: todos ven el mismo choque vigente (Issues 25 y 26)
+  decayIndicatorShocks(newState);
+
   // ═══════════════════════════════════════════════════════════════════════
   // PASO 1i: Banco Central autónomo (Economía, Fase 2)
   // Fija la tasa de interés con la regla de Taylor y anula la emisión, por encima
@@ -688,6 +693,12 @@ export function processTurn(
       (o) => o.role === "MINISTRY_DIRECTOR" && o.ministryId === ministry.id && o.status === "ACTIVE"
     );
     ministry.efficiency = calculateMinistryEfficiency(ministry, minister, directors.length > 0 ? directors : undefined);
+    // Issue 26: una epidemia tensa a Salud y una ola de criminalidad a Seguridad (choques que se disipan)
+    if (ministry.key === "HEALTH" || ministry.key === "salud") {
+      ministry.efficiency = Math.max(0, ministry.efficiency - indicatorShock(newState, "healthEfficiency"));
+    } else if (ministry.key === "SECURITY" || ministry.key === "seguridad") {
+      ministry.efficiency = Math.max(0, ministry.efficiency - indicatorShock(newState, "securityEfficiency"));
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -737,8 +748,6 @@ export function processTurn(
   // pobreza y la aprobación la leen del estado.
   // ═══════════════════════════════════════════════════════════════════════
   newState.inflation = calculateInflation(newState, { taxRevenue: income, expenses, emission }).inflation;
-  // Los choques de eventos de meses anteriores se disipan antes de recalcular los indicadores (Issue 25)
-  decayIndicatorShocks(newState);
   newState.povertyRate = calculatePoverty(newState);
   newState.unemploymentRate = calculateUnemployment(newState);
   newState.sickRate = calculateHealthRegional(newState);
@@ -896,7 +905,11 @@ export function processTurn(
 
   // Issue 25: los efectos de los eventos sobre desempleo, enfermos, crimen y alimentación entran como choques
   // persistentes (se suman a la fórmula y se disipan), no como un delta que el snapshot recalculaba y perdía.
+  // Issue 26: el resto de los efectos declarados (PIB, eficiencia de Salud/Seguridad, corrupción, reputación,
+  // subordinación militar, libertades civiles) también tiene destino: choques o estado persistente.
   addEventShocks(newState, eventDeltas);
+  applyEventStateEffects(newState, eventDeltas);
+  newState.gdp = calculateGDP(newState);
   newState.sickRate = calculateHealthRegional(newState);
   newState.crimeRate = calculateCrime(newState);
   // Sin piso en 0: un desastre que supera la caja se financia con deuda al cerrar el mes.
@@ -1216,7 +1229,9 @@ export function processTurn(
   updateCreditScore(newState, { monthlyRevenue: income, monthlyExpenses: expenses });
   allNotifications.push(...advanceDebtCrisis(newState, { monthlyRevenue: income, monthlyExpenses: expenses }));
   if (!(newState.fiscalBaseReference && newState.fiscalBaseReference > 0)) {
-    const reference = collectibleBase(newState.gdp, evasionRate(newState.officials, newState.organisms));
+    // La referencia es la economía "normal" del primer mes: sin el choque de un evento de ese mes (Issue 26)
+    const gdpWithoutShock = calculateGDP({ ...newState, indicatorShocks: { ...newState.indicatorShocks, gdpPct: 0 } });
+    const reference = collectibleBase(gdpWithoutShock, evasionRate(newState.officials, newState.organisms));
     newState.fiscalBaseReference = reference > 0 ? reference : null;
   }
 

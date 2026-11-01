@@ -441,6 +441,26 @@ export const BALANCE = {
   EVENT_DISASTER_FOOD: 0.15,
   EVENT_EPIDEMIC_SICK: 0.1,
 
+  // ─── Resto de efectos de los eventos (Issue 26) ──────────────────────────
+  // Estos efectos se declaraban en effectsApplied pero ningún código los leía. Ahora cada uno tiene destino:
+  //   PIB (choque gdpPct, % del PIB), eficiencia de Salud/Seguridad (choques), corrupción y reputación de
+  //   funcionarios, subordinación militar y libertades civiles (métricas de régimen) y aprobación.
+  /** Puntos de % del PIB que quita por punto de severidad: protesta (interrupción económica) y desastre (infraestructura dañada). La crisis económica usa GDP_CRISIS_PENALTY */
+  EVENT_PROTEST_GDP: 0.01,
+  EVENT_DISASTER_GDP: 0.03,
+  /** Puntos de eficiencia ministerial que quita por punto de severidad: epidemia → Salud, ola de criminalidad → Seguridad */
+  EVENT_EPIDEMIC_HEALTH_EFFICIENCY: 0.1,
+  EVENT_CRIME_SURGE_SECURITY_EFFICIENCY: 0.1,
+  /** Escándalo: puntos de corrupción que suma a cada funcionario activo y reputación que pierden los más corruptos, por punto de severidad */
+  EVENT_SCANDAL_CORRUPTION: 0.02,
+  EVENT_SCANDAL_REPUTATION: 0.1,
+  /** Cuántos funcionarios (los más corruptos) quedan expuestos por un escándalo */
+  EVENT_SCANDAL_EXPOSED_OFFICIALS: 3,
+  /** Intento de golpe: puntos que quita por punto de severidad a la subordinación militar y a las libertades civiles, y multiplicador de su impacto en la aprobación */
+  EVENT_COUP_MILITARY_SUBORDINATION: 0.15,
+  EVENT_COUP_CIVIL_LIBERTIES: 0.1,
+  EVENT_COUP_APPROVAL_MULT: 2,
+
   /** Multiplicadores de impacto de eventos por clase social.
    *  Epidemias, desastres y protestas golpean más a clases bajas (menos recursos).
    *  Escándalos, golpes y crisis criminal golpean más a clases medias/altas

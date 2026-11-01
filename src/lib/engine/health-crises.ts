@@ -10,6 +10,7 @@ import type { DiseaseState } from "./diseases";
 import { calculateNationalSaturationMortality } from "./indicators";
 import { isMedicationShortage, calculateImportCoverage } from "./trade";
 import { BALANCE } from "../balance";
+import { approvalPenaltyFor } from "./approval";
 import { regionBeds, regionSaturation } from "./hospital-capacity";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -202,7 +203,7 @@ export function detectHospitalCollapse(
         saturationRatio,
         mortalityFactor: 1 + BALANCE.COLLAPSE_MORTALITY_FACTOR * severity,
         dominantClassKey: dominantClass?.key,
-        approvalPenalty: Math.round(-5 - (severity / 100) * 10),
+        approvalPenalty: approvalPenaltyFor(severity),
       },
       resolvedAt: null,
     });
@@ -291,7 +292,7 @@ export function detectMalpracticeScandal(
     effectsApplied: {
       directorOfficialId: target.id,
       reputationHit,
-      approvalPenalty: -Math.round(severity / 5),
+      approvalPenalty: approvalPenaltyFor(severity),
       opensJudicialCase: true,
     },
     resolvedAt: null,

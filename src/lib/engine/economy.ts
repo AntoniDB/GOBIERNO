@@ -5,6 +5,7 @@ import type { GameState, LawCatalogEntry } from "./types";
 import { BALANCE } from "../balance";
 import { scaleLawCost } from "./cost-scale";
 import { subDecisionDeltas, subDecisionContext } from "./sub-decision-effects";
+import { indicatorShock } from "./shocks";
 import { collectibleBase, economyFactor, evasionRate, monthlyDebtInterest, taxMixFactor } from "./fiscal";
 
 /** Suma de modificadores de la tasa impositiva de las leyes activas (en fracción). */
@@ -273,6 +274,9 @@ export function calculateGDP(state: GameState): number {
 
   // Sub-decisiones (STEM, tasa de interés, apertura...): modificador en % del PIB
   gdp += gdp * (subDecisionDeltas(state.ministries, state.population, subDecisionContext(state)).indicators.gdpPct / 100);
+
+  // Choque de eventos (crisis económica, protesta, desastre): % del PIB que se pierde y se recupera solo (Issue 26)
+  gdp += gdp * (indicatorShock(state, "gdpPct") / 100);
 
   return Math.max(0, gdp);
 }
