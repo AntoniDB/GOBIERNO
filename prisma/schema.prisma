@@ -119,6 +119,8 @@ enum EventType {
   MEDICATION_SHORTAGE
   MALPRACTICE_SCANDAL
   MEDICAL_BREAKTHROUGH
+  CAPITAL_FLIGHT
+  SPECULATIVE_ATTACK
 }
 
 enum TradeGoodCategory {
@@ -203,6 +205,12 @@ model Game {
   // null hasta cerrar el primer turno). Ver lib/engine/fiscal.ts.
   publicDebt          Float  @default(0)
   fiscalBaseReference Float?
+  // Riesgo país y crisis de deuda (lib/engine/rating.ts, debt-crisis.ts). creditScore null = aún sin calcular.
+  creditScore         Float?
+  debtCrisisMonths    Int    @default(0)
+  debtCrisisCooldown  Int    @default(0)
+  marketsClosedMonths Int    @default(0)
+  monthsSinceDefault  Int?
   createdAt     DateTime  @default(now())
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -270,6 +278,7 @@ model MonthSnapshot {
   totalImports      Float      @default(0)
   totalExports      Float      @default(0)
   publicDebt        Float      @default(0)
+  creditScore       Float      @default(0)
   createdAt     DateTime @default(now())
 
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)

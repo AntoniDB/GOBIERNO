@@ -1,0 +1,13 @@
+-- AlterEnum
+ALTER TYPE "EventType" ADD VALUE 'CAPITAL_FLIGHT';
+ALTER TYPE "EventType" ADD VALUE 'SPECULATIVE_ATTACK';
+
+-- AlterTable
+ALTER TABLE "Game" ADD COLUMN     "creditScore" DOUBLE PRECISION,
+ADD COLUMN     "debtCrisisCooldown" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "debtCrisisMonths" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "marketsClosedMonths" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "monthsSinceDefault" INTEGER;
+
+-- AlterTable
+ALTER TABLE "MonthSnapshot" ADD COLUMN     "creditScore" DOUBLE PRECISION NOT NULL DEFAULT 0;

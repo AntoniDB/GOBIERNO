@@ -7,6 +7,7 @@ import { getDemoGameId } from "@/app/actions/demo";
 import { LongRunningDecisionsPanel } from "@/components/game/long-running-decisions-panel";
 import Link from "next/link";
 import { debtToGdp } from "@/lib/engine/fiscal";
+import { ratingFromScore } from "@/lib/engine/rating";
 
 /* ── Colores de ministerios ─────────────────────────────────────────────────── */
 const MIN_CFG: Record<string, { abbr: string; color: string }> = {
@@ -326,6 +327,8 @@ export default function DashboardPage() {
   const debtRaw       = gameState.publicDebt ?? 0;
   const debtLabel     = debtRaw >= 1e9 ? `${(debtRaw / 1e9).toFixed(1)}B` : `${(debtRaw / 1e6).toFixed(0)}M`;
   const debtRatioPct  = debtToGdp(debtRaw, gdpRaw) * 100;
+  const ratingLetter  = ratingFromScore(gameState.creditScore) ?? "—";
+  const ratingColor   = ["AAA", "AA", "A", "BBB"].includes(ratingLetter) ? "#00C87E" : ["BB", "B"].includes(ratingLetter) ? "#E08800" : "#FF2090";
   const giniVal       = snap?.gini ?? 0;
   const regimeLabel   = snap?.regimeType ?? "—";
   const regimeColorVal = regimeLabel.includes("plena")
@@ -438,6 +441,10 @@ Rango tipico: 30-50% en pais en desarrollo.`} />
               </div>
               <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
                 Deuda pública: <span style={{ fontFamily: FFM, fontWeight: 700, color: "#0A0A0A" }}>{debtLabel} AKN</span>
+                {" · "}Calificación: <span style={{ fontFamily: FFM, fontWeight: 700, color: ratingColor }}>{ratingLetter}</span>
+                {(gameState.debtCrisisMonths ?? 0) > 0 && (
+                  <span style={{ marginLeft: 8, fontWeight: 700, color: "#FF2090" }}>CRISIS DE DEUDA</span>
+                )}
               </div>
             </div>
             <div>

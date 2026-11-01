@@ -36,6 +36,8 @@ export interface GameStore {
   hireCandidate: (officialId: string) => void;
   assignOrganismHead: (organismId: string, officialId: string) => void;
   dissolveOrganism: (organismId: string) => void;
+  /** Respuesta a una crisis de deuda abierta (se envía al avanzar el mes); null la retira */
+  setDebtCrisisResponse: (response: "AUSTERITY" | "DEFAULT" | null) => void;
   startLongRunningDecision: (type: "HOSPITAL_CONSTRUCTION" | "MEDICAL_RESEARCH", parameters: Record<string, unknown>) => void;
   cancelLongRunningDecision: (lrdId: string) => void;
   startProgram: (type: "VACCINATION_CAMPAIGN" | "PREVENTION_EDUCATION" | "MENTAL_HEALTH_PROGRAM", parameters?: Record<string, unknown>) => void;
@@ -220,6 +222,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           organismId,
         ],
       },
+    }));
+  },
+
+  setDebtCrisisResponse: (response) => {
+    set((prev) => ({
+      pendingInput: { ...prev.pendingInput, debtCrisisResponse: response ?? undefined },
     }));
   },
 

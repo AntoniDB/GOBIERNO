@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { numberRange } from "@/lib/engine/sub-decisions";
 import { subDecisionDeltas, describeSubDecisionEffects, suppressedSubDecisions } from "@/lib/engine/sub-decision-effects";
 import { calculateTaxRevenue } from "@/lib/engine/economy";
-import { debtAnnualRate, debtToGdp } from "@/lib/engine/fiscal";
+import { debtAnnualRate, debtToGdp, monthlyDebtInterest } from "@/lib/engine/fiscal";
+import { interestBurden, ratingFromScore, ratingSpread } from "@/lib/engine/rating";
+import { isDebtCrisisOpen } from "@/lib/engine/debt-crisis";
 import {
   centralBank, isCentralBankAutonomous, monetaryCredibility, monetaryEmission, policyRate, taylorRate,
 } from "@/lib/engine/monetary";
@@ -333,13 +335,58 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
       debt,
       debtRatio: debtToGdp(debt, gameState.gdp),
       debtRate: debtAnnualRate(gameState),
+      rating: ratingFromScore(gameState.creditScore),
+      spread: ratingSpread(gameState.creditScore),
+      burden: interestBurden(monthlyDebtInterest(gameState), current.revenue),
+      crisisOpen: isDebtCrisisOpen(gameState),
+      crisisMonths: gameState.debtCrisisMonths ?? 0,
+      marketsClosed: gameState.marketsClosedMonths ?? 0,
     };
   }, [gameState, subDecisions]);
+  const response = useGameStore((s) => s.pendingInput.debtCrisisResponse);
+  const setResponse = useGameStore((s) => s.setDebtCrisisResponse);
   if (!summary) return null;
   const fmt = (n: number) => `M$ ${(n / 1_000_000).toFixed(1)}`;
+  const graceLeft = Math.max(0, BALANCE.DEBT_CRISIS_GRACE_MONTHS + 1 - summary.crisisMonths);
   const diff = summary.proposed - summary.current;
   return (
     <div className="border-t border-border pt-3 space-y-1 text-xs">
+      {summary.crisisOpen && (
+        <div className="mb-3 space-y-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+          <p className="font-medium text-destructive">Crisis de deuda: los mercados dejaron de prestar</p>
+          <p className="text-muted-foreground">
+            Los intereses consumen {Number.isFinite(summary.burden) ? Math.round(summary.burden * 100) : 100}% de la recaudación. Si no
+            respondes en {graceLeft} mes{graceLeft === 1 ? "" : "es"}, el país cae en default automático.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="xs"
+              variant={response === "AUSTERITY" ? "default" : "outline"}
+              onClick={() => setResponse(response === "AUSTERITY" ? null : "AUSTERITY")}
+            >
+              Austeridad (−{Math.round(BALANCE.AUSTERITY_BUDGET_CUT * 100)}% presupuestos)
+            </Button>
+            <Button
+              size="xs"
+              variant={response === "DEFAULT" ? "destructive" : "outline"}
+              onClick={() => setResponse(response === "DEFAULT" ? null : "DEFAULT")}
+            >
+              Declarar default (−{Math.round(BALANCE.DEFAULT_HAIRCUT * 100)}% de la deuda)
+            </Button>
+          </div>
+          <p className="text-muted-foreground">
+            Austeridad: recorta todos los presupuestos, baja la aprobación y calma a los mercados. Default: quita de la deuda, calificación D,
+            mercados cerrados {BALANCE.DEFAULT_MARKET_CLOSURE_MONTHS} meses (el déficit se financia imprimiendo dinero) y sanciones.
+            Se aplica al avanzar el mes.
+          </p>
+        </div>
+      )}
+      {summary.marketsClosed > 0 && (
+        <p className="mb-2 text-destructive">
+          Mercados cerrados {summary.marketsClosed} mes{summary.marketsClosed === 1 ? "" : "es"} más tras el default: no hay deuda nueva,
+          el déficit se cubre imprimiendo dinero.
+        </p>
+      )}
       <p className="font-medium text-muted-foreground">Política fiscal</p>
       <div className="flex justify-between gap-2">
         <span>Recaudación estimada</span>
@@ -360,6 +407,18 @@ function FiscalSummary({ subDecisions }: { subDecisions: Record<string, number |
         <span>Deuda pública</span>
         <span className="font-mono tabular-nums">
           {fmt(summary.debt)} ({(summary.debtRatio * 100).toFixed(1)}% del PIB, {(summary.debtRate * 100).toFixed(1)}% anual)
+        </span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Calificación crediticia</span>
+        <span className="font-mono tabular-nums">
+          {summary.rating ?? "—"}{summary.rating ? ` (+${(summary.spread * 100).toFixed(1)}% de diferencial)` : ""}
+        </span>
+      </div>
+      <div className="flex justify-between gap-2">
+        <span>Intereses / recaudación</span>
+        <span className="font-mono tabular-nums">
+          {Number.isFinite(summary.burden) ? `${(summary.burden * 100).toFixed(1)}%` : "—"} (crisis desde {Math.round(BALANCE.DEBT_CRISIS_INTEREST_BURDEN * 100)}%)
         </span>
       </div>
       <p className="font-medium text-muted-foreground pt-2">Política monetaria</p>

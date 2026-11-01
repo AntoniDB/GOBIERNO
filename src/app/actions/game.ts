@@ -76,6 +76,11 @@ function buildGameState(
     seed: game.seed,
     publicDebt: game.publicDebt ?? 0,
     fiscalBaseReference: game.fiscalBaseReference ?? null,
+    creditScore: game.creditScore ?? null,
+    debtCrisisMonths: game.debtCrisisMonths ?? 0,
+    debtCrisisCooldown: game.debtCrisisCooldown ?? 0,
+    marketsClosedMonths: game.marketsClosedMonths ?? 0,
+    monthsSinceDefault: game.monthsSinceDefault ?? null,
     consecutiveLowApprovalMonths: (game as Record<string, unknown>).consecutiveLowApprovalMonths as number ?? 0,
     ministries: game.ministries.map((m: Record<string, unknown>) => ({
       id: m.id as string,
@@ -357,6 +362,7 @@ export async function getSnapshots(gameId: string): Promise<MonthSnapshotData[]>
     }) as MonthSnapshotData["regimeMetrics"],
     diseasePrevalences: (s.diseasePrevalences as Array<{ diseaseId: string; name: string; category: string; prevalence: number }> | undefined) ?? undefined,
     publicDebt: Number(s.publicDebt) || 0,
+    creditScore: Number(s.creditScore) || 0,
   }));
 }
 

@@ -11,6 +11,7 @@
 
 import { BALANCE, SUB_DECISION_EFFECTS } from "../balance";
 import { calculateGlobalCorruption } from "./corruption";
+import { ratingSpread } from "./rating";
 import type { GameState, MinistryState, OfficialState, OrganismState } from "./types";
 
 export const TAX_KEYS = ["iva", "impuestoRenta", "impuestoSociedades"] as const;
@@ -97,23 +98,24 @@ export function debtToGdp(debt: number, gdp: number): number {
 }
 
 /**
- * Tasa anual que paga la deuda: base + traspaso de la tasa de interés de referencia + prima de riesgo
- * si la deuda supera el umbral seguro sobre el PIB. Nunca baja de DEBT_MIN_ANNUAL_RATE.
+ * Tasa anual que paga la deuda: base + traspaso de la tasa de interés de referencia + diferencial de la
+ * calificación crediticia (rating.ts; sin calificación o tras un default, con la deuda reestructurada, 0).
+ * Nunca baja de DEBT_MIN_ANNUAL_RATE.
  */
-export function debtAnnualRate(state: Pick<GameState, "ministries" | "gdp"> & { publicDebt?: number }): number {
+export function debtAnnualRate(state: Pick<GameState, "ministries"> & { creditScore?: number | null; marketsClosedMonths?: number }): number {
   const eco = economyMinistry(state.ministries);
   const policy = eco?.subDecisions?.tasaInteres;
   const neutralPolicy = SUB_DECISION_EFFECTS.ECONOMY.tasaInteres.neutral as number;
   const policyRate = typeof policy === "number" && Number.isFinite(policy) ? policy : neutralPolicy;
-  const ratio = debtToGdp(state.publicDebt ?? 0, state.gdp);
   const rate = BALANCE.DEBT_BASE_ANNUAL_RATE
     + BALANCE.DEBT_POLICY_RATE_PASSTHROUGH * ((policyRate - neutralPolicy) / 100)
-    + BALANCE.DEBT_RISK_PREMIUM * Math.max(0, ratio - BALANCE.DEBT_SAFE_GDP_RATIO);
+    // Con los mercados cerrados (tras un default) la deuda que queda es la reestructurada: sin diferencial
+    + ((state.marketsClosedMonths ?? 0) > 0 ? 0 : ratingSpread(state.creditScore));
   return Math.max(BALANCE.DEBT_MIN_ANNUAL_RATE, rate);
 }
 
 /** Intereses mensuales de la deuda (gasto fijo del mes). */
-export function monthlyDebtInterest(state: Pick<GameState, "ministries" | "gdp"> & { publicDebt?: number }): number {
+export function monthlyDebtInterest(state: Pick<GameState, "ministries"> & { publicDebt?: number; creditScore?: number | null; marketsClosedMonths?: number }): number {
   const debt = state.publicDebt ?? 0;
   if (!(debt > 0)) return 0;
   return (debt * debtAnnualRate(state)) / 12;

@@ -31,6 +31,9 @@ function isNegativeEventType(eventType: string): boolean {
     "MALPRACTICE_SCANDAL",
     // Reportaje que expone corrupción del gobierno
     "LEAK",
+    // Eventos de mercado (Economía, Fase 3)
+    "CAPITAL_FLIGHT",
+    "SPECULATIVE_ATTACK",
   ];
   return negativeTypes.includes(eventType);
 }

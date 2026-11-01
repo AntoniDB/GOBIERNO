@@ -20,6 +20,8 @@ export interface EventEffectsDelta {
   foodDelta: number;
   inflationDelta: number;
   unemploymentDelta: number;
+  /** Puntos de calificación crediticia que se pierden (ataque especulativo) */
+  creditScoreDelta: number;
 }
 
 /**
@@ -44,6 +46,10 @@ function getEventDescription(
       return `Intento de golpe de Estado ${severityLabel}. Severidad: ${Math.round(severity)}%.`;
     case "DISASTER":
       return `Desastre natural ${severityLabel} causa estragos. Severidad: ${Math.round(severity)}%.`;
+    case "CAPITAL_FLIGHT":
+      return `Fuga de capitales ${severityLabel}: los inversores sacan su dinero del país por la desconfianza en sus cuentas. Severidad: ${Math.round(severity)}%.`;
+    case "SPECULATIVE_ATTACK":
+      return `Ataque especulativo ${severityLabel} contra la economía: los mercados apuestan contra la deuda del país. Severidad: ${Math.round(severity)}%.`;
     case "ECONOMIC_CRISIS":
       return `Crisis económica ${severityLabel} golpea las finanzas. Severidad: ${Math.round(severity)}%.`;
     default:
@@ -94,6 +100,17 @@ function getEventEffects(
         treasuryCost: Math.round(severity * population * 2),
         foodSecurityPenalty: -Math.round(severity),
         infrastructureDamage: Math.round(severity * 1.5),
+      };
+    case "CAPITAL_FLIGHT":
+      return {
+        treasuryCost: Math.round(severity * population * BALANCE.RATING_CAPITAL_FLIGHT_COST_PER_CAPITA),
+        inflationIncrease: Math.round(severity * BALANCE.RATING_CAPITAL_FLIGHT_INFLATION * 10) / 10,
+      };
+    case "SPECULATIVE_ATTACK":
+      return {
+        treasuryCost: Math.round(severity * population * BALANCE.RATING_ATTACK_COST_PER_CAPITA),
+        inflationIncrease: Math.round(severity * BALANCE.RATING_ATTACK_INFLATION * 10) / 10,
+        creditScoreHit: Math.round((severity / 100) * BALANCE.RATING_ATTACK_SCORE_HIT * 10) / 10,
       };
     case "ECONOMIC_CRISIS":
       return {
@@ -167,6 +184,9 @@ export function triggerRandomEvents(
     0,
     Math.min(100, BALANCE.CRIME_BASE - BALANCE.CRIME_SECURITY_FACTOR * securityImpact)
   );
+
+  // Puntaje de calificación crediticia (sin calcular todavía = sano: no hay eventos de mercado)
+  const creditScore = typeof state.creditScore === "number" && Number.isFinite(state.creditScore) ? state.creditScore : 100;
 
   // Inflación anual del estado (antes era la constante BASE_INFLATION y la crisis nunca se disparaba)
   const inflation = Number.isFinite(state.inflation) ? state.inflation : BALANCE.INFLATION_TARGET;
@@ -253,6 +273,19 @@ export function triggerRandomEvents(
       severityFn: () => Math.min(100, BALANCE.EVENT_ECONOMIC_CRISIS_BASE_SEVERITY
         + (inflation - BALANCE.EVENT_ECONOMIC_CRISIS_INFLATION) * BALANCE.EVENT_ECONOMIC_CRISIS_SEVERITY_PER_POINT),
     },
+    // Eventos de mercado (Fase 3): una calificación especulativa los vuelve posibles
+    {
+      type: "CAPITAL_FLIGHT",
+      condition: creditScore < BALANCE.RATING_EVENT_CAPITAL_FLIGHT_SCORE,
+      baseProb: BALANCE.RATING_EVENT_CAPITAL_FLIGHT_PROB,
+      severityFn: () => Math.min(100, 30 + (BALANCE.RATING_EVENT_CAPITAL_FLIGHT_SCORE - creditScore) * 2),
+    },
+    {
+      type: "SPECULATIVE_ATTACK",
+      condition: creditScore < BALANCE.RATING_EVENT_ATTACK_SCORE,
+      baseProb: BALANCE.RATING_EVENT_ATTACK_PROB,
+      severityFn: () => Math.min(100, 30 + (BALANCE.RATING_EVENT_ATTACK_SCORE - creditScore) * 2.5),
+    },
   ];
 
   let eventIndex = 0;
@@ -322,6 +355,7 @@ export function applyEventEffects(
     foodDelta: 0,
     inflationDelta: 0,
     unemploymentDelta: 0,
+    creditScoreDelta: 0,
   };
 
   for (const event of events) {
@@ -344,6 +378,9 @@ export function applyEventEffects(
     }
     if (typeof eff.unemploymentIncrease === "number") {
       deltas.unemploymentDelta += eff.unemploymentIncrease;
+    }
+    if (typeof eff.creditScoreHit === "number") {
+      deltas.creditScoreDelta += eff.creditScoreHit;
     }
   }
 

@@ -172,12 +172,14 @@ describe("deuda pública", () => {
   const conTasa = (tasaInteres: number, publicDebt: number, gdp: number) =>
     ({ ministries: economia({ tasaInteres }), gdp, publicDebt }) as unknown as GameState;
 
-  it("tasa anual: base con la tasa de referencia inicial; sube con la tasa y con la deuda sobre el umbral", () => {
+  it("tasa anual: base con la tasa de referencia inicial; sube con la tasa y con el diferencial de la calificación", () => {
     expect(debtAnnualRate(conTasa(4.5, 0, 1000))).toBeCloseTo(BALANCE.DEBT_BASE_ANNUAL_RATE, 10);
     expect(debtAnnualRate(conTasa(10.5, 0, 1000))).toBeCloseTo(
       BALANCE.DEBT_BASE_ANNUAL_RATE + BALANCE.DEBT_POLICY_RATE_PASSTHROUGH * 0.06, 10);
-    expect(debtAnnualRate(conTasa(4.5, 1000, 1000))).toBeCloseTo(
-      BALANCE.DEBT_BASE_ANNUAL_RATE + BALANCE.DEBT_RISK_PREMIUM * (1 - BALANCE.DEBT_SAFE_GDP_RATIO), 10);
+    // Con calificación B el diferencial es RATING_SPREADS.B; AAA no paga diferencial; sin calificación, 0
+    expect(debtAnnualRate({ ...conTasa(4.5, 1000, 1000), creditScore: 40 } as never)).toBeCloseTo(
+      BALANCE.DEBT_BASE_ANNUAL_RATE + BALANCE.RATING_SPREADS.B, 10);
+    expect(debtAnnualRate({ ...conTasa(4.5, 1000, 1000), creditScore: 95 } as never)).toBeCloseTo(BALANCE.DEBT_BASE_ANNUAL_RATE, 10);
     expect(debtAnnualRate(conTasa(-100, 0, 1000))).toBe(BALANCE.DEBT_MIN_ANNUAL_RATE);
   });
 

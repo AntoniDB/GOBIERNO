@@ -22,8 +22,9 @@ import { calculateIncome } from "./economy";
 import { calculateExpenses } from "./economy";
 import { calculateTreasury } from "./economy";
 import { calculateGDP } from "./economy";
-import { collectibleBase, debtToGdp, evasionRate, settlePublicDebt } from "./fiscal";
+import { collectibleBase, debtToGdp, evasionRate } from "./fiscal";
 import { applyCentralBankPolicy, calculateInflation, monetaryEmission } from "./monetary";
+import { advanceDebtCrisis, applyDebtCrisisResponse, settleMonth, updateCreditScore } from "./debt-crisis";
 import { calculateMinistryEfficiency, calculateMinistryInternalCorruption } from "./ministries";
 import { updateOfficialCorruption } from "./corruption";
 import {
@@ -564,6 +565,12 @@ export function processTurn(
   allNotifications.push(...applyCentralBankPolicy(newState, input.subDecisionChanges?.ECONOMY));
 
   // ═══════════════════════════════════════════════════════════════════════
+  // PASO 1j: Respuesta a la crisis de deuda (Economía, Fase 3)
+  // Austeridad (recorta los presupuestos ya ajustados por el jugador) o default.
+  // ═══════════════════════════════════════════════════════════════════════
+  allNotifications.push(...applyDebtCrisisResponse(newState, input.debtCrisisResponse));
+
+  // ═══════════════════════════════════════════════════════════════════════
   // PASO 2: Calcular ingresos fiscales (+ emisión monetaria, ingreso no tributario)
   // ═══════════════════════════════════════════════════════════════════════
   const income = calculateIncome(newState);
@@ -888,6 +895,10 @@ export function processTurn(
   newState.crimeRate = Math.max(0, Math.min(100, newState.crimeRate + eventDeltas.crimeRateDelta));
   // Sin piso en 0: un desastre que supera la caja se financia con deuda al cerrar el mes.
   newState.treasury -= eventDeltas.treasuryDelta;
+  // Un ataque especulativo baja la calificación (se aplica al puntaje del mes anterior; el paso 13b lo actualiza)
+  if (eventDeltas.creditScoreDelta > 0 && typeof newState.creditScore === "number") {
+    newState.creditScore = Math.max(0, newState.creditScore - eventDeltas.creditScoreDelta);
+  }
   newState.foodSecurity = Math.max(0, Math.min(100, newState.foodSecurity + eventDeltas.foodDelta));
   newState.inflation = Math.max(0, Math.min(100, newState.inflation + eventDeltas.inflationDelta));
   newState.unemploymentRate = Math.max(0, Math.min(100, newState.unemploymentRate + eventDeltas.unemploymentDelta));
@@ -1167,12 +1178,14 @@ export function processTurn(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PASO 13b: Cerrar la caja del mes (Economía, Fase 1)
-  // - Tesoro negativo → se emite deuda pública por el faltante (tesoro 0).
+  // PASO 13b: Cerrar la caja del mes (Economía, Fases 1 y 3)
+  // - Tesoro negativo → se emite deuda pública por el faltante (tesoro 0); con los mercados cerrados
+  //   tras un default se imprime dinero en su lugar (inflación).
   // - Caja por encima de la reserva (DEBT_CASH_RESERVE_MONTHS meses de gasto) → amortiza deuda.
+  // - Calificación crediticia del mes y máquina de la crisis de deuda (abrir, plazo, default automático).
   // - Primer turno: se fija la base imponible de referencia con la que se mide la recaudación.
   // ═══════════════════════════════════════════════════════════════════════
-  const debtSettlement = settlePublicDebt(newState, expenses);
+  const debtSettlement = settleMonth(newState, expenses, income);
   if (debtSettlement.issued > 0) {
     allNotifications.push({
       type: "warning",
@@ -1187,6 +1200,15 @@ export function processTurn(
       description: `El superávit permitió amortizar M$ ${(debtSettlement.amortized / 1_000_000).toFixed(1)} de deuda pública. Deuda restante: M$ ${((newState.publicDebt ?? 0) / 1_000_000).toFixed(1)}.`,
     });
   }
+  if (debtSettlement.monetized > 0) {
+    allNotifications.push({
+      type: "warning",
+      title: "Déficit monetizado",
+      description: `Con los mercados cerrados nadie presta: el banco central imprimió M$ ${(debtSettlement.monetized / 1_000_000).toFixed(1)} para cubrir el déficit y la inflación sube.`,
+    });
+  }
+  updateCreditScore(newState, { monthlyRevenue: income, monthlyExpenses: expenses });
+  allNotifications.push(...advanceDebtCrisis(newState, { monthlyRevenue: income, monthlyExpenses: expenses }));
   if (!(newState.fiscalBaseReference && newState.fiscalBaseReference > 0)) {
     const reference = collectibleBase(newState.gdp, evasionRate(newState.officials, newState.organisms));
     newState.fiscalBaseReference = reference > 0 ? reference : null;

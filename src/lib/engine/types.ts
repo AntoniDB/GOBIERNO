@@ -49,6 +49,16 @@ export interface GameState {
   totalExports: number;
   /** Deuda pública acumulada (Economía, Fase 1). Sin dato = 0. */
   publicDebt?: number;
+  /** Puntaje de calificación crediticia 0-100 (engine/rating.ts). null/ausente = aún sin calcular (primer turno). */
+  creditScore?: number | null;
+  /** Crisis de deuda abierta: turnos que lleva sin resolverse (0 = no hay crisis). Ver engine/debt-crisis.ts. */
+  debtCrisisMonths?: number;
+  /** Turnos que faltan para que pueda abrirse otra crisis de deuda */
+  debtCrisisCooldown?: number;
+  /** Turnos que los mercados siguen cerrados tras un default (no se emite deuda: se monetiza el déficit) */
+  marketsClosedMonths?: number;
+  /** Meses desde el último default (null/ausente = nunca) */
+  monthsSinceDefault?: number | null;
   /**
    * Base imponible (PIB neto de evasión) del primer mes jugado: la recaudación se mide contra ella.
    * null/ausente = aún sin fijar (se fija al cerrar el primer turno).
@@ -362,6 +372,8 @@ export interface MonthSnapshotData {
   totalExports: number;
   /** Deuda pública al cierre del mes. */
   publicDebt?: number;
+  /** Puntaje de calificación crediticia (0-100) al cierre del mes. */
+  creditScore?: number;
 }
 
 export interface TurnNotification {
@@ -394,6 +406,8 @@ export interface MediaPollData {
 export interface TurnInput {
   /** Ajustes de presupuesto por ministerio key → nuevo % */
   budgetAdjustments?: Record<string, number>;
+  /** Respuesta a una crisis de deuda abierta: recorte de austeridad o default (se ignora si no hay crisis) */
+  debtCrisisResponse?: "AUSTERITY" | "DEFAULT";
   /** Sub-decisiones modificadas por ministerio key → { key: value } */
   subDecisionChanges?: Record<string, Record<string, number | boolean>>;
   /** Leyes propuestas este mes (keys del catálogo) */

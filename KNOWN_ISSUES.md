@@ -608,6 +608,18 @@ partida usaba otra cuenta, con todos los eventos históricos). BALANCE.md, secci
 aprobación general queda entre 31 y 56 (antes de los arreglos, 4–100). Con mala gestión sostenida (presupuestos al 2 %, corrupción
 85) el juego sí termina en golpe de estado en 1–3 meses.
 
+## 25. Los efectos de los eventos sobre desempleo, enfermos, crimen y alimentación se pierden al cerrar el turno — ABIERTO
+
+**Qué pasa (por lectura del código; no se probó en ejecución):** `applyEventEffects` suma deltas de `unemploymentRate`, `sickRate`,
+`crimeRate` y `foodSecurity` al estado (paso 11b), pero el paso 8 recalcula esos indicadores desde su fórmula cada mes y
+`createMonthSnapshot` los vuelve a calcular con `calculateUnemployment` / `calculateHealthRegional` / `calculateCrime` /
+`calculateFoodSecurity`: el snapshot nunca ve el delta del evento. Solo persisten el costo al tesoro y la inflación (que ya tiene memoria).
+Afecta a la crisis económica (`unemploymentIncrease`), a las epidemias, a las olas de crimen y a los desastres. Por eso la Fase 3 no
+usa efectos de desempleo en el default ni en los eventos de mercado.
+
+**Arreglo propuesto:** darles a esos indicadores un componente de "shock" con inercia (como la inflación) o aplicar el delta dentro de la
+fórmula del mes siguiente.
+
 ## Nota para producción: Auth.js exige host de confianza
 
 Con `next start` (modo producción) Auth.js v5 responde `UntrustedHost: Host must be trusted` y el inicio de sesión falla si no se

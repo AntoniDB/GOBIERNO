@@ -53,19 +53,99 @@ export const BALANCE = {
   // Si el tesoro cierra el mes en negativo, el faltante se cubre emitiendo deuda (el tesoro queda en 0).
   // La deuda paga intereses cada mes (gasto fijo):
   //   tasa anual = DEBT_BASE_ANNUAL_RATE + traspaso × (tasaInteres − 4,5)/100
-  //              + DEBT_RISK_PREMIUM × max(0, deuda/PIB − DEBT_SAFE_GDP_RATIO)
+  //              + diferencial según la calificación crediticia (RATING_SPREADS, Fase 3)
   // Con un superávit, lo que exceda DEBT_CASH_RESERVE_MONTHS meses de gasto amortiza deuda.
 
   DEBT_BASE_ANNUAL_RATE: 0.04,
   /** Fracción de la tasa de interés de referencia (sub-decisión) que se traslada a la deuda */
   DEBT_POLICY_RATE_PASSTHROUGH: 0.5,
-  /** Deuda/PIB a partir de la cual los mercados piden prima de riesgo */
-  DEBT_SAFE_GDP_RATIO: 0.6,
-  /** Prima anual por cada punto (1,0) de deuda/PIB por encima del umbral seguro */
-  DEBT_RISK_PREMIUM: 0.05,
   DEBT_MIN_ANNUAL_RATE: 0.01,
   /** Meses de gasto que se conservan en caja antes de amortizar deuda con el superávit */
   DEBT_CASH_RESERVE_MONTHS: 1,
+
+  // ─── Riesgo país y crisis de deuda (Economía, Fase 3) ───────────────────
+  // La calificación sale de un puntaje 0-100 (engine/rating.ts): 100 − penalizaciones por deuda/PIB, déficit,
+  // inflación, carga de intereses, inestabilidad política, corrupción y pobreza (cada una con su peso máximo)
+  // − memoria de un default reciente + bono de un Banco Central creíble. El puntaje se mueve con inercia
+  // (las agencias bajan rápido y suben despacio). La letra fija el diferencial de la deuda y dispara eventos.
+
+  /** Peso máximo (puntos de puntaje) de cada penalización */
+  RATING_W_DEBT: 35,
+  RATING_W_DEFICIT: 15,
+  RATING_W_INFLATION: 25,
+  RATING_W_BURDEN: 15,
+  RATING_W_APPROVAL: 12,
+  RATING_W_CORRUPTION: 20,
+  RATING_W_POVERTY: 30,
+  /** Riesgo estructural fijo de un mercado emergente: ningún país de la simulación llega a AAA sin esfuerzo */
+  RATING_BASE_PENALTY: 8,
+  /** Deuda/PIB sin penalización y con penalización máxima */
+  RATING_DEBT_OK: 0.3,
+  RATING_DEBT_MAX: 1.2,
+  /** Déficit (% de la recaudación del mes) con penalización máxima */
+  RATING_DEFICIT_MAX: 20,
+  /** Inflación anual (%) sin penalización y con penalización máxima */
+  RATING_INFLATION_OK: 5,
+  RATING_INFLATION_MAX: 25,
+  /** Carga de intereses (intereses / recaudación del mes) con penalización máxima */
+  RATING_BURDEN_MAX: 0.3,
+  /** Aprobación por debajo de la cual penaliza (máxima en 0) */
+  RATING_APPROVAL_OK: 40,
+  /** Corrupción global (%) sin penalización y con penalización máxima */
+  RATING_CORRUPTION_OK: 10,
+  RATING_CORRUPTION_MAX: 60,
+  /** Pobreza (%) sin penalización y con penalización máxima */
+  RATING_POVERTY_OK: 15,
+  RATING_POVERTY_MAX: 55,
+  /** Penalización máxima por un default reciente y meses que tarda en olvidarse */
+  RATING_W_DEFAULT: 30,
+  RATING_DEFAULT_MEMORY_MONTHS: 48,
+  /** Bono máximo de un Banco Central con credibilidad máxima */
+  RATING_CENTRAL_BANK_BONUS: 6,
+  /** Fracción de la distancia al puntaje objetivo que se recorre por mes: bajando / subiendo */
+  RATING_INERTIA_DOWN: 0.3,
+  RATING_INERTIA_UP: 0.12,
+  /** Puntaje mínimo de cada letra, de mayor a menor: AAA, AA, A, BBB, BB, B, CCC (debajo, D) */
+  RATING_THRESHOLDS: [88, 80, 70, 60, 48, 36, 22] as const,
+  /** Diferencial anual sobre la tasa base de la deuda, por letra */
+  RATING_SPREADS: { AAA: 0, AA: 0.002, A: 0.005, BBB: 0.01, BB: 0.02, B: 0.035, CCC: 0.06, D: 0.09 } as const,
+
+  /** Eventos de mercado: probabilidad mensual y puntaje por debajo del cual pueden ocurrir */
+  RATING_EVENT_CAPITAL_FLIGHT_SCORE: 48,
+  RATING_EVENT_CAPITAL_FLIGHT_PROB: 0.08,
+  RATING_EVENT_ATTACK_SCORE: 36,
+  RATING_EVENT_ATTACK_PROB: 0.06,
+  /** Efectos por punto de severidad: inflación y costo por habitante (fuga de capitales) */
+  RATING_CAPITAL_FLIGHT_INFLATION: 0.04,
+  RATING_CAPITAL_FLIGHT_COST_PER_CAPITA: 0.08,
+  /** Ataque especulativo: inflación, costo por habitante y puntaje de calificación que se pierde (a severidad 100) */
+  RATING_ATTACK_INFLATION: 0.05,
+  RATING_ATTACK_COST_PER_CAPITA: 0.05,
+  RATING_ATTACK_SCORE_HIT: 12,
+
+  /**
+   * Crisis de deuda: se abre cuando no se pueden pagar los intereses con comodidad —
+   * intereses / recaudación del mes ≥ DEBT_CRISIS_INTEREST_BURDEN, o deuda/PIB ≥ DEBT_CRISIS_DEBT_GDP.
+   * El jugador elige austeridad o default; si no responde en DEBT_CRISIS_GRACE_MONTHS turnos, cae en default.
+   */
+  DEBT_CRISIS_INTEREST_BURDEN: 0.2,
+  DEBT_CRISIS_DEBT_GDP: 1.5,
+  DEBT_CRISIS_GRACE_MONTHS: 2,
+  /** Meses sin nueva crisis tras resolver una (austeridad o default) */
+  DEBT_CRISIS_COOLDOWN_MONTHS: 6,
+  /** Austeridad: recorte relativo de todos los presupuestos ministeriales, golpe de aprobación y bono de puntaje */
+  AUSTERITY_BUDGET_CUT: 0.2,
+  AUSTERITY_APPROVAL_HIT: 8,
+  AUSTERITY_SCORE_BONUS: 10,
+  /** Default: quita de la deuda, puntaje al piso, cierre de mercados (meses), sanciones y golpes a la economía */
+  DEFAULT_HAIRCUT: 0.4,
+  DEFAULT_SCORE: 8,
+  DEFAULT_MARKET_CLOSURE_MONTHS: 18,
+  DEFAULT_SANCTIONS_MULTIPLIER: 1.5,
+  DEFAULT_APPROVAL_HIT: 15,
+  DEFAULT_INFLATION_SHOCK: 6,
+  /** Peso por clase de los golpes de aprobación de la austeridad y el default */
+  CRISIS_APPROVAL_CLASS_WEIGHT: { EXTREME_POVERTY: 1.4, POVERTY: 1.3, MIDDLE: 1.0, ELITE: 0.4 } as const,
 
   /**
    * Población con la que se calibraron los costos fijos en USD (programas,
@@ -365,6 +445,9 @@ export const BALANCE = {
     // Escándalo de mala praxis y filtraciones: como un escándalo
     MALPRACTICE_SCANDAL:{ EXTREME_POVERTY: 0.4, POVERTY: 0.5, MIDDLE: 1.2, ELITE: 1.3 },
     LEAK:               { EXTREME_POVERTY: 0.4, POVERTY: 0.5, MIDDLE: 1.2, ELITE: 1.3 },
+    // Eventos de mercado: golpean sobre todo a quienes tienen ahorros y empleo formal
+    CAPITAL_FLIGHT:     { EXTREME_POVERTY: 0.6, POVERTY: 0.9, MIDDLE: 1.3, ELITE: 1.0 },
+    SPECULATIVE_ATTACK: { EXTREME_POVERTY: 0.6, POVERTY: 0.9, MIDDLE: 1.3, ELITE: 1.0 },
   } as const,
 
   // ─── Medios ──────────────────────────────────────────────────────────────

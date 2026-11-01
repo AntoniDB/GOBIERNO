@@ -503,6 +503,69 @@ inflación    = clamp(anterior + INFLATION_ADJUST × credibilidad × (equilibrio
   estable (≈3 %) la pobreza queda ~0,8 puntos más alta que con la escala mensual anterior.
 - Partidas existentes: su inflación guardada (≈0,2) se lee como anual y converge a la meta.
 
+## Riesgo país y crisis de deuda (Economía, Fase 3)
+
+**Calificación crediticia** (`engine/rating.ts`, paso 13b del turno; `Game.creditScore`, `MonthSnapshot.creditScore`): un puntaje 0-100
+que resume qué tan fiable es el país para los mercados, con la letra AAA … D.
+
+```
+objetivo = 100 − RATING_BASE_PENALTY − Σ penalizaciones − memoria de default + bono del Banco Central      (acotado a [0, 100])
+penalización_i = peso_i × clamp((indicador − ok) / (máx − ok), 0, 1)
+puntaje(t) = puntaje(t−1) + k × (objetivo − puntaje(t−1))     k = RATING_INERTIA_DOWN si baja, RATING_INERTIA_UP si sube
+```
+
+| Penalización | Peso máx. | Indicador (sin penalización → máximo) |
+|---|---|---|
+| deuda | `RATING_W_DEBT` (35) | deuda/PIB `RATING_DEBT_OK` (0.3) → `RATING_DEBT_MAX` (1.2) |
+| déficit | `RATING_W_DEFICIT` (15) | déficit del mes en % de la recaudación 0 → `RATING_DEFICIT_MAX` (20) |
+| inflación | `RATING_W_INFLATION` (25) | inflación anual `RATING_INFLATION_OK` (5) → `RATING_INFLATION_MAX` (25) |
+| intereses | `RATING_W_BURDEN` (15) | intereses / recaudación 0 → `RATING_BURDEN_MAX` (0.3) |
+| inestabilidad | `RATING_W_APPROVAL` (12) | aprobación `RATING_APPROVAL_OK` (40) → 0 |
+| corrupción | `RATING_W_CORRUPTION` (20) | corrupción global `RATING_CORRUPTION_OK` (10) → `RATING_CORRUPTION_MAX` (60) |
+| pobreza | `RATING_W_POVERTY` (30) | pobreza `RATING_POVERTY_OK` (15) → `RATING_POVERTY_MAX` (55) |
+
+- `RATING_BASE_PENALTY` (8): riesgo estructural fijo de un mercado emergente.
+- Default reciente: `RATING_W_DEFAULT` (30) que se olvida linealmente en `RATING_DEFAULT_MEMORY_MONTHS` (48). Banco Central: hasta
+  `RATING_CENTRAL_BANK_BONUS` (6) según su credibilidad.
+- `RATING_INERTIA_DOWN` (0.3) y `RATING_INERTIA_UP` (0.12): las agencias bajan rápido y suben despacio. Sin puntaje previo (primer turno, o
+  una partida anterior a la Fase 3) arranca en el objetivo, sin transitorio.
+- Letras por puntaje mínimo (`RATING_THRESHOLDS`): AAA 88, AA 80, A 70, BBB 60, BB 48, B 36, CCC 22, D debajo.
+- Diferencial anual de la deuda por letra (`RATING_SPREADS`): AAA 0, AA 0,2 %, A 0,5 %, BBB 1 %, BB 2 %, B 3,5 %, CCC 6 %, D 9 %. Con los
+  mercados cerrados tras un default la deuda que queda es la reestructurada y no paga diferencial.
+- Calibración (e2e, 36 turnos sin intervención): `estable_democratico` A (≈76-80), `pobre_con_potencial` BBB (69 → 54 con la deuda que
+  acumula), `crisis_economica` B → BB (46 → 54), `post_conflicto` BB → BBB (59 → 65).
+
+**Eventos de mercado** (`events.ts`): con puntaje bajo `RATING_EVENT_CAPITAL_FLIGHT_SCORE` (48, BB o peor) puede ocurrir una *fuga de capitales*
+(probabilidad `RATING_EVENT_CAPITAL_FLIGHT_PROB` 0.08/mes; severidad 30 + 2 por punto bajo el umbral): inflación `RATING_CAPITAL_FLIGHT_INFLATION`
+(0.04) y costo `RATING_CAPITAL_FLIGHT_COST_PER_CAPITA` (0.08) por habitante por punto de severidad. Bajo `RATING_EVENT_ATTACK_SCORE` (36, B o peor), un
+*ataque especulativo* (`RATING_EVENT_ATTACK_PROB` 0.06; severidad 30 + 2,5 por punto): inflación `RATING_ATTACK_INFLATION` (0.05), costo
+`RATING_ATTACK_COST_PER_CAPITA` (0.05) y hasta `RATING_ATTACK_SCORE_HIT` (12) puntos de calificación. Son eventos negativos para la aprobación
+(`EVENT_CLASS_IMPACT`: la clase media los siente más). Requieren los valores `CAPITAL_FLIGHT` y `SPECULATIVE_ATTACK` del enum `EventType`
+(migración `20261101000000_credit_rating`).
+
+**Crisis de deuda** (`engine/debt-crisis.ts`):
+
+```
+abre la crisis   si intereses/recaudación ≥ DEBT_CRISIS_INTEREST_BURDEN (0.2) o deuda/PIB ≥ DEBT_CRISIS_DEBT_GDP (1.5)
+                 (y no hay enfriamiento ni mercados cerrados); aviso al jugador
+AUSTERIDAD       presupuestos × (1 − AUSTERITY_BUDGET_CUT 0.2), aprobación −AUSTERITY_APPROVAL_HIT (8) × peso de clase,
+                 calificación +AUSTERITY_SCORE_BONUS (10); crisis cerrada; enfriamiento DEBT_CRISIS_COOLDOWN_MONTHS (6)
+DEFAULT          deuda × (1 − DEFAULT_HAIRCUT 0.4), calificación = DEFAULT_SCORE (8), mercados cerrados DEFAULT_MARKET_CLOSURE_MONTHS (18),
+                 sanciones DEFAULT_SANCTIONS_MULTIPLIER (1.5), inflación +DEFAULT_INFLATION_SHOCK (6), aprobación −DEFAULT_APPROVAL_HIT (15)
+                 × peso de clase (CRISIS_APPROVAL_CLASS_WEIGHT: 1.4 / 1.3 / 1.0 / 0.4 de pobreza extrema a élite)
+sin respuesta    tras DEBT_CRISIS_GRACE_MONTHS (2) turnos sin elegir, default automático
+mercados cerrados  no se emite deuda: el faltante de caja se imprime (inflación = INFLATION_EMISSION_FACTOR × déficit% × INFLATION_ADJUST × credibilidad)
+```
+
+- La respuesta es `TurnInput.debtCrisisResponse` ("AUSTERITY" | "DEFAULT"): se aplica en el paso 1, después de los ajustes de presupuesto del jugador;
+  sin crisis abierta se ignora con un aviso.
+- La austeridad estabiliza una carga de intereses cercana al umbral (con el umbral en 0.2, un recorte del 20 % deja el déficit en ~1 % de la
+  recaudación); con una deuda mucho mayor solo da tiempo y la crisis vuelve a abrirse tras el enfriamiento (e2e: deuda 68 % del PIB, la
+  austeridad frena la deuda y la calificación se estabiliza en BB-B). El default deja la carga de intereses en ~12 %: sin recortes posteriores el
+  déficit monetizado empuja la inflación (≈ 20 → 45 % en dos años) y la crisis puede repetirse al reabrirse los mercados.
+- Los efectos del default sobre aprobación e inflación persisten por la inercia de ambas; el desempleo no se modifica (el motor lo recalcula
+  cada mes desde su fórmula, ver KNOWN_ISSUES #25).
+
 ## Política fiscal y deuda pública (Economía, Fase 1)
 
 Antes la recaudación solo dependía de la población y de las leyes: el PIB, la corrupción y la
@@ -544,13 +607,13 @@ recaudación = potencial × (base / base del primer mes)^TAX_BASE_ELASTICITY
 tesoro < 0                    → se emite deuda por el faltante, tesoro = 0 (aviso al jugador)
 tesoro > reserva (con deuda)  → el excedente amortiza deuda; reserva = gasto del mes × meses de reserva
 tasa anual = DEBT_BASE_ANNUAL_RATE + traspaso × (tasaInteres − 4,5)/100
-           + DEBT_RISK_PREMIUM × max(0, deuda/PIB − DEBT_SAFE_GDP_RATIO)      (mín. DEBT_MIN_ANNUAL_RATE)
+           + diferencial de la calificación crediticia (RATING_SPREADS, Fase 3)  (mín. DEBT_MIN_ANNUAL_RATE)
 intereses/mes = deuda × tasa anual / 12                                       (gasto fijo del mes)
 ```
 
 - `DEBT_BASE_ANNUAL_RATE` (0.04), `DEBT_POLICY_RATE_PASSTHROUGH` (0.5): subir la tasa de referencia
-  encarece la deuda. `DEBT_SAFE_GDP_RATIO` (0.6) y `DEBT_RISK_PREMIUM` (0.05): por encima del 60% del
-  PIB se paga prima de riesgo. `DEBT_MIN_ANNUAL_RATE` (0.01). `DEBT_CASH_RESERVE_MONTHS` (1).
+  encarece la deuda. `DEBT_MIN_ANNUAL_RATE` (0.01). `DEBT_CASH_RESERVE_MONTHS` (1). Antes el recargo era una
+  prima por deuda/PIB sobre 60 %; ahora lo da la calificación (que ya incluye la deuda/PIB).
 - Los intereses entran en el gasto comprometido (`calculateCommittedSpending`), así que la UI de
   presupuesto los descuenta del margen de los ministerios.
 - Importaciones (`trade.ts`) y desastres (eventos) ya no tienen piso en 0: lo que supera la caja se

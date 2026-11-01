@@ -13,6 +13,7 @@ import { createRNG } from "@/lib/rng";
 import { processTurn } from "@/lib/engine/turn";
 import { resolveLawEnactments } from "@/lib/engine/economy";
 import { settlePublicDebt } from "@/lib/engine/fiscal";
+import { areMarketsClosed } from "@/lib/engine/debt-crisis";
 import { simulateSenateVote } from "@/lib/engine/congress";
 import type {
   GameState, MinistryProgramState, MonthSnapshotData, RegimeMetricsState, LawCatalogEntry,
@@ -235,6 +236,11 @@ function buildGameState(game: any, latestMetrics: RegimeMetricsState | null, lat
     sanctionsMultiplier: (game.sanctionsMultiplier as number) ?? 1.0,
     publicDebt: (game.publicDebt as number) ?? 0,
     fiscalBaseReference: (game.fiscalBaseReference as number | null) ?? null,
+    creditScore: (game.creditScore as number | null) ?? null,
+    debtCrisisMonths: (game.debtCrisisMonths as number) ?? 0,
+    debtCrisisCooldown: (game.debtCrisisCooldown as number) ?? 0,
+    marketsClosedMonths: (game.marketsClosedMonths as number) ?? 0,
+    monthsSinceDefault: (game.monthsSinceDefault as number | null) ?? null,
     tradeGoods: (game.tradeGoods ?? []).map((tg: Record<string, unknown>) => ({
       id: tg.id as string,
       gameId: tg.gameId as string,
@@ -458,7 +464,9 @@ export async function advanceMonth(
   newState.treasury -= enactment.totalCost;
   // Si el costo de promulgar supera la caja, el faltante se financia con deuda (sin amortizar:
   // el cierre del mes ya se hizo en el motor).
-  settlePublicDebt(newState, 0, false);
+  // Con los mercados cerrados tras un default no se emite deuda: el costo se absorbe sin más.
+  if (areMarketsClosed(newState)) newState.treasury = Math.max(0, newState.treasury);
+  else settlePublicDebt(newState, 0, false);
   monthSnapshot.treasury = newState.treasury;
   monthSnapshot.publicDebt = newState.publicDebt ?? 0;
 
